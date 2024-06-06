@@ -1,0 +1,3 @@
+[submodule "wolfssl-rs"]
+	path = wolfssl-rs
+	url = git@github.com:expressvpn/wolfssl-rs.git
