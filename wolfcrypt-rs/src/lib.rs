@@ -13,6 +13,6 @@
  * Note: 
  * When running 'cargo test' there are 
  * a bunch of warnings about the u128 type not being FFI safe, 
- * should be fixed by upgrading to llvm-18.
+ * can be fixed by upgrading to llvm-18.
  * */
 pub mod bindings;
