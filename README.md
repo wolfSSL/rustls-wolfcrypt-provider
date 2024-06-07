@@ -1,2 +1,2 @@
 # rustls-wolfssl-provider
-Code that let you use wolfssl as the crypto provider for rustls.
+Code that let you use wolfcrypt as the crypto provider for rustls.
