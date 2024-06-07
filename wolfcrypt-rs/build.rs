@@ -2,6 +2,7 @@ extern crate bindgen;
 
 use std::env;
 use std::path::PathBuf;
+use std::fs;
 
 fn main() {
     // Tell cargo to look for shared libraries in the specified directory.
@@ -31,4 +32,9 @@ fn main() {
     bindings
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
+
+    // For convenience, we copy the content of bindings.rs into the new file
+    // inside the src directory from the OUT_DIR.
+    fs::copy(out_path.join("bindings.rs"), "./src/bindings.rs")
+        .expect("Couldn't copy bindings to src directory!");
 }
