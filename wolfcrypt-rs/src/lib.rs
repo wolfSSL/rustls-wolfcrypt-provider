@@ -15,4 +15,3 @@
  * a bunch of warnings about the u128 type not being FFI safe, 
  * can be fixed by upgrading to llvm-18.
  * */
-pub mod bindings;
