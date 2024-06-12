@@ -10,25 +10,38 @@ pub use bindings::*;
 
 use std::mem;
 
+fn extract_string_from_u8_array(plain: &[u8]) -> Option<String> {
+    // Convert the u8 array into a string slice
+    match std::str::from_utf8(plain) {
+        Ok(s) => Some(s.to_string()), // If successful, convert the string slice to a String
+        Err(_) => None, // If the conversion fails, return None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn rsa_encrypt_decrypt() {
-        let mut rng: WC_RNG = unsafe { mem::zeroed() };
-        let rng_ptr: *mut bindings::WC_RNG = &mut rng;
-        let mut rsa_key: RsaKey = unsafe { mem::zeroed() };
-        let rsa_key_ptr: *mut bindings::RsaKey = &mut rsa_key;
-        let input: String = "I use Turing Machines to ask questions".to_string();
-        let input_u8: *const u8 = input.as_ptr() as *const u8;
-        let mut out: [u8; 256] = [0; 256];
-        let out_ptr: *mut u8 = out.as_mut_ptr();
-        let mut plain: [u8; 256] = [0; 256];
-        let plain_ptr: *mut u8 = plain.as_mut_ptr();
-        let mut ret;
-
         unsafe {
+            let mut rng: WC_RNG = unsafe { mem::zeroed() };
+            let rng_ptr: *mut bindings::WC_RNG = &mut rng;
+
+            let mut rsa_key: RsaKey = unsafe { mem::zeroed() };
+            let rsa_key_ptr: *mut bindings::RsaKey = &mut rsa_key;
+
+            let mut input: String = "I use Turing Machines to ask questions".to_string();
+            let input_ptr: *mut u8 = input.as_mut_ptr();
+            let input_length: word32 = input.len() as word32;
+
+            let mut out: [u8; 256] = [0; 256];
+            let out_ptr: *mut u8 = out.as_mut_ptr();
+
+            let mut plain: [u8; 256] = [0; 256];
+            let plain_ptr: *mut u8 = plain.as_mut_ptr();
+
+            let mut ret;
             ret = wc_InitRsaKey(rsa_key_ptr, std::ptr::null_mut());
             if ret != 0 {
                 panic!("Error while initializing Rsa key! Ret value: {}", ret);
@@ -50,8 +63,8 @@ mod tests {
             }
 
             ret = wc_RsaPublicEncrypt(
-                input_u8,
-                mem::size_of_val(&*input_u8).try_into().unwrap(),
+                input_ptr,
+                input_length,
                 out_ptr,
                 mem::size_of_val(&out).try_into().unwrap(),
                 rsa_key_ptr,
@@ -74,8 +87,12 @@ mod tests {
                 panic!("Error while decrypting with RSA! Ret value: {}", ret);
             }
 
+            let plain_str = String::from_utf8_lossy(&plain).to_string();
+            let input_str = std::ffi::CStr::from_ptr(input_ptr as *const std::os::raw::c_char)
+                .to_str()
+                .expect("Failed to convert C string to str");
 
-            assert!(ret > 0);
+            assert_eq!(plain_str.trim_end_matches('\0'), input_str);
 
             wc_FreeRsaKey(rsa_key_ptr);
             wc_FreeRng(rng_ptr);
