@@ -74,7 +74,11 @@ mod tests {
                 panic!("Error while decrypting with RSA! Ret value: {}", ret);
             }
 
+
             assert!(ret > 0);
+
+            wc_FreeRsaKey(rsa_key_ptr);
+            wc_FreeRng(rng_ptr);
         }
     }
 }
