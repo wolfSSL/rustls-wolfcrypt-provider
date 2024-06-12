@@ -10,14 +10,6 @@ pub use bindings::*;
 
 use std::mem;
 
-fn extract_string_from_u8_array(plain: &[u8]) -> Option<String> {
-    // Convert the u8 array into a string slice
-    match std::str::from_utf8(plain) {
-        Ok(s) => Some(s.to_string()), // If successful, convert the string slice to a String
-        Err(_) => None, // If the conversion fails, return None
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
