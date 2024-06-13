@@ -1,14 +1,10 @@
-/*
- * TODO: Write more sanity checks for more coverage of
- *       the wolfcrypt bindings, for now I only wrote
- *       a simple RSA encrypt/decrypt test even though all 
- *       the bindgen tests seems pass).
- * */
-
-mod bindings;
+pub mod bindings;
 pub use bindings::*;
 
-use std::mem;
+mod random;
+pub use random::*;
+
+use core::mem;
 
 #[cfg(test)]
 mod tests {
@@ -17,10 +13,10 @@ mod tests {
     #[test]
     fn rsa_encrypt_decrypt() {
         unsafe {
-            let mut rng: WC_RNG = unsafe { mem::zeroed() };
+            let mut rng: WC_RNG = mem::zeroed();
             let rng_ptr: *mut bindings::WC_RNG = &mut rng;
 
-            let mut rsa_key: RsaKey = unsafe { mem::zeroed() };
+            let mut rsa_key: RsaKey = mem::zeroed();
             let rsa_key_ptr: *mut bindings::RsaKey = &mut rsa_key;
 
             let mut input: String = "I use Turing Machines to ask questions".to_string();
@@ -89,5 +85,16 @@ mod tests {
             wc_FreeRsaKey(rsa_key_ptr);
             wc_FreeRng(rng_ptr);
         }
+    }
+
+    #[test]
+    fn random() {
+        let mut buff_1: [u8; 10] = [0; 10];
+        let mut buff_2: [u8; 10] = [0; 10];
+
+        wolfcrypt_random_buffer_generator(&mut buff_1);
+        wolfcrypt_random_buffer_generator(&mut buff_2);
+
+        assert_ne!(buff_1, buff_2);
     }
 }
