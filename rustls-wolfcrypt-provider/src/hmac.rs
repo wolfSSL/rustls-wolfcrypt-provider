@@ -1,10 +1,11 @@
+#![allow(warnings)]
 use alloc::boxed::Box;
 
 use hmac::{Hmac, Mac};
 use rustls::crypto;
 use sha2::{Digest, Sha256};
 use core::mem;
-use std::{eprintln, println};
+use std::{eprintln, println, vec::Vec};
 
 use wolfcrypt_rs::*;
 
@@ -20,17 +21,76 @@ impl crypto::hmac::Hmac for Sha256Hmac {
     }
 }
 
-struct Sha256HmacKey(Hmac<Sha256>);
+struct WCHmacKey {
+    hmac_struct: wolfcrypt_rs::Hmac,
+    key: Vec<u8>,
+}
 
-impl crypto::hmac::Key for Sha256HmacKey {
-    fn sign_concat(&self, first: &[u8], middle: &[&[u8]], last: &[u8]) -> crypto::hmac::Tag {
-        let mut ctx = self.0.clone();
-        ctx.update(first);
-        for m in middle {
-            ctx.update(m);
+impl WCHmacKey {
+    fn hmac_init(&mut self) {
+        unsafe {
+            let ret;
+            ret = wc_HmacSetKey(
+                &mut self.hmac_struct, 
+                WC_SHA256.try_into().unwrap(), 
+                self.key.as_mut_ptr(), 
+                mem::size_of_val(&self.key).try_into().unwrap()
+            );
+            if ret != 0 {
+                panic!("wc_HmacSetKey failed with ret value: {}", ret);
+            }
         }
-        ctx.update(last);
-        crypto::hmac::Tag::new(&ctx.finalize().into_bytes()[..])
+    }
+
+    fn hmac_update(&mut self, buffer: &[u8]) {
+        unsafe {
+            let ret;
+            ret = wc_HmacUpdate(
+                &mut self.hmac_struct, 
+                buffer.as_ptr(), 
+                mem::size_of_val(&self.key).try_into().unwrap()
+            );
+            if ret != 0 {
+                panic!("wc_HmacUpdate failed with ret value: {}", ret);
+            }
+        }
+    }
+
+    fn hmac_final(&mut self, hmac_digest: *mut u8) {
+        unsafe {
+            let ret;
+            ret = wc_HmacFinal(
+                &mut self.hmac_struct, 
+                hmac_digest
+            );
+            if ret != 0 {
+                panic!("wc_HmacFinal failed with ret value: {}", ret);
+            }
+        }
+    }
+}
+
+impl crypto::hmac::Key for WCHmacKey {
+    fn sign_concat(&self, first: &[u8], middle: &[&[u8]], last: &[u8]) -> crypto::hmac::Tag {
+        // Initialize the HMAC object.
+        self.hmac_init();
+
+        // We update the message to authenticate using HMAC.
+        self.update(first);
+        for m in middle {
+            self.update(m);
+        }
+        self.hmac_update(last);
+
+
+        // Finally, we compute the final hash of the HMAC object created with self.init()...
+        const WC_SHA_256_DIGEST_SIZE_USIZE: usize = WC_SHA256_DIGEST_SIZE as usize;
+        let mut digest: [u8; WC_SHA_256_DIGEST_SIZE_USIZE] = [0; WC_SHA_256_DIGEST_SIZE_USIZE];
+        self.hmac_final(digest.as_mut_ptr());
+        let mut digest_length = mem::size_of_val(&digest);
+
+        //...and tag it.
+        crypto::hmac::Tag::new(&digest[..digest_length])
     }
 
     fn tag_len(&self) -> usize {
@@ -38,47 +98,14 @@ impl crypto::hmac::Key for Sha256HmacKey {
     }
 }
 
+
 mod tests {
     use super::*;
 
     #[test]
     fn sha_256_hmac() {
-        unsafe {
-            let mut hmac: wolfcrypt_rs::Hmac = mem::zeroed();
-            let mut key: [u8; 24] = [9; 24];
-            let mut buffer: [u8; 2048] = [123; 2048];
-            const WC_SHA_256_DIGEST_SIZE_USIZE: usize = WC_SHA256_DIGEST_SIZE as usize;
-            let mut hmac_digest: [u8; WC_SHA_256_DIGEST_SIZE_USIZE] = [0; WC_SHA_256_DIGEST_SIZE_USIZE];
-            let mut ret;
+        let ret = 0;
 
-            ret = wc_HmacSetKey(
-                &mut hmac, 
-                WC_SHA256.try_into().unwrap(), 
-                key.as_mut_ptr(), 
-                mem::size_of_val(&key).try_into().unwrap()
-            );
-            if ret != 0 {
-                panic!("wc_HmacSetKey failed with ret value: {}", ret);
-            }
-
-            ret = wc_HmacUpdate(
-                &mut hmac, 
-                buffer.as_mut_ptr(), 
-                mem::size_of_val(&key).try_into().unwrap()
-            );
-            if ret != 0 {
-                panic!("wc_HmacUpdate failed with ret value: {}", ret);
-            }
-
-            ret = wc_HmacFinal(
-                &mut hmac, 
-                hmac_digest.as_mut_ptr()
-            );
-            if ret != 0 {
-                panic!("wc_HmacFinal failed with ret value: {}", ret);
-            }
-
-            assert_eq!(0, ret);
-        }
+        assert_eq!(0, ret);
     }
 }
