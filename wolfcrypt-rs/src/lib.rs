@@ -1,9 +1,6 @@
 pub mod bindings;
 pub use bindings::*;
 
-mod random;
-pub use random::*;
-
 use core::mem;
 
 #[cfg(test)]
@@ -77,16 +74,5 @@ mod tests {
             wc_FreeRsaKey(&mut rsa_key);
             wc_FreeRng(&mut rng);
         }
-    }
-
-    #[test]
-    fn random() {
-        let mut buff_1: [u8; 10] = [0; 10];
-        let mut buff_2: [u8; 10] = [0; 10];
-
-        wolfcrypt_random_buffer_generator(&mut buff_1);
-        wolfcrypt_random_buffer_generator(&mut buff_2);
-
-        assert_ne!(buff_1, buff_2);
     }
 }

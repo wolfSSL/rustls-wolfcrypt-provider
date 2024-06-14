@@ -4,7 +4,7 @@
  * that can be used as input into the rustls
  * API.
  * */
-use crate::bindings::*;
+use wolfcrypt_rs::*;
 
 use core::mem;
 
@@ -25,5 +25,19 @@ pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) {
         if ret != 0 {
             panic!("Error while generating block!");
         }
+    }
+}
+
+mod tests {
+    use super::*;
+    #[test]
+    fn random() {
+        let mut buff_1: [u8; 10] = [0; 10];
+        let mut buff_2: [u8; 10] = [0; 10];
+
+        wolfcrypt_random_buffer_generator(&mut buff_1);
+        wolfcrypt_random_buffer_generator(&mut buff_2);
+
+        assert_ne!(buff_1, buff_2);
     }
 }

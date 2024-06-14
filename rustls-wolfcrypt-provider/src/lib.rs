@@ -8,8 +8,8 @@ use alloc::sync::Arc;
 
 use rustls::crypto::CryptoProvider;
 use rustls::pki_types::PrivateKeyDer;
-use wolfcrypt_rs::{wolfcrypt_random_buffer_generator};
 
+mod random;
 mod aead;
 mod hash;
 mod hmac;
@@ -37,7 +37,7 @@ struct Provider;
 
 impl rustls::crypto::SecureRandom for Provider {
     fn fill(&self, bytes: &mut [u8]) -> Result<(), rustls::crypto::GetRandomFailed> {
-        wolfcrypt_random_buffer_generator(bytes);
+        random::wolfcrypt_random_buffer_generator(bytes);
         Ok(())
     }
 }
