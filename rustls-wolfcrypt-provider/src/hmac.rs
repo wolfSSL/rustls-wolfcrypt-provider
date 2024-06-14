@@ -3,6 +3,10 @@ use alloc::boxed::Box;
 use hmac::{Hmac, Mac};
 use rustls::crypto;
 use sha2::{Digest, Sha256};
+use core::mem;
+use std::{eprintln, println};
+
+use wolfcrypt_rs::*;
 
 pub struct Sha256Hmac;
 
@@ -31,5 +35,50 @@ impl crypto::hmac::Key for Sha256HmacKey {
 
     fn tag_len(&self) -> usize {
         Sha256::output_size()
+    }
+}
+
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sha_256_hmac() {
+        unsafe {
+            let mut hmac: wolfcrypt_rs::Hmac = mem::zeroed();
+            let mut key: [u8; 24] = [9; 24];
+            let mut buffer: [u8; 2048] = [123; 2048];
+            const WC_SHA_256_DIGEST_SIZE_USIZE: usize = WC_SHA256_DIGEST_SIZE as usize;
+            let mut hmac_digest: [u8; WC_SHA_256_DIGEST_SIZE_USIZE] = [0; WC_SHA_256_DIGEST_SIZE_USIZE];
+            let mut ret;
+
+            ret = wc_HmacSetKey(
+                &mut hmac, 
+                WC_SHA256.try_into().unwrap(), 
+                key.as_mut_ptr(), 
+                mem::size_of_val(&key).try_into().unwrap()
+            );
+            if ret != 0 {
+                panic!("wc_HmacSetKey failed with ret value: {}", ret);
+            }
+
+            ret = wc_HmacUpdate(
+                &mut hmac, 
+                buffer.as_mut_ptr(), 
+                mem::size_of_val(&key).try_into().unwrap()
+            );
+            if ret != 0 {
+                panic!("wc_HmacUpdate failed with ret value: {}", ret);
+            }
+
+            ret = wc_HmacFinal(
+                &mut hmac, 
+                hmac_digest.as_mut_ptr()
+            );
+            if ret != 0 {
+                panic!("wc_HmacFinal failed with ret value: {}", ret);
+            }
+
+            assert_eq!(0, ret);
+        }
     }
 }
