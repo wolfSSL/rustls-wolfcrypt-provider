@@ -1,39 +1,50 @@
-#![allow(warnings)]
 use alloc::boxed::Box;
 
-use hmac::{Hmac, Mac};
+use std::cell::UnsafeCell;
 use rustls::crypto;
+use std::cell::RefCell;
 use sha2::{Digest, Sha256};
 use core::mem;
-use std::{eprintln, println, vec::Vec};
+use std::{vec::Vec};
 
 use wolfcrypt_rs::*;
 
-pub struct Sha256Hmac;
+pub struct WCSha256Hmac;
 
-impl crypto::hmac::Hmac for Sha256Hmac {
+impl crypto::hmac::Hmac for WCSha256Hmac {
     fn with_key(&self, key: &[u8]) -> Box<dyn crypto::hmac::Key> {
-        Box::new(Sha256HmacKey(Hmac::<Sha256>::new_from_slice(key).unwrap()))
+        unsafe {
+            let hmac_object: wolfcrypt_rs::Hmac = mem::zeroed();
+            Box::new(WCHmacKey {
+                hmac_object: hmac_object.into(),
+                key: key.to_vec().into()
+            })
+        }
     }
 
     fn hash_output_len(&self) -> usize {
-        Sha256::output_size()
+        const WC_SHA_256_DIGEST_SIZE_USIZE: usize = WC_SHA256_DIGEST_SIZE as usize;
+        WC_SHA_256_DIGEST_SIZE_USIZE
     }
 }
 
 struct WCHmacKey {
-    hmac_struct: wolfcrypt_rs::Hmac,
-    key: Vec<u8>,
+    hmac_object: UnsafeCell<wolfcrypt_rs::Hmac>,
+    key: UnsafeCell<Vec<u8>>,
 }
 
 impl WCHmacKey {
-    fn hmac_init(&mut self) {
+    fn hmac_init(&self) {
         unsafe {
             let ret;
+            let hmac_object = &mut *self.hmac_object.get();
+            let key = &mut *self.key.get();
+            let key_raw_ptr: *const u8 = key.as_ptr();
+
             ret = wc_HmacSetKey(
-                &mut self.hmac_struct, 
+                hmac_object, 
                 WC_SHA256.try_into().unwrap(), 
-                self.key.as_mut_ptr(), 
+                key_raw_ptr, 
                 mem::size_of_val(&self.key).try_into().unwrap()
             );
             if ret != 0 {
@@ -42,11 +53,12 @@ impl WCHmacKey {
         }
     }
 
-    fn hmac_update(&mut self, buffer: &[u8]) {
+    fn hmac_update(&self, buffer: &[u8]) {
         unsafe {
             let ret;
+            let hmac_object = &mut *self.hmac_object.get();
             ret = wc_HmacUpdate(
-                &mut self.hmac_struct, 
+                hmac_object, 
                 buffer.as_ptr(), 
                 mem::size_of_val(&self.key).try_into().unwrap()
             );
@@ -56,11 +68,12 @@ impl WCHmacKey {
         }
     }
 
-    fn hmac_final(&mut self, hmac_digest: *mut u8) {
+    fn hmac_final(&self, hmac_digest: *mut u8) {
         unsafe {
             let ret;
+            let hmac_object = &mut *self.hmac_object.get();
             ret = wc_HmacFinal(
-                &mut self.hmac_struct, 
+                hmac_object, 
                 hmac_digest
             );
             if ret != 0 {
@@ -76,9 +89,9 @@ impl crypto::hmac::Key for WCHmacKey {
         self.hmac_init();
 
         // We update the message to authenticate using HMAC.
-        self.update(first);
+        self.hmac_update(first);
         for m in middle {
-            self.update(m);
+            self.hmac_update(m);
         }
         self.hmac_update(last);
 
@@ -87,7 +100,7 @@ impl crypto::hmac::Key for WCHmacKey {
         const WC_SHA_256_DIGEST_SIZE_USIZE: usize = WC_SHA256_DIGEST_SIZE as usize;
         let mut digest: [u8; WC_SHA_256_DIGEST_SIZE_USIZE] = [0; WC_SHA_256_DIGEST_SIZE_USIZE];
         self.hmac_final(digest.as_mut_ptr());
-        let mut digest_length = mem::size_of_val(&digest);
+        let digest_length = mem::size_of_val(&digest);
 
         //...and tag it.
         crypto::hmac::Tag::new(&digest[..digest_length])
@@ -99,9 +112,8 @@ impl crypto::hmac::Key for WCHmacKey {
 }
 
 
+#[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn sha_256_hmac() {
         let ret = 0;
