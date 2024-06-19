@@ -29,7 +29,8 @@ pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) {
 }
 
 mod tests {
-    use super::*;
+    use super::wolfcrypt_random_buffer_generator;
+
     #[test]
     fn random() {
         let mut buff_1: [u8; 10] = [0; 10];

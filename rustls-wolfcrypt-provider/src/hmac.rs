@@ -2,12 +2,9 @@ use alloc::boxed::Box;
 
 use std::cell::UnsafeCell;
 use rustls::crypto;
-use std::cell::RefCell;
 use sha2::{Digest, Sha256};
 use core::mem;
-use std::{vec::Vec, println, format, string::String};
-use std::fs::File;
-use std::io::Write;
+use std::{vec::Vec};
 
 use wolfcrypt_rs::*;
 
@@ -118,9 +115,9 @@ impl crypto::hmac::Key for WCHmacKey {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::WCSha256Hmac;
     use rustls::crypto::hmac::Hmac;
-    use hex_literal::hex;
+
   #[test]
     fn sha_256_hmac() {
         let hmac = WCSha256Hmac;
