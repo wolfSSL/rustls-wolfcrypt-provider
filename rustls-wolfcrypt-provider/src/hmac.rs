@@ -5,7 +5,9 @@ use rustls::crypto;
 use std::cell::RefCell;
 use sha2::{Digest, Sha256};
 use core::mem;
-use std::{vec::Vec};
+use std::{vec::Vec, println, format, string::String};
+use std::fs::File;
+use std::io::Write;
 
 use wolfcrypt_rs::*;
 
@@ -114,13 +116,48 @@ impl crypto::hmac::Key for WCHmacKey {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    #[test]
+    use super::*;
+    use rustls::crypto::hmac::Hmac;
+    use hex_literal::hex;
+  #[test]
     fn sha_256_hmac() {
-        let ret = 0;
+        let hmac = WCSha256Hmac;
+        let key = "this is my key".as_bytes();
+        let hash = hmac.with_key(key);
 
-        assert_eq!(0, ret);
+        let _tag = hash.sign_concat(
+            "fake it".as_bytes(),
+            &["till you".as_bytes(), "make".as_bytes()],
+            "it".as_bytes(),
+        );
+
+        // First call to sign_concat
+        let tag1 = hash.sign_concat(
+            &[],
+            &[
+                "fake it".as_bytes(),
+                "till you".as_bytes(),
+                "make".as_bytes(),
+                "it".as_bytes(),
+            ],
+            &[],
+        );
+
+        // Second call to sign_concat with the same inputs
+        let tag2 = hash.sign_concat(
+            &[],
+            &[
+                "fake it".as_bytes(),
+                "till you".as_bytes(),
+                "make".as_bytes(),
+                "it".as_bytes(),
+            ],
+            &[],
+        );
+
+        // Assert that both tags are equal
+        assert_eq!(tag1.as_ref(), tag2.as_ref());
     }
 }
