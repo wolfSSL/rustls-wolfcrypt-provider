@@ -33,6 +33,9 @@ struct WCHmacKey {
     key: UnsafeCell<Vec<u8>>,
 }
 
+unsafe impl Sync for WCHmacKey {}
+unsafe impl Send for WCHmacKey {}
+
 impl WCHmacKey {
     fn hmac_init(&self) {
         unsafe {

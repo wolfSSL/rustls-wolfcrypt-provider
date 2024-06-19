@@ -88,6 +88,6 @@ pub static TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherS
             rustls::SignatureScheme::RSA_PSS_SHA256,
             rustls::SignatureScheme::RSA_PKCS1_SHA256,
         ],
-        prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&hmac::Sha256Hmac),
+        prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&hmac::WCSha256Hmac),
         aead_alg: &aead::Chacha20Poly1305,
     });
