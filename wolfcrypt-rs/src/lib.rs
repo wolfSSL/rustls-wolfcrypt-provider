@@ -1,8 +1,6 @@
 pub mod bindings;
 pub use bindings::*;
 
-use core::mem;
-
 #[cfg(test)]
 mod tests {
     use super::*;

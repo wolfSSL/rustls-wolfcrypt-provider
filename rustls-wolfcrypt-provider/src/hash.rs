@@ -1,9 +1,8 @@
 use alloc::boxed::Box;
 
 use rustls::crypto::hash;
-use sha2::Digest;
 use std::mem;
-use wolfcrypt_rs::{wc_Sha256, word32, wc_InitSha256, wc_Sha256Update, wc_Sha256Final};
+use wolfcrypt_rs::{wc_Sha256, word32, wc_InitSha256, wc_Sha256Update, wc_Sha256Final, WC_SHA256_DIGEST_SIZE};
 
 pub struct WCSha256;
 
@@ -13,10 +12,13 @@ impl hash::Hash for WCSha256 {
             let sha256_struct: wc_Sha256 = mem::zeroed();
             let hash: [u8; 32] = [0; 32];
 
-            let hasher = WCHasher {
+            let mut hasher = WCHasher {
                 sha256_struct: sha256_struct,
                 hash: hash
             };
+
+            hasher.wchasher_init();
+
             Box::new(WCSha256Context(hasher))
         }
     }
@@ -32,7 +34,8 @@ impl hash::Hash for WCSha256 {
     }
 
     fn output_len(&self) -> usize {
-        32
+        const WC_SHA_256_DIGEST_SIZE_USIZE: usize = WC_SHA256_DIGEST_SIZE as usize;
+        WC_SHA_256_DIGEST_SIZE_USIZE
     }
 }
 
@@ -114,24 +117,20 @@ impl hash::Context for WCSha256Context {
 mod tests {
     use super::WCSha256;
     use rustls::crypto::hash::Hash;
-    use hex_literal::hex;
-    use std::println;
 
     #[test]
     fn sha256_test() {
-        unsafe {
-            let WCSha256_struct = WCSha256;
-            let hash1 = WCSha256_struct.hash("hello".as_bytes());
-            let hash2 = WCSha256_struct.hash("hello".as_bytes());
+        let wcsha256_struct = WCSha256;
+        let hash1 = wcsha256_struct.hash("hello".as_bytes());
+        let hash2 = wcsha256_struct.hash("hello".as_bytes());
 
-            let hash_str1 = hex::encode(hash1);
-            let hash_str2 = hex::encode(hash2);
+        let hash_str1 = hex::encode(hash1);
+        let hash_str2 = hex::encode(hash2);
 
 
-            assert_eq!(
-                hash_str1,
-                hash_str2
-            );
-        }
+        assert_eq!(
+            hash_str1,
+            hash_str2
+        );
     }
 }
