@@ -28,6 +28,7 @@ pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::wolfcrypt_random_buffer_generator;
 
