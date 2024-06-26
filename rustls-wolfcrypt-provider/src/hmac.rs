@@ -49,13 +49,6 @@
 //         self.0.as_ptr()
 //     }
 // }
-// impl Drop for HmacObject {
-//     fn drop(&mut self) {
-//         unsafe {
-//             wc_HmacFree(self.0.as_ptr());
-//         }
-//     }
-// }
 // 
 // struct WCHmacKey {
 //     hmac_object: HmacObject,
