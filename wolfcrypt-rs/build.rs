@@ -5,8 +5,8 @@ use std::path::PathBuf;
 use std::path::Path;
 
 fn main() {
-    let wolfssl_lib_dir = Path::new(&"/opt/wolfssl-install-dir/lib"); 
-    let wolfssl_include_dir = Path::new(&"/opt/wolfssl-install-dir/include/wolfssl");
+    let wolfssl_lib_dir = Path::new(&"/opt/wolfssl-rs/lib/"); 
+    let wolfssl_include_dir = Path::new(&"/opt/wolfssl-rs/include/");
 
     println!("cargo:rustc-link-search={}",
             wolfssl_lib_dir.to_str().unwrap()
@@ -15,7 +15,7 @@ fn main() {
 
     let bindings = bindgen::Builder::default()
         .header("libraries.h")
-        .clang_arg(format!("-I{}", wolfssl_include_dir.to_str().unwrap()))
+        .clang_arg(format!("-I{}/", wolfssl_include_dir.to_str().unwrap()))
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("Unable to generate bindings");

@@ -1,5 +1,6 @@
 pub mod bindings;
 pub use bindings::*;
+use std::mem;
 
 #[cfg(test)]
 mod tests {
