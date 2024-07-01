@@ -69,12 +69,37 @@ impl KeyExchange {
             }
         }
     }
+
+    pub fn derive_shared_secret(&mut self) -> u8 {
+        unsafe {
+            let ret;
+            let mut out: u8 = mem::zeroed();
+            let mut out_length: u32 = 32;
+
+
+            ret = wc_curve25519_shared_secret(self.private_key.as_ptr(), self.public_key.as_ptr(), &mut out, &mut out_length);
+            if ret != 0 {
+                panic!("failed when calling wc_curve25519_shared_secret with ret value: {}", ret);
+            }
+
+            out
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::{KeyExchange};
+    use std::boxed::Box;
+    
     #[test]
     fn test_curve25519() {
-        assert_eq!(0, 0);
+        let mut alice = KeyExchange::use_curve25519();
+        let mut bob = KeyExchange::use_curve25519();
+
+        assert_eq!(
+            alice.derive_shared_secret(), 
+            bob.derive_shared_secret(), 
+        );
     }
 }
