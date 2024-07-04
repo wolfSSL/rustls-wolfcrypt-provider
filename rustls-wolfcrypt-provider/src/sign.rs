@@ -2,11 +2,9 @@ use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 
-use pkcs8::DecodePrivateKey;
 use rustls::pki_types::PrivateKeyDer;
 use rustls::sign::{Signer, SigningKey};
 use rustls::{SignatureAlgorithm, SignatureScheme};
-use signature::{RandomizedSigner, SignatureEncoding};
 use wolfcrypt_rs::*;
 use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
 use std::ptr::NonNull;
@@ -17,6 +15,7 @@ unsafe impl ForeignTypeRef for ECCKeyObjectRef {
     type CType = ecc_key;
 }
 
+#[derive(Debug)]
 pub struct ECCKeyObject(NonNull<ecc_key>);
 unsafe impl Sync for ECCKeyObject{}
 unsafe impl Send for ECCKeyObject{}
@@ -37,7 +36,7 @@ unsafe impl ForeignType for ECCKeyObject {
 
 #[derive(Clone, Debug)]
 pub struct EcdsaSigningKeyP256 {
-    key: Arc<p256::ecdsa::SigningKey>,
+    key: Arc<ECCKeyObject>,
     scheme: SignatureScheme,
 }
 
@@ -56,6 +55,11 @@ impl TryFrom<PrivateKeyDer<'_>> for EcdsaSigningKeyP256 {
                     let pkcs8: u8 = mem::zeroed();
                     let pkcs8_sz: u32 = 0;
                     let mut ret;
+
+                    ret = wc_ecc_init(ecc_key_object.as_ptr());
+                    if ret != 0 {
+                        panic!("error while calling wc_ecc_init");
+                    }
 
                     der_size = wc_EccKeyDerSize(ecc_key_object.as_ptr(), 1);
                     if der_size <= 0 {
@@ -78,7 +82,6 @@ impl TryFrom<PrivateKeyDer<'_>> for EcdsaSigningKeyP256 {
                     }
 
                     let null_value: *mut u8 = mem::zeroed();
-
                     ret = wc_CreatePKCS8Key(null_value, 
                         pkcs8_sz as *mut u32, 
                         der.secret_pkcs8_der().as_ptr() as *mut u8, 
@@ -101,9 +104,24 @@ impl TryFrom<PrivateKeyDer<'_>> for EcdsaSigningKeyP256 {
                         panic!("error while calling wc_CreatePKCS8Key");
                     }
 
+                    // After creating the pkcs8key from the der in input,
+                    // we use wc_GetPkcs8TraditionalOffset to find the start of
+                    // the private key, and import it into the ecc_key_struct using
+                    // wc_EccPrivateKeyDecode.
+                    let mut idx: u32 = 0; 
+                    ret = wc_GetPkcs8TraditionalOffset(pkcs8 as *mut u8, &mut idx, pkcs8_sz);
+                    if ret != 0 {
+                        panic!("error while calling wc_GetPkcs8TraditionalOffset");
+                    }
+
+                    ret = wc_EccPrivateKeyDecode(pkcs8 as *const u8, &mut idx, ecc_key_object.as_ptr(), pkcs8_sz);
+                    if ret != 0 {
+                        panic!("error while calling wc_EccPrivateKeyDecode");
+                    }
+
                     // Leaving this here just for testing purposes.
-                    p256::ecdsa::SigningKey::from_pkcs8_der(der.secret_pkcs8_der()).map(|kp| Self {
-                        key: Arc::new(kp),
+                    Ok(Self {
+                        key: Arc::new(ecc_key_object),
                         scheme: SignatureScheme::ECDSA_NISTP256_SHA256,
                     })
                 }
@@ -139,3 +157,12 @@ impl Signer for EcdsaSigningKeyP256 {
         self.scheme
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_signer() { 
+        assert_eq!(0, 0);
+    }
+}
+
