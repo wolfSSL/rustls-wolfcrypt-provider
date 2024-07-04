@@ -4,6 +4,7 @@ pub use bindings::*;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::mem;
 
     #[test]
     fn rsa_encrypt_decrypt() {
