@@ -2,9 +2,11 @@ use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 
+use pkcs8::DecodePrivateKey;
 use rustls::pki_types::PrivateKeyDer;
 use rustls::sign::{Signer, SigningKey};
 use rustls::{SignatureAlgorithm, SignatureScheme};
+use signature::{SignatureEncoding, RandomizedSigner};
 use wolfcrypt_rs::*;
 use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
 use std::ptr::NonNull;
@@ -36,7 +38,8 @@ unsafe impl ForeignType for ECCKeyObject {
 
 #[derive(Clone, Debug)]
 pub struct EcdsaSigningKeyP256 {
-    key: Arc<ECCKeyObject>,
+    // key: Arc<ECCKeyObject>,
+    key: Arc<p256::ecdsa::SigningKey>,
     scheme: SignatureScheme,
 }
 
@@ -120,10 +123,14 @@ impl TryFrom<PrivateKeyDer<'_>> for EcdsaSigningKeyP256 {
                     }
 
                     // Leaving this here just for testing purposes.
-                    Ok(Self {
-                        key: Arc::new(ecc_key_object),
+                    p256::ecdsa::SigningKey::from_pkcs8_der(der.secret_pkcs8_der()).map(|kp| Self {
+                        key: Arc::new(kp),
                         scheme: SignatureScheme::ECDSA_NISTP256_SHA256,
                     })
+                   // Ok(Self {
+                   //     key: Arc::new(ecc_key_object),
+                   //     scheme: SignatureScheme::ECDSA_NISTP256_SHA256,
+                   // })
                 }
             }
             _ => panic!("unsupported private key format"),
@@ -160,9 +167,50 @@ impl Signer for EcdsaSigningKeyP256 {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_signer() { 
-        assert_eq!(0, 0);
+        unsafe {
+            let message = "message to verify".as_bytes();
+            let message_length: word32 = message.len() as word32;
+            let mut digest: [u8; 32] = [0; 32];
+            let digest_length: word32 = digest.len() as word32;
+            let mut ecc_key_struct: ecc_key = mem::zeroed();
+            let ecc_key_object = ECCKeyObject::from_ptr(&mut ecc_key_struct);
+            let mut rng: WC_RNG = mem::zeroed();
+            let mut sig: [u8; 265] = [0; 265];
+            let sig_sz: word32 = sig.len() as word32;
+            let mut ret;
+
+            ret = wc_Sha256Hash(message.as_ptr(), message_length, digest.as_mut_ptr());
+            if ret != 0 {
+                panic!("failed because of wc_Sha256Hash, ret value: {}", ret);
+            }
+
+            ret = wc_InitRng(&mut rng);
+            if ret != 0 {
+                panic!("failed because of wc_InitRng, ret value: {}", ret);
+            }
+
+            ret = wc_ecc_init(ecc_key_object.as_ptr());
+            if ret != 0 {
+                panic!("error while calling wc_ecc_init");
+            }
+
+            ret = wc_ecc_make_key(&mut rng, 32, ecc_key_object.as_ptr());
+            if ret != 0 {
+                panic!("error while calling wc_ecc_init");
+            }
+
+            ret = wc_ecc_sign_hash(digest.as_mut_ptr(), digest_length, sig.as_mut_ptr(), 
+                                   sig_sz as *mut word32, &mut rng, ecc_key_object.as_ptr());
+            if ret != 0 {
+                panic!("error while calling wc_ecc_sign_hash");
+            }
+
+            assert_eq!(ret, 0);
+        }
     }
 }
 

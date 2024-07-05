@@ -1,4 +1,4 @@
 dir1=.
 while inotifywait -qqre modify "$dir1"; do
-    cargo test
+    cargo test --lib
 done
