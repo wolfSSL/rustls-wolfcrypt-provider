@@ -1,6 +1,3 @@
-use der::Reader;
-use rsa::signature::Verifier;
-use rsa::{pss, BigUint, RsaPublicKey};
 use rustls::crypto::WebPkiSupportedAlgorithms;
 use rustls::pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerificationAlgorithm};
 use rustls::SignatureScheme;
@@ -35,30 +32,49 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
         message: &[u8],
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
-        // TODO: Integrate the verifying with rsa backed by wc.
-        let public_key = decode_spki_spk(public_key)?;
+        unsafe {
+            let mut idx: word32 = 0 as word32;
+            let mut rsa_key: RsaKey = mem::zeroed();
+            let mut ret;
 
-        let signature = pss::Signature::try_from(signature).map_err(|_| InvalidSignature)?;
+            ret = wc_InitRsaKey(&mut rsa_key, std::ptr::null_mut());
+            if ret != 0 {
+                panic!("error while calling wc_InitRsaKey, ret value: {}", ret);
+            }
 
-        pss::VerifyingKey::<sha2::Sha256>::new(public_key)
-            .verify(message, &signature)
-            .map_err(|_| InvalidSignature)
+            ret = wc_RsaPublicKeyDecode(
+                public_key.as_ptr(),
+                &mut idx,
+                &mut rsa_key,
+                public_key.len() as word32,
+            );
+            if ret != 0 {
+                panic!("error while calling wc_RsaPublicKeyDecode, ret value: {}", ret);
+            }
+
+            let mut decrypted: [u8; 256] = [0; 256];
+            let decrypted_length: word32 = decrypted.len() as word32;
+
+            ret = wc_RsaPSS_Verify(
+                message.as_ptr() as *mut u8, 
+                signature.len().try_into().unwrap(), 
+                decrypted.as_mut_ptr(), 
+                decrypted_length,
+                wc_HashType_WC_HASH_TYPE_SHA256, 
+                WC_MGF1SHA256.try_into().unwrap(), 
+                &mut rsa_key
+            );
+            if ret < 0 {
+                panic!("error while calling wc_RsaPSS_Verify, ret value: {}", ret);
+            }
+
+            if ret > 0 { 
+                Ok(()) 
+            } else { 
+                Err(InvalidSignature) 
+            }
+        }
     }
-}
-
-fn decode_spki_spk(spki_spk: &[u8]) -> Result<RsaPublicKey, InvalidSignature> {
-    // public_key: unfortunately this is not a whole SPKI, but just the key material.
-    // decode the two integers manually.
-    let mut reader = der::SliceReader::new(spki_spk).map_err(|_| InvalidSignature)?;
-    let ne: [der::asn1::UintRef; 2] = reader
-        .decode()
-        .map_err(|_| InvalidSignature)?;
-
-    RsaPublicKey::new(
-        BigUint::from_bytes_be(ne[0].as_bytes()),
-        BigUint::from_bytes_be(ne[1].as_bytes()),
-    )
-    .map_err(|_| InvalidSignature)
 }
 
 #[cfg(test)]
@@ -115,7 +131,7 @@ mod tests {
 
             let sig_sz = ret;
             let mut decrypted: [u8; 256] = [0; 256];
-            let decrypted_length: word32 = encrypted.len() as word32;
+            let decrypted_length: word32 = decrypted.len() as word32;
 
             ret = wc_RsaPSS_Verify(
                 encrypted.as_mut_ptr(), 
