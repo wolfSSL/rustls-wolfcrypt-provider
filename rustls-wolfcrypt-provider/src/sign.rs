@@ -10,7 +10,7 @@ use signature::{SignatureEncoding, RandomizedSigner};
 use wolfcrypt_rs::*;
 use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
 use std::ptr::NonNull;
-use std::mem;
+use std::{mem, println};
 
 pub struct ECCKeyObjectRef(Opaque);
 unsafe impl ForeignTypeRef for ECCKeyObjectRef {
@@ -180,7 +180,7 @@ mod tests {
             let ecc_key_object = ECCKeyObject::from_ptr(&mut ecc_key_struct);
             let mut rng: WC_RNG = mem::zeroed();
             let mut sig: [u8; 265] = [0; 265];
-            let sig_sz: word32 = sig.len() as word32;
+            let mut sig_sz: word32 = sig.len() as word32;
             let mut ret;
 
             ret = wc_Sha256Hash(message.as_ptr(), message_length, digest.as_mut_ptr());
@@ -203,13 +203,34 @@ mod tests {
                 panic!("error while calling wc_ecc_init");
             }
 
-            ret = wc_ecc_sign_hash(digest.as_mut_ptr(), digest_length, sig.as_mut_ptr(), 
-                                   sig_sz as *mut word32, &mut rng, ecc_key_object.as_ptr());
+            ret = wc_ecc_sign_hash(
+                    digest.as_mut_ptr(), 
+                    digest_length, 
+                    sig.as_mut_ptr(), 
+                    &mut sig_sz, 
+                    &mut rng, 
+                    ecc_key_object.as_ptr()
+            );
             if ret != 0 {
                 panic!("error while calling wc_ecc_sign_hash");
             }
 
-            assert_eq!(ret, 0);
+            let mut is_valid_sig: i32 = 0;
+            ret = wc_ecc_verify_hash(
+                  sig.as_mut_ptr(), 
+                  sig_sz, 
+                  digest.as_mut_ptr(), 
+                  digest_length,
+                  &mut is_valid_sig, 
+                  ecc_key_object.as_ptr()
+            );
+            if ret != 0 {
+                panic!("error while calling wc_ecc_verify_hash");
+            }
+
+            wc_FreeRng(&mut rng);
+
+            assert_eq!(1, is_valid_sig);
         }
     }
 }

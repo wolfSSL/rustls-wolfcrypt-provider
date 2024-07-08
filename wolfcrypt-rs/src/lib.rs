@@ -12,12 +12,11 @@ mod tests {
             let mut rng: WC_RNG = mem::zeroed();
             let mut rsa_key: RsaKey = mem::zeroed();
             let mut input: String = "I use Turing Machines to ask questions".to_string();
-            let input_ptr: *mut u8 = input.as_mut_ptr();
             let input_length: word32 = input.len() as word32;
             let mut out: [u8; 256] = [0; 256];
             let mut plain: [u8; 256] = [0; 256];
-
             let mut ret;
+
             ret = wc_InitRsaKey(&mut rsa_key, std::ptr::null_mut());
             if ret != 0 {
                 panic!("Error while initializing Rsa key! Ret value: {}", ret);
@@ -39,7 +38,7 @@ mod tests {
             }
 
             ret = wc_RsaPublicEncrypt(
-                input_ptr,
+                input.as_mut_ptr(),
                 input_length,
                 out.as_mut_ptr(),
                 mem::size_of_val(&out).try_into().unwrap(),
@@ -64,7 +63,7 @@ mod tests {
             }
 
             let plain_str = String::from_utf8_lossy(&plain).to_string();
-            let input_str = std::ffi::CStr::from_ptr(input_ptr as *const std::os::raw::c_char)
+            let input_str = std::ffi::CStr::from_ptr(input.as_mut_ptr() as *const std::os::raw::c_char)
                 .to_str()
                 .expect("Failed to convert C string to str");
 
