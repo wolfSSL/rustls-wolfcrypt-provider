@@ -2,22 +2,20 @@ use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 
-use pkcs8::DecodePrivateKey;
 use rustls::pki_types::PrivateKeyDer;
 use rustls::sign::{Signer, SigningKey};
 use rustls::{SignatureAlgorithm, SignatureScheme};
-use signature::{SignatureEncoding, RandomizedSigner};
 use wolfcrypt_rs::*;
 use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
 use std::ptr::NonNull;
-use std::{mem, println};
+use std::mem;
 
 pub struct ECCKeyObjectRef(Opaque);
 unsafe impl ForeignTypeRef for ECCKeyObjectRef {
     type CType = ecc_key;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct ECCKeyObject(NonNull<ecc_key>);
 unsafe impl Sync for ECCKeyObject{}
 unsafe impl Send for ECCKeyObject{}
@@ -38,9 +36,14 @@ unsafe impl ForeignType for ECCKeyObject {
 
 #[derive(Clone, Debug)]
 pub struct EcdsaSigningKeyP256 {
-    // key: Arc<ECCKeyObject>,
-    key: Arc<p256::ecdsa::SigningKey>,
+    key: Arc<ECCKeyObject>,
     scheme: SignatureScheme,
+}
+
+impl EcdsaSigningKeyP256 {
+    pub fn get_key(&self) -> Arc<ECCKeyObject> {
+        Arc::clone(&self.key)
+    }
 }
 
 impl TryFrom<PrivateKeyDer<'_>> for EcdsaSigningKeyP256 {
@@ -122,15 +125,10 @@ impl TryFrom<PrivateKeyDer<'_>> for EcdsaSigningKeyP256 {
                         panic!("error while calling wc_EccPrivateKeyDecode");
                     }
 
-                    // Leaving this here just for testing purposes.
-                    p256::ecdsa::SigningKey::from_pkcs8_der(der.secret_pkcs8_der()).map(|kp| Self {
-                        key: Arc::new(kp),
-                        scheme: SignatureScheme::ECDSA_NISTP256_SHA256,
-                    })
-                   // Ok(Self {
-                   //     key: Arc::new(ecc_key_object),
-                   //     scheme: SignatureScheme::ECDSA_NISTP256_SHA256,
-                   // })
+                   Ok(Self {
+                     key: Arc::new(ecc_key_object),
+                     scheme: SignatureScheme::ECDSA_NISTP256_SHA256,
+                   })
                 }
             }
             _ => panic!("unsupported private key format"),
@@ -154,10 +152,43 @@ impl SigningKey for EcdsaSigningKeyP256 {
 
 impl Signer for EcdsaSigningKeyP256 {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
-        self.key
-            .try_sign_with_rng(&mut rand_core::OsRng, message)
-            .map_err(|_| rustls::Error::General("signing failed".into()))
-            .map(|sig: p256::ecdsa::DerSignature| sig.to_vec())
+        unsafe {
+            let mut ret;
+            let mut rng: WC_RNG = mem::zeroed();
+            let mut digest: [u8; 32] = [0; 32];
+            let message_length: word32 = message.len() as word32;
+            let digest_length: word32 = digest.len() as word32;
+            let mut sig: [u8; 265] = [0; 265];
+            let mut sig_sz: word32 = sig.len() as word32;
+            let ecc_key_arc = self.get_key();
+            let ecc_key_object = ecc_key_arc.as_ref();
+
+            ret = wc_Sha256Hash(message.as_ptr(), message_length, digest.as_mut_ptr());
+            if ret != 0 {
+                panic!("failed because of wc_Sha256Hash, ret value: {}", ret);
+            }
+
+            ret = wc_InitRng(&mut rng);
+            if ret != 0 {
+                panic!("failed because of wc_InitRng, ret value: {}", ret);
+            }
+
+            ret = wc_ecc_sign_hash(
+                digest.as_mut_ptr(), 
+                digest_length, 
+                sig.as_mut_ptr(), 
+                &mut sig_sz, 
+                &mut rng, 
+                ecc_key_object.as_ptr()
+            );
+            if ret != 0 {
+                panic!("error while calling wc_ecc_sign_hash");
+            }
+
+            let sig_vec = sig.to_vec();
+
+            Ok(sig_vec)
+        }
     }
 
     fn scheme(&self) -> SignatureScheme {
