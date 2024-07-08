@@ -55,74 +55,24 @@ impl TryFrom<PrivateKeyDer<'_>> for EcdsaSigningKeyP256 {
                 unsafe {
                     let mut ecc_key_struct: ecc_key = mem::zeroed();
                     let ecc_key_object = ECCKeyObject::from_ptr(&mut ecc_key_struct);
-                    let mut der_size: i32;
-                    let curve_oid: u8 = mem::zeroed();
-                    let curve_oid_sz: u32 = 0;
-                    let pkcs8: u8 = mem::zeroed();
-                    let pkcs8_sz: u32 = 0;
+                    let pkcs8: &[u8] = der.secret_pkcs8_der();
+                    let pkcs8_sz: word32 = pkcs8.len() as word32;
                     let mut ret;
 
                     ret = wc_ecc_init(ecc_key_object.as_ptr());
                     if ret != 0 {
-                        panic!("error while calling wc_ecc_init");
+                        panic!("error while calling wc_ecc_init, ret: {}", ret);
                     }
 
-                    der_size = wc_EccKeyDerSize(ecc_key_object.as_ptr(), 1);
-                    if der_size <= 0 {
-                        panic!("error while calling wc_EccKeyDerSize");
-                    }
-                    der_size = wc_EccKeyToDer(ecc_key_object.as_ptr(), 
-                                             der.secret_pkcs8_der().as_ptr() as *mut u8, 
-                                             der_size as u32);
-                    if der_size <= 0 {
-                        panic!("error while calling wc_EccKeyDerSize");
-                    }
-
-                    let dp_ptr = ecc_key_struct.dp;
-                    let dp_struct = &*dp_ptr;
-                    let oid_sum = dp_struct.oidSum;
-
-                    ret = wc_ecc_get_oid(oid_sum, curve_oid as *mut *const u8, curve_oid_sz as *mut u32);
-                    if ret != 0 {
-                        panic!("error while calling wc_ecc_get_oid");
-                    }
-
-                    let null_value: *mut u8 = mem::zeroed();
-                    ret = wc_CreatePKCS8Key(null_value, 
-                        pkcs8_sz as *mut u32, 
-                        der.secret_pkcs8_der().as_ptr() as *mut u8, 
-                        der_size as u32, 
-                        Key_Sum_ECDSAk as i32,
-                        curve_oid as *const u8, 
-                        curve_oid_sz); // get size needed in pkcs8_sz
-                    if ret != 0 {
-                        panic!("error while calling wc_CreatePKCS8Key");
-                    }
-
-                    ret = wc_CreatePKCS8Key(pkcs8 as *mut u8, 
-                        pkcs8_sz as *mut u32, 
-                        der.secret_pkcs8_der().as_ptr() as *mut u8,
-                        der_size as u32, 
-                        Key_Sum_ECDSAk as i32,
-                        curve_oid as *const u8, 
-                        curve_oid_sz);
-                    if ret != 0 {
-                        panic!("error while calling wc_CreatePKCS8Key");
-                    }
-
-                    // After creating the pkcs8key from the der in input,
-                    // we use wc_GetPkcs8TraditionalOffset to find the start of
-                    // the private key, and import it into the ecc_key_struct using
-                    // wc_EccPrivateKeyDecode.
                     let mut idx: u32 = 0; 
-                    ret = wc_GetPkcs8TraditionalOffset(pkcs8 as *mut u8, &mut idx, pkcs8_sz);
-                    if ret != 0 {
-                        panic!("error while calling wc_GetPkcs8TraditionalOffset");
+                    ret = wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz);
+                    if ret < 0 {
+                        panic!("error while calling wc_GetPkcs8TraditionalOffset, ret: {}", ret);
                     }
 
-                    ret = wc_EccPrivateKeyDecode(pkcs8 as *const u8, &mut idx, ecc_key_object.as_ptr(), pkcs8_sz);
+                    ret = wc_EccPrivateKeyDecode(pkcs8.as_ptr() as *mut u8, &mut idx, ecc_key_object.as_ptr(), pkcs8_sz);
                     if ret != 0 {
-                        panic!("error while calling wc_EccPrivateKeyDecode");
+                        panic!("error while calling wc_EccPrivateKeyDecode, ret: {}", ret);
                     }
 
                    Ok(Self {
