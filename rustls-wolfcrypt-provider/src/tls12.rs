@@ -1,46 +1,18 @@
 use alloc::boxed::Box;
 
 use chacha20poly1305::aead::Buffer;
-use chacha20poly1305::{AeadInPlace, KeyInit, KeySizeUser};
+use chacha20poly1305::{AeadInPlace, KeyInit};
 use rustls::crypto::cipher::{
-    make_tls12_aad, make_tls13_aad, AeadKey, BorrowedPayload, InboundOpaqueMessage,
+    make_tls12_aad, AeadKey, BorrowedPayload, InboundOpaqueMessage,
     InboundPlainMessage, Iv, KeyBlockShape, MessageDecrypter, MessageEncrypter, Nonce,
     OutboundOpaqueMessage, OutboundPlainMessage, PrefixedPayload, Tls12AeadAlgorithm,
-    Tls13AeadAlgorithm, UnsupportedOperationError, NONCE_LEN,
+    UnsupportedOperationError, NONCE_LEN,
 };
-use rustls::{ConnectionTrafficSecrets, ContentType, ProtocolVersion};
+use rustls::{ConnectionTrafficSecrets};
 
-pub struct Chacha20Poly1305;
+pub struct Tls12Chacha20Poly1305;
 
-impl Tls13AeadAlgorithm for Chacha20Poly1305 {
-    fn encrypter(&self, key: AeadKey, iv: Iv) -> Box<dyn MessageEncrypter> {
-        Box::new(Tls13Cipher(
-            chacha20poly1305::ChaCha20Poly1305::new_from_slice(key.as_ref()).unwrap(),
-            iv,
-        ))
-    }
-
-    fn decrypter(&self, key: AeadKey, iv: Iv) -> Box<dyn MessageDecrypter> {
-        Box::new(Tls13Cipher(
-            chacha20poly1305::ChaCha20Poly1305::new_from_slice(key.as_ref()).unwrap(),
-            iv,
-        ))
-    }
-
-    fn key_len(&self) -> usize {
-        chacha20poly1305::ChaCha20Poly1305::key_size()
-    }
-
-    fn extract_keys(
-        &self,
-        key: AeadKey,
-        iv: Iv,
-    ) -> Result<ConnectionTrafficSecrets, UnsupportedOperationError> {
-        Ok(ConnectionTrafficSecrets::Chacha20Poly1305 { key, iv })
-    }
-}
-
-impl Tls12AeadAlgorithm for Chacha20Poly1305 {
+impl Tls12AeadAlgorithm for Tls12Chacha20Poly1305 {
     fn encrypter(&self, key: AeadKey, iv: &[u8], _: &[u8]) -> Box<dyn MessageEncrypter> {
         Box::new(Tls12Cipher(
             chacha20poly1305::ChaCha20Poly1305::new_from_slice(key.as_ref()).unwrap(),
@@ -75,57 +47,6 @@ impl Tls12AeadAlgorithm for Chacha20Poly1305 {
             key,
             iv: Iv::new(iv[..].try_into().unwrap()),
         })
-    }
-}
-
-struct Tls13Cipher(chacha20poly1305::ChaCha20Poly1305, Iv);
-
-impl MessageEncrypter for Tls13Cipher {
-    fn encrypt(
-        &mut self,
-        m: OutboundPlainMessage,
-        seq: u64,
-    ) -> Result<OutboundOpaqueMessage, rustls::Error> {
-        let total_len = self.encrypted_payload_len(m.payload.len());
-        let mut payload = PrefixedPayload::with_capacity(total_len);
-
-        payload.extend_from_chunks(&m.payload);
-        payload.extend_from_slice(&m.typ.to_array());
-        let nonce = chacha20poly1305::Nonce::from(Nonce::new(&self.1, seq).0);
-        let aad = make_tls13_aad(total_len);
-
-        self.0
-            .encrypt_in_place(&nonce, &aad, &mut EncryptBufferAdapter(&mut payload))
-            .map_err(|_| rustls::Error::EncryptError)
-            .map(|_| {
-                OutboundOpaqueMessage::new(
-                    ContentType::ApplicationData,
-                    ProtocolVersion::TLSv1_2,
-                    payload,
-                )
-            })
-    }
-
-    fn encrypted_payload_len(&self, payload_len: usize) -> usize {
-        payload_len + 1 + CHACHAPOLY1305_OVERHEAD
-    }
-}
-
-impl MessageDecrypter for Tls13Cipher {
-    fn decrypt<'a>(
-        &mut self,
-        mut m: InboundOpaqueMessage<'a>,
-        seq: u64,
-    ) -> Result<InboundPlainMessage<'a>, rustls::Error> {
-        let payload = &mut m.payload;
-        let nonce = chacha20poly1305::Nonce::from(Nonce::new(&self.1, seq).0);
-        let aad = make_tls13_aad(payload.len());
-
-        self.0
-            .decrypt_in_place(&nonce, &aad, &mut DecryptBufferAdapter(payload))
-            .map_err(|_| rustls::Error::DecryptError)?;
-
-        m.into_tls13_unpadded_message()
     }
 }
 
