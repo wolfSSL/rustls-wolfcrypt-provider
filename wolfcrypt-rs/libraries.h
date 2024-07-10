@@ -10,3 +10,4 @@
 #include <wolfssl/wolfcrypt/ecc.h>
 #include <wolfssl/wolfcrypt/asn_public.h>
 #include <wolfssl/wolfcrypt/asn.h>
+#include <wolfssl/wolfcrypt/chacha20_poly1305.h>

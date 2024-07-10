@@ -17,8 +17,7 @@ pub mod hpke;
 mod kx;
 mod sign;
 mod verify;
-mod tls12;
-mod tls13;
+mod aead;
 
 /*
  * Crypto provider struct that we populate with our crypto engine.
@@ -73,7 +72,7 @@ pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
             confidentiality_limit: u64::MAX,
         },
         hkdf_provider: &rustls::crypto::tls13::HkdfUsingHmac(&hmac::WCSha256Hmac),
-        aead_alg: &tls13::Tls13Chacha20Poly1305,
+        aead_alg: &aead::Chacha20Poly1305,
         quic: None,
     });
 
@@ -90,5 +89,5 @@ pub static TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherS
             rustls::SignatureScheme::RSA_PKCS1_SHA256,
         ],
         prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&hmac::WCSha256Hmac),
-        aead_alg: &tls12::Tls12Chacha20Poly1305,
+        aead_alg: &aead::Chacha20Poly1305,
     });
