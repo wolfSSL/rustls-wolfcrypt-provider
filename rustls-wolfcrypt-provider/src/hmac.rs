@@ -4,7 +4,7 @@ use rustls::crypto;
 use core::mem;
 use std::{vec::Vec};
 use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
-use std::{ptr::NonNull};
+use std::ptr::NonNull;
 
 use wolfcrypt_rs::*;
 
