@@ -9,8 +9,8 @@ use rustls::crypto::cipher::{
     Tls13AeadAlgorithm, UnsupportedOperationError, NONCE_LEN,
 };
 use rustls::{ConnectionTrafficSecrets, ContentType, ProtocolVersion};
-use std::{mem, vec};
 use alloc::vec::Vec;
+use std::vec;
 use wolfcrypt_rs::*;
 
 pub struct Chacha20Poly1305;
@@ -124,7 +124,6 @@ impl MessageDecrypter for Tls13Cipher {
             let payload = &mut m.payload;
             let mut aad = make_tls13_aad(payload.len());
             let auth_tag = &mut self.0.auth_tag;
-            let mut generated_plain_text = vec![0u8; payload.len()];
             let payload_adapted = &mut DecryptBufferAdapter(payload);
             let cipher = payload_adapted.as_mut();
 
@@ -136,25 +135,18 @@ impl MessageDecrypter for Tls13Cipher {
                 cipher.as_mut_ptr(),
                 cipher.len() as word32,
                 auth_tag.as_mut_ptr(),
-                generated_plain_text.as_mut_ptr()
+                payload.as_mut_ptr()
             );
             if ret != 0 {
                 panic!("failed while calling wc_Chacha20Poly1305_Decrypt, with ret value: {}", ret);
             }
 
-            let slice: &[u8] = &generated_plain_text;
-
             Ok(
-                InboundPlainMessage {
-                    typ: ContentType::ApplicationData,
-                    version: ProtocolVersion::TLSv1_3,
-                    payload: slice
-                }
+                m.into_plain_message()
             )
         }
     }
 }
-
 
 impl Tls12AeadAlgorithm for Chacha20Poly1305 {
     fn encrypter(&self, key: AeadKey, iv: &[u8], _: &[u8]) -> Box<dyn MessageEncrypter> {
@@ -298,6 +290,7 @@ impl Buffer for DecryptBufferAdapter<'_, '_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::mem;
 
     #[test]
     fn test_chacha() {
