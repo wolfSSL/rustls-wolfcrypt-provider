@@ -67,73 +67,58 @@ mod tests {
     #[test]
     fn test_tls12_prf() {
         unsafe {
-            let preMasterSecret: [&[u8]; 3] = [
-                "D06F9C19BFF49B1E91E4EFE97345D089".as_bytes(),
-                "4E6C2E6C34A165B24540E2970875D641".as_bytes(),
-                "2AA6515871B389B4C199BB8389C71CED".as_bytes()
-            ];
-
-            let helloRandom: [&[u8]; 4] = [
-                "162B81EDFBEAE4F25240320B87E7651C".as_bytes(),
-                "865564191DD782DB0B9ECA275FBA1BB9".as_bytes(),
-                "5A1DA3DF436D68DA86C5E7B4B4A36E46".as_bytes(),
-                "B977C61767983A31BE270D74517BD0F6".as_bytes()
-            ];
-
-            let masterSecret: [u8; 3] = [
-                "EB38B8D89B98B1C266DE44BB3CA14E83".as_bytes(),
-                "C32F009F9955B1D994E61D3C51EE8760".as_bytes(),
-                "90B4EF89CC7AF42F46E72201BFCC7977".as_bytes()
-            ];
-
+            let pre_master_secret = "D06F9C19BFF49B1E91E4EFE97345D0894E6C2E6C34A165B24540E2970875D6412AA6515871B389B4C199BB8389C71CED".as_bytes();
+            let hello_random     = "162B81EDFBEAE4F25240320B87E7651C865564191DD782DB0B9ECA275FBA1BB95A1DA3DF436D68DA86C5E7B4B4A36E46B977C61767983A31BE270D74517BD0F6".as_bytes();
+            let master_secret    = "EB38B8D89B98B1C266DE44BB3CA14E83C32F009F9955B1D994E61D3C51EE876090B4EF89CC7AF42F46E72201BFCC7977".as_bytes();
             let label = "master secret".as_bytes();
 
-            let pms: [u8; 48] = mem::zeroed();
-            let seed: [u8; 64] = mem::zeroed();
-            let ms: [u8; 48] = mem::zeroed();
+            let mut pms: [u8; 48] = mem::zeroed();
+            let mut seed: [u8; 64] = mem::zeroed();
+            let mut ms: [u8; 48] = mem::zeroed();
             let mut result: [u8; 48] = mem::zeroed();
 
-            let pmsSz: word32 = pms.len() as word32;
-            let seedSz: word32 = seed.len() as word32;
-            let msSz: word32 = ms.len() as word32;
+            let pre_master_secret_len: word32 = pre_master_secret.len() as word32;
+            let mut pms_sz: word32 = pms.len() as word32;
+            let mut seed_sz: word32 = seed.len() as word32;
+            let mut ms_sz: word32 = ms.len() as word32;
             let mut ret;
 
             ret = Base16_Decode(
-                preMasterSecret,
-                preMasterSecret.len(), 
-                pms, 
-                pmsSz);
+                pre_master_secret.as_ptr(),
+                pre_master_secret_len, 
+                pms.as_mut_ptr(), 
+                &mut pms_sz as *mut u32);
             if ret != 0 {
                 panic!("failed while calling Base16_Decode, with ret value: {}", ret);
             }
 
             ret = Base16_Decode(
-                helloRandom,
-                helloRandom.len(), 
-                seed, 
-                seedSz);
+                hello_random.as_ptr(),
+                hello_random.len() as word32, 
+                seed.as_mut_ptr(), 
+                &mut seed_sz as *mut u32);
             if ret != 0 {
                 panic!("failed while calling Base16_Decode, with ret value: {}", ret);
             }
 
             ret = Base16_Decode(
-                masterSecret.as_ptr(),
-                masterSecret.len(), 
+                master_secret.as_ptr(),
+                master_secret.len() as word32, 
                 ms.as_mut_ptr(), 
-                msSz);
+                &mut ms_sz as *mut u32);
             if ret != 0 {
                 panic!("failed while calling Base16_Decode, with ret value: {}", ret);
             }
 
             ret = wc_PRF_TLS(
                 result.as_mut_ptr(), 
-                msSz, 
+                ms_sz, 
                 pms.as_ptr(), 
-                pmsSz,
+                pms_sz,
                 label.as_ptr(), 
                 label.len() as word32, 
                 seed.as_ptr(), 
-                seedSz,
+                seed_sz,
                 1, 
                 wc_MACAlgorithm_sha256_mac.try_into().unwrap(),
                 std::ptr::null_mut(), 
