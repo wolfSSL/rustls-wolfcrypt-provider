@@ -18,6 +18,7 @@ mod sign;
 mod verify;
 mod aead;
 mod prf;
+mod e2e;
 
 /*
  * Crypto provider struct that we populate with our crypto engine.
@@ -86,7 +87,7 @@ pub static TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherS
             confidentiality_limit: u64::MAX,
         },
         aead_alg: &aead::Chacha20Poly1305,
-        prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&hmac::WCSha256Hmac),
+        prf_provider: &prf::PrfTls12,
         kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
         sign: &[
             rustls::SignatureScheme::RSA_PSS_SHA256,

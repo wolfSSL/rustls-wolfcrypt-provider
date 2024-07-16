@@ -1,7 +1,6 @@
 use rustls::crypto;
 use std::boxed::Box;
 use wolfcrypt_rs::*;
-use std::mem;
 
 pub struct PrfTls12;
 
@@ -63,6 +62,7 @@ fn prf(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::mem;
 
     #[test]
     fn test_tls12_prf() {
