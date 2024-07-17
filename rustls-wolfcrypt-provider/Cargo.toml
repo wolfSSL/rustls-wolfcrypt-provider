@@ -26,10 +26,12 @@ hex-literal = "0.4.1"
 hex = "0.4.3"
 foreign-types = "0.5.0"
 rustls-pki-types = "1.7.0"
+tokio-rustls = { version = "0.26", default-features = false  }
 
 [dev-dependencies]
 env_logger = "0.10" # 0.11 requires 1.71 MSRV even as a dev-dep (due to manifest features)
 rcgen = "0.11.3"
+tokio = { version = "1.34", features = ["macros", "rt", "net", "io-util", "io-std"] }
 webpki-roots = "0.26"
 
 [features]

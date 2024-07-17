@@ -18,7 +18,6 @@ mod sign;
 mod verify;
 mod aead;
 mod prf;
-mod e2e;
 
 /*
  * Crypto provider struct that we populate with our crypto engine.
