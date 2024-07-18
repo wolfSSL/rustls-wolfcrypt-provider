@@ -8,6 +8,7 @@ use alloc::sync::Arc;
 
 use rustls::crypto::CryptoProvider;
 use rustls::pki_types::PrivateKeyDer;
+use rustls::crypto::tls12::PrfUsingHmac;
 
 mod random;
 pub mod hash;
@@ -17,7 +18,6 @@ mod kx;
 mod sign;
 mod verify;
 mod aead;
-mod prf;
 
 /*
  * Crypto provider struct that we populate with our crypto engine.
@@ -60,22 +60,22 @@ impl rustls::crypto::KeyProvider for Provider {
 }
 
 static ALL_CIPHER_SUITES: &[rustls::SupportedCipherSuite] = &[
-    TLS13_CHACHA20_POLY1305_SHA256,
+    // TLS13_CHACHA20_POLY1305_SHA256,
     TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
 ];
 
 // tls 1.3
-pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
-    rustls::SupportedCipherSuite::Tls13(&rustls::Tls13CipherSuite {
-        common: rustls::crypto::CipherSuiteCommon {
-            suite: rustls::CipherSuite::TLS13_CHACHA20_POLY1305_SHA256,
-            hash_provider: &hash::WCSha256,
-            confidentiality_limit: u64::MAX,
-        },
-        hkdf_provider: &rustls::crypto::tls13::HkdfUsingHmac(&hmac::WCSha256Hmac),
-        aead_alg: &aead::Chacha20Poly1305,
-        quic: None,
-    });
+// pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
+//     rustls::SupportedCipherSuite::Tls13(&rustls::Tls13CipherSuite {
+//         common: rustls::crypto::CipherSuiteCommon {
+//             suite: rustls::CipherSuite::TLS13_CHACHA20_POLY1305_SHA256,
+//             hash_provider: &hash::WCSha256,
+//             confidentiality_limit: u64::MAX,
+//         },
+//         hkdf_provider: &rustls::crypto::tls13::HkdfUsingHmac(&hmac::WCSha256Hmac),
+//         aead_alg: &aead::Chacha20Poly1305,
+//         quic: None,
+//     });
 
 // tls 1.2
 pub static TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
@@ -86,7 +86,7 @@ pub static TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherS
             confidentiality_limit: u64::MAX,
         },
         aead_alg: &aead::Chacha20Poly1305,
-        prf_provider: &prf::PrfTls12,
+        prf_provider: &PrfUsingHmac(&hmac::Sha256Hmac),
         kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
         sign: &[
             rustls::SignatureScheme::RSA_PSS_SHA256,
