@@ -6,8 +6,8 @@ use wolfcrypt_rs::*;
 use std::mem;
 use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
 use std::ptr::NonNull;
-use std::{os::raw::c_void};
 use der::Reader;
+use std::vec::Vec;
 use rsa::signature::Verifier;
 use rsa::{pkcs1v15, BigUint, RsaPublicKey};
 
@@ -64,57 +64,46 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
         unsafe {
-            let mut rsa_key_struct: RsaKey = mem::zeroed();
-            let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_struct);
             let mut ret;
+            let digest_sz;
+            let mut digest: [u8; 32] = [0; 32];
+            let mut out: [u8; 256] = [0; 256];
+            let mut signature: Vec<u8> = signature.to_vec();
 
-            ret = wc_InitRsaKey(rsa_key_object.as_ptr(), std::ptr::null_mut());
-            if ret != 0 {
-                panic!("error while calling wc_InitRsaKey, ret value: {}", ret);
-            }
-            // public_key: unfortunately this is not a whole SPKI, but just the key material.
-            // decode the two integers manually.
-            let mut reader = der::SliceReader::new(public_key).map_err(|_| InvalidSignature)?;
-            let ne: [der::asn1::UintRef; 2] = reader
-                .decode()
-                .map_err(|_| InvalidSignature)?;
+            let mut rsa_key_struct = wc_decode_spki_spk(public_key)?;
+            let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_struct);
 
-            let n = ne[0].as_bytes();
-            let e = ne[1].as_bytes();
+            digest_sz = wc_HashGetDigestSize(
+                wc_HashType_WC_HASH_TYPE_SHA256
+            );
 
-            ret = wc_RsaPublicKeyDecodeRaw(
-                    n.as_ptr(), 
-                    mem::size_of_val(&n).try_into().unwrap(), 
-                    e.as_ptr(), 
-                    mem::size_of_val(&e).try_into().unwrap(), 
-                    rsa_key_object.as_ptr()
+            ret = wc_Hash(
+                    wc_HashType_WC_HASH_TYPE_SHA256, 
+                    message.as_ptr(), 
+                    message.len() as word32, 
+                    digest.as_mut_ptr(), 
+                    digest_sz as word32
             );
             if ret != 0 {
-                panic!("error while calling wc_RsaPublicKeyDecodeRaw, ret value: {}", ret);
+                panic!("error while calling wc_hash, ret = {}", ret);
             }
 
-            let message_len: word32 = message.len() as word32;
-            let signature_len: word32 = signature.len() as word32;
-
-            ret = wc_SignatureVerify(
-                wc_HashType_WC_HASH_TYPE_SHA256,
-                wc_SignatureType_WC_SIGNATURE_TYPE_RSA,
-                message.as_ptr(), 
-                message_len,
-                signature.as_ptr(), 
-                signature_len,
-                rsa_key_object.as_ptr() as *const c_void, 
-                mem::size_of_val(&rsa_key_struct).try_into().unwrap()
+            ret = wc_RsaPSS_VerifyCheck(
+                    signature.as_mut_ptr(), 
+                    signature.len() as word32, 
+                    out.as_mut_ptr(), 
+                    out.len() as word32,
+                    digest.as_mut_ptr(), 
+                    digest_sz as word32, 
+                    wc_HashType_WC_HASH_TYPE_SHA256, 
+                    WC_MGF1SHA256.try_into().unwrap(), 
+                    rsa_key_object.as_ptr()
             );
 
             if ret >= 0 { 
                 Ok(()) 
             } else { 
-                // FIXME: -201 -> Rsa Padding error
                 log::error!("value of ret: {}", ret);
-                log::error!("value of signature_len: {}", signature_len);
-                log::error!("value of wc_SignatureGetSize: {}", wc_SignatureGetSize(wc_SignatureType_WC_SIGNATURE_TYPE_RSA, rsa_key_object.as_ptr() as *const c_void, mem::size_of_val(&rsa_key_struct).try_into().unwrap()));
-
                 Err(InvalidSignature) 
             }
         }
@@ -150,8 +139,6 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
 }
 
 fn decode_spki_spk(spki_spk: &[u8]) -> Result<RsaPublicKey, InvalidSignature> {
-    // public_key: unfortunately this is not a whole SPKI, but just the key material.
-    // decode the two integers manually.
     let mut reader = der::SliceReader::new(spki_spk).map_err(|_| InvalidSignature)?;
     let ne: [der::asn1::UintRef; 2] = reader
         .decode()
@@ -162,6 +149,43 @@ fn decode_spki_spk(spki_spk: &[u8]) -> Result<RsaPublicKey, InvalidSignature> {
         BigUint::from_bytes_be(ne[1].as_bytes()),
     )
     .map_err(|_| InvalidSignature)
+}
+
+fn wc_decode_spki_spk(spki_spk: &[u8]) -> Result<RsaKey, InvalidSignature> {
+    unsafe {
+        let mut reader = der::SliceReader::new(spki_spk).map_err(|_| InvalidSignature)?;
+        let ne: [der::asn1::UintRef; 2] = reader
+            .decode()
+            .map_err(|_| InvalidSignature)?;
+        let n = BigUint::from_bytes_be(ne[0].as_bytes());
+        let e = BigUint::from_bytes_be(ne[1].as_bytes());
+        let n_bytes = n.to_bytes_be();
+        let e_bytes = e.to_bytes_be();
+
+        let mut rsa_key_struct: RsaKey = mem::zeroed();
+        let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_struct);
+        let mut ret;
+
+        ret = wc_InitRsaKey(rsa_key_object.as_ptr(), std::ptr::null_mut());
+        if ret != 0 {
+            panic!("error while calling wc_InitRsaKey, ret value: {}", ret);
+        }
+
+        ret = wc_RsaPublicKeyDecodeRaw(
+                n_bytes.as_ptr(), 
+                n_bytes.capacity().try_into().unwrap(), 
+                e_bytes.as_ptr(), 
+                e_bytes.capacity().try_into().unwrap(), 
+                rsa_key_object.as_ptr()
+        );
+
+        if ret == 0 {
+            Ok(rsa_key_struct)
+        } else {
+            log::error!("ret value: {}", ret);
+            Err(InvalidSignature)
+        }
+    }
 }
 
 #[cfg(test)]
