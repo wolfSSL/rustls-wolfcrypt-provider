@@ -110,6 +110,43 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
     }
 }
 
+fn wc_decode_spki_spk(spki_spk: &[u8]) -> Result<RsaKey, InvalidSignature> {
+    unsafe {
+        let mut reader = der::SliceReader::new(spki_spk).map_err(|_| InvalidSignature)?;
+        let ne: [der::asn1::UintRef; 2] = reader
+            .decode()
+            .map_err(|_| InvalidSignature)?;
+        let n = BigUint::from_bytes_be(ne[0].as_bytes());
+        let e = BigUint::from_bytes_be(ne[1].as_bytes());
+        let n_bytes = n.to_bytes_be();
+        let e_bytes = e.to_bytes_be();
+
+        let mut rsa_key_struct: RsaKey = mem::zeroed();
+        let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_struct);
+        let mut ret;
+
+        ret = wc_InitRsaKey(rsa_key_object.as_ptr(), std::ptr::null_mut());
+        if ret != 0 {
+            panic!("error while calling wc_InitRsaKey, ret value: {}", ret);
+        }
+
+        ret = wc_RsaPublicKeyDecodeRaw(
+                n_bytes.as_ptr(), 
+                n_bytes.capacity().try_into().unwrap(), 
+                e_bytes.as_ptr(), 
+                e_bytes.capacity().try_into().unwrap(), 
+                rsa_key_object.as_ptr()
+        );
+
+        if ret == 0 {
+            Ok(rsa_key_struct)
+        } else {
+            log::error!("ret value: {}", ret);
+            Err(InvalidSignature)
+        }
+    }
+}
+
 #[derive(Debug)]
 struct RsaPkcs1Sha256Verify;
 
@@ -149,43 +186,6 @@ fn decode_spki_spk(spki_spk: &[u8]) -> Result<RsaPublicKey, InvalidSignature> {
         BigUint::from_bytes_be(ne[1].as_bytes()),
     )
     .map_err(|_| InvalidSignature)
-}
-
-fn wc_decode_spki_spk(spki_spk: &[u8]) -> Result<RsaKey, InvalidSignature> {
-    unsafe {
-        let mut reader = der::SliceReader::new(spki_spk).map_err(|_| InvalidSignature)?;
-        let ne: [der::asn1::UintRef; 2] = reader
-            .decode()
-            .map_err(|_| InvalidSignature)?;
-        let n = BigUint::from_bytes_be(ne[0].as_bytes());
-        let e = BigUint::from_bytes_be(ne[1].as_bytes());
-        let n_bytes = n.to_bytes_be();
-        let e_bytes = e.to_bytes_be();
-
-        let mut rsa_key_struct: RsaKey = mem::zeroed();
-        let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_struct);
-        let mut ret;
-
-        ret = wc_InitRsaKey(rsa_key_object.as_ptr(), std::ptr::null_mut());
-        if ret != 0 {
-            panic!("error while calling wc_InitRsaKey, ret value: {}", ret);
-        }
-
-        ret = wc_RsaPublicKeyDecodeRaw(
-                n_bytes.as_ptr(), 
-                n_bytes.capacity().try_into().unwrap(), 
-                e_bytes.as_ptr(), 
-                e_bytes.capacity().try_into().unwrap(), 
-                rsa_key_object.as_ptr()
-        );
-
-        if ret == 0 {
-            Ok(rsa_key_struct)
-        } else {
-            log::error!("ret value: {}", ret);
-            Err(InvalidSignature)
-        }
-    }
 }
 
 #[cfg(test)]
