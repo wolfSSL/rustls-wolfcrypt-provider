@@ -14,3 +14,4 @@
 #include <wolfssl/wolfcrypt/kdf.h>
 #include <wolfssl/wolfcrypt/coding.h>
 #include <wolfssl/wolfcrypt/signature.h>
+#include <wolfssl/wolfcrypt/logging.h>

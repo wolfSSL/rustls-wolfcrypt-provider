@@ -61,7 +61,7 @@ impl rustls::crypto::KeyProvider for Provider {
 
 static ALL_CIPHER_SUITES: &[rustls::SupportedCipherSuite] = &[
     // TLS13_CHACHA20_POLY1305_SHA256,
-    TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+    TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
 ];
 
 // tls 1.3
@@ -78,7 +78,7 @@ static ALL_CIPHER_SUITES: &[rustls::SupportedCipherSuite] = &[
 //     });
 
 // tls 1.2
-pub static TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
+pub static TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
     rustls::SupportedCipherSuite::Tls12(&rustls::Tls12CipherSuite {
         common: rustls::crypto::CipherSuiteCommon {
             suite: rustls::CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,

@@ -45,65 +45,53 @@ unsafe impl ForeignType for Curve25519KeyObject {
 }
 
 pub struct KeyExchange {
-    public_key: Curve25519KeyObject,
-    public_key_bytes: Vec<u8>,
-    private_key: Curve25519KeyObject,
+    key: Curve25519KeyObject,
+    key_bytes: [u8; 32],
 }
 
 impl KeyExchange {
     pub fn use_curve25519() -> Self {
         unsafe {
-            let mut public_key: curve25519_key = mem::zeroed();
-            let mut private_key: curve25519_key = mem::zeroed();
-            let public_key_object = Curve25519KeyObject::from_ptr(&mut public_key);
-            let private_key_object = Curve25519KeyObject::from_ptr(&mut private_key);
+            let mut key: curve25519_key = mem::zeroed();
+            let key_object = Curve25519KeyObject::from_ptr(&mut key);
             let mut ret;
             let mut rng: WC_RNG = mem::zeroed();
 
-            ret = wc_curve25519_init(public_key_object.as_ptr());
-            if ret != 0 {
-                panic!("failed when calling wc_curve255519_init");
-            }
-            ret = wc_curve25519_init(private_key_object.as_ptr());
-            if ret != 0 {
-                panic!("failed when calling wc_curve255519_init");
-            }
-
             ret = wc_InitRng(&mut rng);
-            if ret != 0 {
+            if ret < 0 {
                 panic!("failed when calling wc_InitRng");
             }
 
-            ret = wc_curve25519_make_key(&mut rng, 32, public_key_object.as_ptr());
-            if ret != 0 {
+            ret = wc_curve25519_init(key_object.as_ptr());
+            if ret < 0 {
                 panic!("failed when calling wc_curve255519_init");
             }
-            ret = wc_curve25519_make_key(&mut rng, 32, private_key_object.as_ptr());
-            if ret != 0 {
-                panic!("failed when calling wc_curve25519_make_key");
+
+            ret = wc_curve25519_make_key(&mut rng, 32, key_object.as_ptr());
+            if ret < 0 {
+                panic!("failed when calling wc_curve255519_init");
             }
 
-            let mut out: [u8; CURVE25519_KEYSIZE as usize] = [0; CURVE25519_KEYSIZE as usize];
+            let mut out: [u8; 32] = [0; 32];
             let mut out_length: u32 = 32;
 
-            ret = wc_curve25519_export_public(public_key_object.as_ptr(), out.as_mut_ptr(), &mut out_length);
-            if ret != 0 {
+            ret = wc_curve25519_export_public(key_object.as_ptr(), out.as_mut_ptr(), &mut out_length);
+            if ret < 0 {
                 panic!("failed when calling wc_curve25519_export_public with ret value: {}", ret);
             }
 
             Self {
-                public_key: public_key_object,
-                public_key_bytes: out.to_vec(),
-                private_key: private_key_object
+                key: key_object,
+                key_bytes: out,
             }
         }
     }
 
-    fn get_public_key_bytes(&self) -> &[u8] {
-        self.public_key_bytes.as_slice()
+    fn get_key_as_bytes(&self) -> [u8; 32] {
+        self.key_bytes
     }
 
-    fn derive_shared_secret(&mut self, peer_pub_key: Vec<u8>) -> Vec<u8> {
+    fn derive_shared_secret(&mut self, peer_pub_key: [u8; 32]) -> Vec<u8> {
         unsafe {
             let mut ret;
             let mut peer_pub_key_struct: curve25519_key = mem::zeroed();
@@ -111,35 +99,44 @@ impl KeyExchange {
             let mut rng: WC_RNG = mem::zeroed();
             
             ret = wc_curve25519_init(peer_pub_key_object.as_ptr());
-            if ret != 0 {
+            if ret < 0 {
                 panic!("failed when calling wc_curve255519_init");
             }
 
             ret = wc_InitRng(&mut rng);
-            if ret != 0 {
+            if ret < 0 {
                 panic!("failed when calling wc_InitRng");
+            }
+
+            ret = wc_curve25519_check_public(
+                    peer_pub_key.as_ptr(), 
+                    32, 
+                    EC25519_BIG_ENDIAN.try_into().unwrap()
+            );
+            if ret < 0 {
+                panic!("failed when calling wc_curve25519_check_public_ex")
             }
 
             ret = wc_curve25519_import_public(
                     peer_pub_key.as_ptr(), 
-                    peer_pub_key.capacity().try_into().unwrap(), 
-                    peer_pub_key_object.as_ptr()
+                    32, 
+                    peer_pub_key_object.as_ptr(),
             );
-            if ret != 0 {
+            if ret < 0 {
                 panic!("failed when calling wc_curve25519_import_public");
             }
 
-            let mut out: [u8; CURVE25519_KEYSIZE as usize] = [0; CURVE25519_KEYSIZE as usize];
-            let mut out_length: word32 = out.len() as word32;
+            let mut out: [u8; 32] = [0; 32];
+            let mut out_length: word32 = 32 as word32;
 
             ret = wc_curve25519_shared_secret(
-                    self.private_key.as_ptr(), 
+                    self.key.as_ptr(), 
                     peer_pub_key_object.as_ptr(), 
                     out.as_mut_ptr(), 
-                    &mut out_length
+                    &mut out_length,
             );
-            if ret != 0 {
-                panic!("failed when calling wc_curve25519_shared_secret with ret value: {}", ret);
+            if ret < 0 {
+                panic!("failed when calling wc_curve25519_shared_secret_ex: {}", ret);
             }
 
            out.to_vec()
@@ -150,18 +147,17 @@ impl KeyExchange {
 impl crypto::ActiveKeyExchange for KeyExchange {
     fn complete(
         mut self: Box<Self>,
-        peer: &[u8],
+        peer_pub_key: &[u8],
     ) -> Result<crypto::SharedSecret, rustls::Error> {
-        let peer_pub_key = peer.to_vec();
 
-        let shared_secret_v = self.derive_shared_secret(peer_pub_key);
+        let shared_secret_v = self.derive_shared_secret(peer_pub_key.try_into().unwrap());
         let shared_secret_slice = shared_secret_v.as_slice();
 
         Ok(crypto::SharedSecret::from(&shared_secret_slice[..]))
     }
 
    fn pub_key(&self) -> &[u8] {
-       self.public_key_bytes.as_slice()
+       self.key_bytes.as_slice()
    }
 
     fn group(&self) -> rustls::NamedGroup {
@@ -171,19 +167,16 @@ impl crypto::ActiveKeyExchange for KeyExchange {
 
 #[cfg(test)]
 mod tests {
-    use super::{KeyExchange};
+    use super::*;
     
     #[test]
     fn test_curve25519() {
         let mut alice = KeyExchange::use_curve25519();
         let mut bob = KeyExchange::use_curve25519();
 
-        let bob_public_key = (bob.get_public_key_bytes()).to_vec();
-        let alice_public_key = (alice.get_public_key_bytes()).to_vec();
-
         assert_eq!(
-            alice.derive_shared_secret(bob_public_key), 
-            bob.derive_shared_secret(alice_public_key), 
+            alice.derive_shared_secret(bob.get_key_as_bytes().try_into().unwrap()),
+            bob.derive_shared_secret(alice.get_key_as_bytes().try_into().unwrap()),
         );
     }
 }
