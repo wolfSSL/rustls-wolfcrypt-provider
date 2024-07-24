@@ -46,7 +46,7 @@ unsafe impl ForeignType for Curve25519KeyObject {
 
 pub struct KeyExchange {
     key: Curve25519KeyObject,
-    key_bytes: [u8; 32],
+    pub_key_bytes: [u8; 32]
 }
 
 impl KeyExchange {
@@ -57,58 +57,83 @@ impl KeyExchange {
             let mut ret;
             let mut rng: WC_RNG = mem::zeroed();
 
-            ret = wc_InitRng(&mut rng);
-            if ret < 0 {
-                panic!("failed when calling wc_InitRng");
-            }
-
             ret = wc_curve25519_init(key_object.as_ptr());
             if ret < 0 {
                 panic!("failed when calling wc_curve255519_init");
             }
 
+            ret = wc_InitRng(&mut rng);
+            if ret < 0 {
+                panic!("failed when calling wc_InitRng");
+            }
+
             ret = wc_curve25519_make_key(&mut rng, 32, key_object.as_ptr());
             if ret < 0 {
-                panic!("failed when calling wc_curve255519_init");
+                panic!("failed when calling wc_curve25519_make_key");
             }
 
             let mut out: [u8; 32] = [0; 32];
             let mut out_length: u32 = 32;
+            let ret;
 
-            ret = wc_curve25519_export_public(key_object.as_ptr(), out.as_mut_ptr(), &mut out_length);
+            ret = wc_curve25519_export_public_ex(key_object.as_ptr(), out.as_mut_ptr(), &mut out_length, EC25519_LITTLE_ENDIAN.try_into().unwrap());
             if ret < 0 {
                 panic!("failed when calling wc_curve25519_export_public with ret value: {}", ret);
             }
 
             Self {
                 key: key_object,
-                key_bytes: out,
+                pub_key_bytes: out
             }
         }
     }
 
-    fn get_key_as_bytes(&mut self) -> [u8; 32] {
-        self.key_bytes
-    }
-
-    fn get_key(&mut self) -> Curve25519KeyObject {
-        self.key.clone()
-    }
-
-    fn derive_shared_secret(&mut self, peer_pub_key: Curve25519KeyObject) -> [u8; 32] {
+    fn derive_shared_secret(&mut self, peer_pub_key: [u8; 32]) -> [u8; 32] {
         unsafe {
-            let ret;
+            let mut ret;
             let mut out: [u8; 32] = [0; 32];
             let mut out_length: word32 = 32 as word32;
+            let mut rng: WC_RNG = mem::zeroed();
+            let mut peer_pub_key_struct: curve25519_key = mem::zeroed();
+            let peer_pub_key_object = Curve25519KeyObject::from_ptr(&mut peer_pub_key_struct);
+
+            ret = wc_InitRng(&mut rng);
+            if ret < 0 {
+                panic!("failed when calling wc_InitRng");
+            }
+
+            ret = wc_curve25519_init(peer_pub_key_object.as_ptr());
+            if ret < 0 {
+                panic!("failed when calling wc_curve255519_init");
+            }
+
+            ret = wc_curve25519_check_public(
+                    peer_pub_key.as_ptr(),
+                    peer_pub_key.len() as word32,
+                    EC25519_LITTLE_ENDIAN.try_into().unwrap()
+            );
+            if ret < 0 {
+                panic!("failed when calling wc_curve25519_check_public, ret: {}", ret);
+            }
+
+            ret = wc_curve25519_import_public_ex(
+                peer_pub_key.as_ptr(), 
+                32, 
+                peer_pub_key_object.as_ptr(),
+                EC25519_LITTLE_ENDIAN.try_into().unwrap()
+            );
+            if ret < 0 {
+                panic!("failed when calling wc_curve25519_import_public");
+            }
 
             ret = wc_curve25519_shared_secret(
                     self.key.as_ptr(), 
-                    peer_pub_key.as_ptr(), 
+                    peer_pub_key_object.as_ptr(), 
                     out.as_mut_ptr(), 
                     &mut out_length,
             );
             if ret < 0 {
-                panic!("failed when calling wc_curve25519_shared_secret_ex: {}", ret);
+                panic!("failed when calling wc_curve25519_shared_secret: {}", ret);
             }
 
            out
@@ -121,40 +146,14 @@ impl crypto::ActiveKeyExchange for KeyExchange {
         mut self: Box<Self>,
         peer_pub_key: &[u8],
     ) -> Result<crypto::SharedSecret, rustls::Error> {
-        unsafe {
-            let mut peer_pub_key_struct: curve25519_key = mem::zeroed();
-            let peer_pub_key_object = Curve25519KeyObject::from_ptr(&mut peer_pub_key_struct);
-            let mut rng: WC_RNG = mem::zeroed();
-            let mut ret;
+        let shared_secret_v = self.derive_shared_secret(peer_pub_key.try_into().unwrap());
+        let shared_secret_slice = shared_secret_v.as_slice();
 
-            ret = wc_InitRng(&mut rng);
-            if ret < 0 {
-                panic!("failed when calling wc_InitRng");
-            }
-
-            ret = wc_curve25519_init(peer_pub_key_object.as_ptr());
-            if ret < 0 {
-                panic!("failed when calling wc_curve255519_init");
-            }
-
-            ret = wc_curve25519_import_public(
-                peer_pub_key.as_ptr(), 
-                32, 
-                peer_pub_key_object.as_ptr(),
-            );
-            if ret < 0 {
-                panic!("failed when calling wc_curve25519_import_public");
-            }
-
-            let shared_secret_v = self.derive_shared_secret(peer_pub_key_object);
-            let shared_secret_slice = shared_secret_v.as_slice();
-
-            Ok(crypto::SharedSecret::from(&shared_secret_slice[..]))
-        }
+        Ok(crypto::SharedSecret::from(&shared_secret_slice[..]))
     }
 
    fn pub_key(&self) -> &[u8] {
-       self.key_bytes.as_slice()
+       self.pub_key_bytes.as_slice()
    }
 
     fn group(&self) -> rustls::NamedGroup {
@@ -165,28 +164,32 @@ impl crypto::ActiveKeyExchange for KeyExchange {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rustls::crypto::ActiveKeyExchange;
+
+    #[test]
+    fn test_curve25519_keyexchange() {
+        let mut alice = KeyExchange::use_curve25519();
+        let mut bob = KeyExchange::use_curve25519();
+
+        assert_eq!(
+            alice.derive_shared_secret(bob.pub_key().try_into().unwrap()),
+            bob.derive_shared_secret(alice.pub_key().try_into().unwrap())
+        );
+    }
     
     #[test]
-    fn test_curve25519() {
+    fn test_curve25519_wc() {
         unsafe {
-            let mut alice_key: curve25519_key = mem::zeroed();
-            let alice_key_object = Curve25519KeyObject::from_ptr(&mut alice_key);
-
             let mut bob_key: curve25519_key = mem::zeroed();
             let bob_key_object = Curve25519KeyObject::from_ptr(&mut bob_key);
-
-            let mut final_key_priv: curve25519_key = mem::zeroed();
-            let final_key_object_priv = Curve25519KeyObject::from_ptr(&mut final_key_priv);
-
-            let mut final_key_pub: curve25519_key = mem::zeroed();
-            let final_key_object_pub = Curve25519KeyObject::from_ptr(&mut final_key_pub);
-
+            let mut alice_key: curve25519_key = mem::zeroed();
+            let alice_key_object = Curve25519KeyObject::from_ptr(&mut alice_key);
             let mut ret;
             let mut rng: WC_RNG = mem::zeroed();
 
-            ret = wc_InitRng(&mut rng);
+            ret = wc_curve25519_init(bob_key_object.as_ptr());
             if ret < 0 {
-                panic!("failed when calling wc_InitRng");
+                panic!("failed when calling wc_curve255519_init");
             }
 
             ret = wc_curve25519_init(alice_key_object.as_ptr());
@@ -194,94 +197,120 @@ mod tests {
                 panic!("failed when calling wc_curve255519_init");
             }
 
-            ret = wc_curve25519_init(bob_key_object.as_ptr());
+            ret = wc_InitRng(&mut rng);
             if ret < 0 {
-                panic!("failed when calling wc_curve255519_init");
-            }
-
-            ret = wc_curve25519_make_key(&mut rng, 32, alice_key_object.as_ptr());
-            if ret < 0 {
-                panic!("failed when calling wc_curve255519_init");
+                panic!("failed when calling wc_InitRng");
             }
 
             ret = wc_curve25519_make_key(&mut rng, 32, bob_key_object.as_ptr());
             if ret < 0 {
-                panic!("failed when calling wc_curve255519_init");
+                panic!("failed when calling wc_curve25519_make_key");
             }
 
-            let mut out_pub: [u8; 32] = [0; 32];
-            let mut out_length_pub: u32 = 32;
-            let mut out_priv: [u8; 32] = [0; 32];
-            let mut out_length_priv: u32 = 32;
+            ret = wc_curve25519_make_key(&mut rng, 32, alice_key_object.as_ptr());
+            if ret < 0 {
+                panic!("failed when calling wc_curve25519_make_key");
+            }
 
-            ret = wc_curve25519_export_public(alice_key_object.as_ptr(), out_pub.as_mut_ptr(), &mut out_length_pub);
+            let mut pub_bob: [u8; 32] = [0; 32];
+            let mut pub_bob_length: u32 = 32;
+
+            ret = wc_curve25519_export_public_ex(bob_key_object.as_ptr(), pub_bob.as_mut_ptr(), &mut pub_bob_length, EC25519_LITTLE_ENDIAN.try_into().unwrap());
             if ret < 0 {
                 panic!("failed when calling wc_curve25519_export_public with ret value: {}", ret);
             }
 
-            ret = wc_curve25519_export_private_raw(alice_key_object.as_ptr(), out_priv.as_mut_ptr(), &mut out_length_priv);
+            let mut pub_alice: [u8; 32] = [0; 32];
+            let mut pub_alice_length: u32 = 32;
+
+            ret = wc_curve25519_export_public_ex(alice_key_object.as_ptr(), pub_alice.as_mut_ptr(), &mut pub_alice_length, EC25519_LITTLE_ENDIAN.try_into().unwrap());
             if ret < 0 {
                 panic!("failed when calling wc_curve25519_export_public with ret value: {}", ret);
             }
 
-            ret = wc_curve25519_init(final_key_object_pub.as_ptr());
+            let mut out_bob: [u8; 32] = [0; 32];
+            let mut out_bob_length: word32 = 32 as word32;
+            let mut out_alice: [u8; 32] = [0; 32];
+            let mut out_alice_length: word32 = 32 as word32;
+            let mut bob_peer_pub_key_struct: curve25519_key = mem::zeroed();
+            let bob_peer_pub_key_object = Curve25519KeyObject::from_ptr(&mut bob_peer_pub_key_struct);
+            let mut alice_peer_pub_key_struct: curve25519_key = mem::zeroed();
+            let alice_peer_pub_key_object = Curve25519KeyObject::from_ptr(&mut alice_peer_pub_key_struct);
+
+            ret = wc_InitRng(&mut rng);
+            if ret < 0 {
+                panic!("failed when calling wc_InitRng");
+            }
+
+            ret = wc_curve25519_init(bob_peer_pub_key_object.as_ptr());
             if ret < 0 {
                 panic!("failed when calling wc_curve255519_init");
             }
 
-            ret = wc_curve25519_init(final_key_object_priv.as_ptr());
+            ret = wc_curve25519_init(alice_peer_pub_key_object.as_ptr());
             if ret < 0 {
                 panic!("failed when calling wc_curve255519_init");
             }
 
-            ret = wc_curve25519_import_public(
-                out_pub.as_ptr(), 
+            ret = wc_curve25519_check_public(
+                    pub_bob.as_ptr(),
+                    pub_bob.len() as word32,
+                    EC25519_LITTLE_ENDIAN.try_into().unwrap()
+            );
+            if ret < 0 {
+                panic!("failed when calling wc_curve25519_check_public, ret: {}", ret);
+            }
+
+            ret = wc_curve25519_check_public(
+                    pub_alice.as_ptr(),
+                    pub_alice.len() as word32,
+                    EC25519_LITTLE_ENDIAN.try_into().unwrap()
+            );
+            if ret < 0 {
+                panic!("failed when calling wc_curve25519_check_public, ret: {}", ret);
+            }
+
+            ret = wc_curve25519_import_public_ex(
+                pub_bob.as_ptr(), 
                 32, 
-                final_key_object_pub.as_ptr(),
+                bob_peer_pub_key_object.as_ptr(),
+                EC25519_LITTLE_ENDIAN.try_into().unwrap()
             );
             if ret < 0 {
                 panic!("failed when calling wc_curve25519_import_public");
             }
 
-            ret = wc_curve25519_import_private(
-                out_priv.as_ptr(), 
+            ret = wc_curve25519_import_public_ex(
+                pub_alice.as_ptr(), 
                 32, 
-                final_key_object_priv.as_ptr(),
+                alice_peer_pub_key_object.as_ptr(),
+                EC25519_LITTLE_ENDIAN.try_into().unwrap()
             );
             if ret < 0 {
                 panic!("failed when calling wc_curve25519_import_public");
             }
 
-            let mut bob_secret: [u8; 32] = [0; 32];
-            let mut bob_secret_length: word32 = 32 as word32;
-
             ret = wc_curve25519_shared_secret(
-                bob_key_object.as_ptr(), 
-                final_key_object_pub.as_ptr(), 
-                bob_secret.as_mut_ptr(), 
-                &mut bob_secret_length,
+                    alice_key_object.as_ptr(), 
+                    bob_peer_pub_key_object.as_ptr(), 
+                    out_alice.as_mut_ptr(), 
+                    &mut out_alice_length,
             );
             if ret < 0 {
-                panic!("failed when calling wc_curve25519_shared_secret_ex: {}", ret);
+                panic!("failed when calling wc_curve25519_shared_secret: {}", ret);
             }
-
-            let mut final_secret: [u8; 32] = [0; 32];
-            let mut final_secret_length: word32 = 32 as word32;
 
             ret = wc_curve25519_shared_secret(
-                final_key_object_priv.as_ptr(), 
-                bob_key_object.as_ptr(), 
-                final_secret.as_mut_ptr(), 
-                &mut final_secret_length,
+                    bob_key_object.as_ptr(), 
+                    alice_peer_pub_key_object.as_ptr(), 
+                    out_bob.as_mut_ptr(), 
+                    &mut out_bob_length,
             );
             if ret < 0 {
-                panic!("failed when calling wc_curve25519_shared_secret_ex: {}", ret);
+                panic!("failed when calling wc_curve25519_shared_secret: {}", ret);
             }
 
-            assert_eq!(
-                bob_secret,
-                final_secret,
-            );
+            assert_eq!(out_bob, out_alice);
         }
     }
 }
