@@ -20,39 +20,225 @@
 //    auth_tag: Vec<u8>
 //}
 //
-//impl Tls13AeadAlgorithm for Chacha20Poly1305 {
-//    fn encrypter(&self, key: AeadKey, iv: Iv) -> Box<dyn MessageEncrypter> {
-//        Box::new(Tls13Cipher(
-//            WCChaCha20Poly1305 {
-//                key: key,
-//                iv: iv,
-//                auth_tag: Vec::new()
-//            },
-//        ))
-//    }
+//impl Tls12AeadAlgorithm for Chacha20Poly1305 {
+//    fn encrypter(&self, key: AeadKey, iv: &[u8], _: &[u8]) -> Box<dyn MessageEncrypter> {
+//        let iv_from_slice = Iv::copy(iv);
 //
-//    fn decrypter(&self, key: AeadKey, iv: Iv) -> Box<dyn MessageDecrypter> {
-//        Box::new(Tls13Cipher(
+//        log::error!("creating encrypter");
+//
+//        Box::new(Tls12Cipher(
 //                WCChaCha20Poly1305 {
 //                    key: key,
-//                    iv: iv,
+//                    iv: iv_from_slice,
 //                    auth_tag: Vec::new()
-//                },
+//                }
 //        ))
 //    }
 //
-//    fn key_len(&self) -> usize {
-//        chacha20poly1305::ChaCha20Poly1305::key_size()
+//    fn decrypter(&self, key: AeadKey, iv: &[u8]) -> Box<dyn MessageDecrypter> {
+//        let iv_from_slice = Iv::copy(iv);
+//
+//        log::error!("creating decrypter");
+//
+//        Box::new(Tls12Cipher(
+//                WCChaCha20Poly1305 {
+//                    key: key,
+//                    iv: iv_from_slice,
+//                    auth_tag: Vec::new()
+//                }
+//        ))
+//    }
+//
+//    fn key_block_shape(&self) -> KeyBlockShape {
+//        KeyBlockShape {
+//            enc_key_len: 32,
+//            fixed_iv_len: 12,
+//            explicit_nonce_len: 0,
+//        }
 //    }
 //
 //    fn extract_keys(
 //        &self,
 //        key: AeadKey,
-//        iv: Iv,
+//        iv: &[u8],
+//        _explicit: &[u8],
 //    ) -> Result<ConnectionTrafficSecrets, UnsupportedOperationError> {
-//        Ok(ConnectionTrafficSecrets::Chacha20Poly1305 { key, iv })
+//        // This should always be true because KeyBlockShape and the Iv nonce len are in agreement.
+//        debug_assert_eq!(NONCE_LEN, iv.len());
+//        Ok(ConnectionTrafficSecrets::Chacha20Poly1305 {
+//            key,
+//            iv: Iv::new(iv[..].try_into().unwrap()),
+//        })
 //    }
 //}
+//
+//struct Tls12Cipher(WCChaCha20Poly1305);
+//
+//impl MessageEncrypter for Tls12Cipher {
+//    fn encrypt(
+//        &mut self,
+//        m: OutboundPlainMessage<'_>,
+//        seq: u64,
+//    ) -> Result<OutboundOpaqueMessage, rustls::Error> {
+//        unsafe {
+//            log::error!("called encrypt");
+//
+//            let ret;
+//            let key = self.0.key.as_ref();
+//            let iv = self.0.iv.as_ref();
+//
+//            log::error!("key len: {}", key.len());
+//            log::error!("iv len: {}", iv.len());
+//
+//            let total_len = self.encrypted_payload_len(m.payload.len());
+//
+//            let mut plain_text = Vec::new();
+//            m.payload.copy_to_vec(&mut plain_text);
+//            let mut aad = make_tls12_aad(seq, m.typ, m.version, m.payload.len());
+//            let mut generated_cipher_text = vec![0u8; total_len];
+//            let mut generated_auth_tag = vec![0u8; 16];
+//
+//            log::error!("calling wc_ChaCha20Poly1305_Encrypt");
+//
+//            ret = wc_ChaCha20Poly1305_Encrypt(
+//                key.as_ptr(),
+//                iv.as_ptr(),
+//                aad.as_mut_ptr(),
+//                aad.len() as word32,
+//                plain_text.as_ptr(),
+//                plain_text.len() as word32,
+//                generated_cipher_text.as_mut_ptr(),
+//                generated_auth_tag.as_mut_ptr()
+//            );
+//            if ret < 0 {
+//                panic!("failed while calling wc_ChaCha20Poly1305_Encrypt, with ret value: {}", ret);
+//            }
+//
+//            log::error!("ret from wc_ChaCha20Poly1305_Encrypt = {}", ret);
+//
+//            self.0.auth_tag = generated_auth_tag;
+//
+//            let slice: &[u8] = &generated_cipher_text;
+//            let mut prefixed_generated_cipher_text = PrefixedPayload::with_capacity(total_len);
+//
+//            prefixed_generated_cipher_text.extend_from_slice(slice);
+//
+//            log::error!("creating OutboundOpaqueMessage");
+//
+//            Ok(OutboundOpaqueMessage::new(
+//                    m.typ,
+//                    m.version,
+//                    prefixed_generated_cipher_text
+//            ))
+//        }
+//    }
+//
+//    fn encrypted_payload_len(&self, payload_len: usize) -> usize {
+//        payload_len + CHACHAPOLY1305_OVERHEAD
+//    }
+//}
+//
+//impl MessageDecrypter for Tls12Cipher {
+//    fn decrypt<'a>(
+//        &mut self,
+//        mut m: InboundOpaqueMessage<'a>,
+//        seq: u64,
+//    ) -> Result<InboundPlainMessage<'a>, rustls::Error> {
+//        unsafe {
+//            log::error!("called decrypt");
+//
+//            let ret;
+//            let key = self.0.key.as_ref();
+//            let iv = self.0.iv.as_ref();
+//            let auth_tag = &mut self.0.auth_tag;
+//
+//            let payload = &m.payload;
+//            let mut aad = make_tls12_aad(
+//                seq,
+//                m.typ,
+//                m.version,
+//                payload.len() - CHACHAPOLY1305_OVERHEAD,
+//            );
+//
+//            let payload = &mut m.payload;
+//            let payload_adapted = &mut DecryptBufferAdapter(payload);
+//            let cipher = payload_adapted.as_mut();
+//
+//            log::error!("called wc_ChaCha20Poly1305_Decrypt");
+//
+//            ret = wc_ChaCha20Poly1305_Decrypt(
+//                key.as_ptr(),
+//                iv.as_ptr(),
+//                aad.as_mut_ptr(),
+//                aad.len() as word32,
+//                cipher.as_mut_ptr(),
+//                cipher.len() as word32,
+//                auth_tag.as_mut_ptr(),
+//                payload.as_mut_ptr()
+//            );
+//            if ret < 0 {
+//                panic!("failed while calling wc_Chacha20Poly1305_Decrypt, with ret value: {}", ret);
+//            }
+//            log::error!("ret from wc_ChaCha20Poly1305_Decrypt = {}", ret);
+//
+//            log::error!("returning plain message correctly decrypted");
+//
+//            Ok(m.into_plain_message())
+//        }
+//    }
+//}
+//
+//const CHACHAPOLY1305_OVERHEAD: usize = 16;
+//
+//struct EncryptBufferAdapter<'a>(&'a mut PrefixedPayload);
+//
+//impl AsRef<[u8]> for EncryptBufferAdapter<'_> {
+//    fn as_ref(&self) -> &[u8] {
+//        self.0.as_ref()
+//    }
+//}
+//
+//impl AsMut<[u8]> for EncryptBufferAdapter<'_> {
+//    fn as_mut(&mut self) -> &mut [u8] {
+//        self.0.as_mut()
+//    }
+//}
+//
+//impl Buffer for EncryptBufferAdapter<'_> {
+//    fn extend_from_slice(&mut self, other: &[u8]) -> chacha20poly1305::aead::Result<()> {
+//        self.0.extend_from_slice(other);
+//        Ok(())
+//    }
+//
+//    fn truncate(&mut self, len: usize) {
+//        self.0.truncate(len)
+//    }
+//}
+//
+//struct DecryptBufferAdapter<'a, 'p>(&'a mut BorrowedPayload<'p>);
+//
+//impl AsRef<[u8]> for DecryptBufferAdapter<'_, '_> {
+//    fn as_ref(&self) -> &[u8] {
+//        self.0
+//    }
+//}
+//
+//impl AsMut<[u8]> for DecryptBufferAdapter<'_, '_> {
+//    fn as_mut(&mut self) -> &mut [u8] {
+//        self.0
+//    }
+//}
+//
+//impl Buffer for DecryptBufferAdapter<'_, '_> {
+//    fn extend_from_slice(&mut self, _: &[u8]) -> chacha20poly1305::aead::Result<()> {
+//        unreachable!("not used by `AeadInPlace::decrypt_in_place`")
+//    }
+//
+//    fn truncate(&mut self, len: usize) {
+//        self.0.truncate(len)
+//    }
+//}
+//
 //
 //struct Tls13Cipher(WCChaCha20Poly1305);
 //
@@ -147,201 +333,37 @@
 //    }
 //}
 //
-//impl Tls12AeadAlgorithm for Chacha20Poly1305 {
-//    fn encrypter(&self, key: AeadKey, iv: &[u8], _: &[u8]) -> Box<dyn MessageEncrypter> {
-//        let iv_from_slice = Iv::copy(iv);
-//
-//        Box::new(Tls12Cipher(
-//                WCChaCha20Poly1305 {
-//                    key: key,
-//                    iv: iv_from_slice,
-//                    auth_tag: Vec::new()
-//                }
+//impl Tls13AeadAlgorithm for Chacha20Poly1305 {
+//    fn encrypter(&self, key: AeadKey, iv: Iv) -> Box<dyn MessageEncrypter> {
+//        Box::new(Tls13Cipher(
+//            WCChaCha20Poly1305 {
+//                key: key,
+//                iv: iv,
+//                auth_tag: Vec::new()
+//            },
 //        ))
 //    }
 //
-//    fn decrypter(&self, key: AeadKey, iv: &[u8]) -> Box<dyn MessageDecrypter> {
-//        let iv_from_slice = Iv::copy(iv);
-//
-//        Box::new(Tls12Cipher(
+//    fn decrypter(&self, key: AeadKey, iv: Iv) -> Box<dyn MessageDecrypter> {
+//        Box::new(Tls13Cipher(
 //                WCChaCha20Poly1305 {
 //                    key: key,
-//                    iv: iv_from_slice,
+//                    iv: iv,
 //                    auth_tag: Vec::new()
-//                }
+//                },
 //        ))
 //    }
 //
-//    fn key_block_shape(&self) -> KeyBlockShape {
-//        KeyBlockShape {
-//            enc_key_len: 32,
-//            fixed_iv_len: 12,
-//            explicit_nonce_len: 0,
-//        }
+//    fn key_len(&self) -> usize {
+//        chacha20poly1305::ChaCha20Poly1305::key_size()
 //    }
 //
 //    fn extract_keys(
 //        &self,
 //        key: AeadKey,
-//        iv: &[u8],
-//        _explicit: &[u8],
+//        iv: Iv,
 //    ) -> Result<ConnectionTrafficSecrets, UnsupportedOperationError> {
-//        // This should always be true because KeyBlockShape and the Iv nonce len are in agreement.
-//        debug_assert_eq!(NONCE_LEN, iv.len());
-//        Ok(ConnectionTrafficSecrets::Chacha20Poly1305 {
-//            key,
-//            iv: Iv::new(iv[..].try_into().unwrap()),
-//        })
-//    }
-//}
-//
-//struct Tls12Cipher(WCChaCha20Poly1305);
-//
-//impl MessageEncrypter for Tls12Cipher {
-//    fn encrypt(
-//        &mut self,
-//        m: OutboundPlainMessage,
-//        seq: u64,
-//    ) -> Result<OutboundOpaqueMessage, rustls::Error> {
-//        unsafe {
-//            let ret;
-//            let key = self.0.key.as_ref();
-//            let iv = self.0.iv.as_ref();
-//
-//            let total_len = self.encrypted_payload_len(m.payload.len());
-//            let mut payload = PrefixedPayload::with_capacity(total_len);
-//            payload.extend_from_chunks(&m.payload);
-//            let payload_adapted = &mut EncryptBufferAdapter(&mut payload);
-//            let plain_text = payload_adapted.as_mut();
-//
-//            let mut aad = make_tls12_aad(seq, m.typ, m.version, m.payload.len());
-//            let mut generated_cipher_text = vec![0u8; plain_text.len()];
-//            let mut generated_auth_tag = vec![0u8; plain_text.len()];
-//
-//            ret = wc_ChaCha20Poly1305_Encrypt(
-//                key.as_ptr(),
-//                iv.as_ptr(),
-//                aad.as_mut_ptr(),
-//                aad.len() as word32,
-//                plain_text.as_ptr(),
-//                plain_text.len() as word32,
-//                generated_cipher_text.as_mut_ptr(),
-//                generated_auth_tag.as_mut_ptr()
-//            );
-//            if ret != 0 {
-//                panic!("failed while calling wc_ChaCha20Poly1305_Encrypt, with ret value: {}", ret);
-//            }
-//
-//            self.0.auth_tag = generated_auth_tag;
-//
-//            let slice: &[u8] = &generated_cipher_text;
-//            let prefixed_generated_cipher_text = PrefixedPayload::from(slice);
-//
-//            Ok(OutboundOpaqueMessage::new(
-//                    ContentType::ApplicationData,
-//                    ProtocolVersion::TLSv1_3,
-//                    prefixed_generated_cipher_text
-//            ))
-//        }
-//    }
-//
-//    fn encrypted_payload_len(&self, payload_len: usize) -> usize {
-//        payload_len + CHACHAPOLY1305_OVERHEAD
-//    }
-//}
-//
-//impl MessageDecrypter for Tls12Cipher {
-//    fn decrypt<'a>(
-//        &mut self,
-//        mut m: InboundOpaqueMessage<'a>,
-//        seq: u64,
-//    ) -> Result<InboundPlainMessage<'a>, rustls::Error> {
-//        unsafe {
-//            let ret;
-//            let key = self.0.key.as_ref();
-//            let iv = self.0.iv.as_ref();
-//            let auth_tag = &mut self.0.auth_tag;
-//
-//            let payload = &m.payload;
-//            let mut aad = make_tls12_aad(
-//                seq,
-//                m.typ,
-//                m.version,
-//                payload.len() - CHACHAPOLY1305_OVERHEAD,
-//            );
-//
-//            let payload = &mut m.payload;
-//            let payload_adapted = &mut DecryptBufferAdapter(payload);
-//            let cipher = payload_adapted.as_mut();
-//
-//            ret = wc_ChaCha20Poly1305_Decrypt(
-//                key.as_ptr(),
-//                iv.as_ptr(),
-//                aad.as_mut_ptr(),
-//                aad.len() as word32,
-//                cipher.as_mut_ptr(),
-//                cipher.len() as word32,
-//                auth_tag.as_mut_ptr(),
-//                payload.as_mut_ptr()
-//            );
-//            if ret != 0 {
-//                panic!("failed while calling wc_Chacha20Poly1305_Decrypt, with ret value: {}", ret);
-//            }
-//
-//
-//            Ok(m.into_plain_message())
-//        }
-//    }
-//}
-//
-//const CHACHAPOLY1305_OVERHEAD: usize = 16;
-//
-//struct EncryptBufferAdapter<'a>(&'a mut PrefixedPayload);
-//
-//impl AsRef<[u8]> for EncryptBufferAdapter<'_> {
-//    fn as_ref(&self) -> &[u8] {
-//        self.0.as_ref()
-//    }
-//}
-//
-//impl AsMut<[u8]> for EncryptBufferAdapter<'_> {
-//    fn as_mut(&mut self) -> &mut [u8] {
-//        self.0.as_mut()
-//    }
-//}
-//
-//impl Buffer for EncryptBufferAdapter<'_> {
-//    fn extend_from_slice(&mut self, other: &[u8]) -> chacha20poly1305::aead::Result<()> {
-//        self.0.extend_from_slice(other);
-//        Ok(())
-//    }
-//
-//    fn truncate(&mut self, len: usize) {
-//        self.0.truncate(len)
-//    }
-//}
-//
-//struct DecryptBufferAdapter<'a, 'p>(&'a mut BorrowedPayload<'p>);
-//
-//impl AsRef<[u8]> for DecryptBufferAdapter<'_, '_> {
-//    fn as_ref(&self) -> &[u8] {
-//        self.0
-//    }
-//}
-//
-//impl AsMut<[u8]> for DecryptBufferAdapter<'_, '_> {
-//    fn as_mut(&mut self) -> &mut [u8] {
-//        self.0
-//    }
-//}
-//
-//impl Buffer for DecryptBufferAdapter<'_, '_> {
-//    fn extend_from_slice(&mut self, _: &[u8]) -> chacha20poly1305::aead::Result<()> {
-//        unreachable!("not used by `AeadInPlace::decrypt_in_place`")
-//    }
-//
-//    fn truncate(&mut self, len: usize) {
-//        self.0.truncate(len)
+//        Ok(ConnectionTrafficSecrets::Chacha20Poly1305 { key, iv })
 //    }
 //}
 //

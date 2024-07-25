@@ -46,7 +46,7 @@
 //                std::ptr::null_mut(),
 //                INVALID_DEVID
 //            );
-//            if ret != 0 {
+//            if ret < 0 {
 //                panic!("wc_HmacInit failed with ret value: {}", ret);
 //            }
 //
@@ -79,7 +79,7 @@
 //                self.key.len().try_into().unwrap()
 //            );
 //
-//            if ret != 0 {
+//            if ret < 0 {
 //                panic!("wc_HmacSetKey failed with ret value: {}", ret);
 //            }
 //        }
@@ -95,7 +95,7 @@
 //                self.key.len().try_into().unwrap()
 //            );
 //
-//            if ret != 0 {
+//            if ret < 0 {
 //                panic!("wc_HmacUpdate failed with ret value: {}, size of buffer: {}", ret, mem::size_of_val(&buffer));
 //            }
 //        }
@@ -110,7 +110,7 @@
 //                hmac_digest.as_mut_ptr()
 //            );
 //
-//            if ret != 0 {
+//            if ret < 0 {
 //                panic!("wc_HmacFinal failed with ret value: {}", ret);
 //            }
 //
@@ -157,15 +157,13 @@
 //    fn sha_256_hmac() {
 //        let hasher = SHA256.with_key("Very Secret".as_bytes());
 //
-//        let tag = hasher.sign_concat(
-//            &[],
+//        let tag = hasher.sign(
 //            &[
 //                "yay".as_bytes(),
 //                "this".as_bytes(),
 //                "works".as_bytes(),
 //                "well".as_bytes(),
 //            ],
-//            &[],
 //        );
 //
 //        assert_eq!(
@@ -174,7 +172,6 @@
 //        );
 //    }
 //}
-
 use alloc::boxed::Box;
 
 use hmac::{Hmac, Mac};
