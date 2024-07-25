@@ -11,27 +11,21 @@ pub const ALL_KX_GROUPS: &[&dyn SupportedKxGroup] = &[&X25519 as &dyn SupportedK
 #[derive(Debug)]
 pub struct X25519;
 
+// FIXME: Try to use make_pub, so to create the public key starting from the private one.
 impl crypto::SupportedKxGroup for X25519 {
     fn start(&self) -> Result<Box<dyn crypto::ActiveKeyExchange>, rustls::Error> {
         unsafe {
-            let mut public_key: curve25519_key = mem::zeroed();
-            let public_key_object = Curve25519KeyObject::from_ptr(&mut public_key);
-            let mut private_key: curve25519_key = mem::zeroed();
-            let private_key_object = Curve25519KeyObject::from_ptr(&mut private_key);
+            let mut key: curve25519_key = mem::zeroed();
+            let key_object = Curve25519KeyObject::from_ptr(&mut key);
             let mut rng: WC_RNG = mem::zeroed();
             let mut ret;
             let mut pub_key_raw: [u8; 32] = [0; 32];
             let mut pub_key_raw_len: word32 = pub_key_raw.len() as word32;
-            let endian: u32 = EC25519_LITTLE_ENDIAN;
             let mut priv_key_raw: [u8; 32] = [0; 32];
             let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
+            let endian: u32 = EC25519_LITTLE_ENDIAN;
 
-            ret = wc_curve25519_init(private_key_object.as_ptr());
-            if ret < 0 {
-                panic!("panic while calling wc_curve25519_init, ret = {}", ret);
-            }
-
-            ret = wc_curve25519_init(public_key_object.as_ptr());
+            ret = wc_curve25519_init(key_object.as_ptr());
             if ret < 0 {
                 panic!("panic while calling wc_curve25519_init, ret = {}", ret);
             }
@@ -44,41 +38,23 @@ impl crypto::SupportedKxGroup for X25519 {
             ret = wc_curve25519_make_key(
                 &mut rng, 
                 32, 
-                private_key_object.as_ptr()
+                key_object.as_ptr()
             );
             if ret < 0 {
                 panic!("wc_curve25519_make_key");
             }
 
-            ret = wc_curve25519_make_key(
-                &mut rng, 
-                32, 
-                public_key_object.as_ptr()
-            );
-            if ret < 0 {
-                panic!("wc_curve25519_make_key");
-            }
-
-            ret = wc_curve25519_export_public_ex(
-                    public_key_object.as_ptr(), 
+            ret = wc_curve25519_export_key_raw_ex(
+                    key_object.as_ptr(),
+                    priv_key_raw.as_mut_ptr(), 
+                    &mut priv_key_raw_len, 
                     pub_key_raw.as_mut_ptr(), 
                     &mut pub_key_raw_len,
                     endian.try_into().unwrap()
-            ); 
-            if ret < 0 {
-                panic!("wc_curve25519_export_public_ex");
-            }
-
-            ret = wc_curve25519_export_private_raw_ex(
-                    private_key_object.as_ptr(), 
-                    priv_key_raw.as_mut_ptr(), 
-                    &mut priv_key_raw_len,
-                    endian.try_into().unwrap()
             );
             if ret < 0 {
-                panic!("wc_curve25519_export_private_raw_ex");
+                panic!("wc_curve25519_export_key_raw_ex");
             }
-
 
            Ok(Box::new(
                KeyExchange {
@@ -165,7 +141,7 @@ impl crypto::ActiveKeyExchange for KeyExchange {
                panic!("wc_curve25519_shared_secret_ex, ret = {}", ret);
            }
 
-           Ok(crypto::SharedSecret::from(&out[..]))
+           Ok(crypto::SharedSecret::from(out.as_slice()))
         }
     }
 

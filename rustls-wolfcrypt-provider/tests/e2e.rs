@@ -1,5 +1,5 @@
 use std::io::{Read, Write};
-//use std::io::{stdout};
+use std::io::{stdout};
 use std::net::TcpStream;
 use std::sync::Arc;
 use rustls_wolfcrypt_provider::provider;
@@ -44,6 +44,6 @@ mod tests {
 
         let mut plaintext = Vec::new();
         tls.read_to_end(&mut plaintext).unwrap();
-        //stdout().write_all(&plaintext).unwrap();
+        stdout().write_all(&plaintext).unwrap();
     }
 }
