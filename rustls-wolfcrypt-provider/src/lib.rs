@@ -8,11 +8,11 @@ use alloc::sync::Arc;
 
 use rustls::crypto::CryptoProvider;
 use rustls::pki_types::PrivateKeyDer;
-use rustls::crypto::tls12::PrfUsingHmac;
 
 mod random;
-pub mod hash;
+mod hash;
 mod hmac;
+mod prf;
 #[cfg(feature = "std")]
 mod kx;
 mod sign;
@@ -86,7 +86,7 @@ pub static TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCiphe
             confidentiality_limit: u64::MAX,
         },
         aead_alg: &aead::Chacha20Poly1305,
-        prf_provider: &PrfUsingHmac(&hmac::Sha256Hmac),
+        prf_provider: &prf::PrfTls12,
         kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
         sign: &[
             rustls::SignatureScheme::RSA_PSS_SHA256,
