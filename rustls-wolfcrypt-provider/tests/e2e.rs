@@ -3,6 +3,9 @@ use std::io::{stdout};
 use std::net::TcpStream;
 use std::sync::Arc;
 use rustls_wolfcrypt_provider::provider;
+use rustls::{
+    version::{TLS12},
+};
 
 #[cfg(test)]
 mod tests {
@@ -21,7 +24,7 @@ mod tests {
 
         let config =
             rustls::ClientConfig::builder_with_provider(provider().into())
-            .with_safe_default_protocol_versions()
+            .with_protocol_versions(&[&TLS12])
             .unwrap()
             .with_root_certificates(root_store)
             .with_no_client_auth();
