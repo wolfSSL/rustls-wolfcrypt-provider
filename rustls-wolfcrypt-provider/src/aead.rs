@@ -29,11 +29,15 @@ impl Tls12AeadAlgorithm for Chacha20Poly1305 {
     }
 
     fn decrypter(&self, key: AeadKey, iv: &[u8]) -> Box<dyn MessageDecrypter> {
-        Box::new(Tls12Cipher(
-                chacha20poly1305::ChaCha20Poly1305::new_from_slice(key.as_ref())
-                .expect("key should be valid"),
-                Iv::copy(iv),
-        ))
+        let mut key_as_array = [0u8; 32];
+        key_as_array[..32].copy_from_slice(key.as_ref());
+
+        Box::new(
+            WCTls12Cipher {
+                key: key_as_array,
+                iv: Iv::copy(iv),
+            }
+        )
     }
 
     fn key_block_shape(&self) -> KeyBlockShape {
@@ -58,8 +62,6 @@ impl Tls12AeadAlgorithm for Chacha20Poly1305 {
         })
     }
 }
-
-struct Tls12Cipher(chacha20poly1305::ChaCha20Poly1305, Iv);
 
 pub struct WCTls12Cipher {
     key: [u8; 32],
@@ -99,7 +101,6 @@ impl MessageEncrypter for WCTls12Cipher {
             }
 
             let mut output = PrefixedPayload::with_capacity(total_len);
-
             output.extend_from_slice(cipher.as_slice());
             output.extend_from_slice(&auth_tag);
 
@@ -114,27 +115,46 @@ impl MessageEncrypter for WCTls12Cipher {
     }
 }
 
-impl MessageDecrypter for Tls12Cipher {
+impl MessageDecrypter for WCTls12Cipher {
     fn decrypt<'a>(
         &mut self,
         mut m: InboundOpaqueMessage<'a>,
         seq: u64,
     ) -> Result<InboundPlainMessage<'a>, rustls::Error> {
-        let payload = &m.payload;
-        let nonce = chacha20poly1305::Nonce::from(Nonce::new(&self.1, seq).0);
-        let aad = make_tls12_aad(
-            seq,
-            m.typ,
-            m.version,
-            payload.len() - CHACHAPOLY1305_OVERHEAD,
-        );
+        unsafe {
+            let payload = &mut m.payload;
+            let message_len = payload.len() - CHACHAPOLY1305_OVERHEAD;
+            let nonce = Nonce::new(&self.iv, seq);
+            let aad = make_tls12_aad(
+                seq,
+                m.typ,
+                m.version,
+                message_len,
+            );
+            let mut auth_tag = [0u8; CHACHAPOLY1305_OVERHEAD];
+            auth_tag.copy_from_slice(&payload[message_len..]);
+            let ret;
 
-        let payload = &mut m.payload;
-        self.0
-            .decrypt_in_place(&nonce, &aad, &mut DecryptBufferAdapter(payload))
-            .map_err(|_| rustls::Error::DecryptError)?;
+            ret = wc_ChaCha20Poly1305_Decrypt(
+                self.key.as_ptr(), 
+                nonce.0.as_ptr(), 
+                aad.as_ptr(), 
+                aad.len() as word32,
+                payload[..message_len].as_ptr(), 
+                message_len as word32, 
+                auth_tag.as_ptr(), 
+                payload[..message_len].as_mut_ptr(), 
+            );
+            if ret < 0 {
+                panic!("error while calling wc_ChaCha20Poly1305_Decrypt");
+            }
 
-        Ok(m.into_plain_message())
+            payload.truncate(message_len);
+
+            Ok(
+                m.into_plain_message()
+            )
+        }
     }
 }
 
