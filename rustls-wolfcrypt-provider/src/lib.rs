@@ -11,7 +11,6 @@ use rustls::pki_types::PrivateKeyDer;
 
 mod random;
 mod hash;
-mod hmac;
 mod prf;
 #[cfg(feature = "std")]
 mod kx;
@@ -60,11 +59,12 @@ impl rustls::crypto::KeyProvider for Provider {
 }
 
 static ALL_CIPHER_SUITES: &[rustls::SupportedCipherSuite] = &[
+    //TLS13_CHACHA20_POLY1305_SHA256,
     TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
-    TLS13_CHACHA20_POLY1305_SHA256,
 ];
 
 // tls 1.3
+/*
 pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
     rustls::SupportedCipherSuite::Tls13(&rustls::Tls13CipherSuite {
         common: rustls::crypto::CipherSuiteCommon {
@@ -76,6 +76,7 @@ pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
         aead_alg: &aead::Chacha20Poly1305,
         quic: None,
     });
+*/
 
 // tls 1.2
 pub static TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
