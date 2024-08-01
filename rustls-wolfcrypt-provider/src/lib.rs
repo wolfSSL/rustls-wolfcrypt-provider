@@ -9,7 +9,6 @@ use rustls::crypto::tls13::HkdfUsingHmac;
 
 mod random;
 mod hash;
-mod prf;
 mod kx;
 mod sign;
 mod hmac;
