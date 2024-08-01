@@ -1,0 +1,179 @@
+use alloc::boxed::Box;
+
+use rustls::crypto;
+use core::mem;
+use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
+use std::{ptr::NonNull};
+use std::vec::Vec;
+
+use wolfcrypt_rs::*;
+
+pub struct WCSha256Hmac;
+
+impl crypto::hmac::Hmac for WCSha256Hmac {
+    fn with_key(&self, key: &[u8]) -> Box<dyn crypto::hmac::Key> {
+        Box::new(WCHmac256Key {
+            key: key.to_vec()
+        })
+    }
+
+    fn hash_output_len(&self) -> usize {
+        32 as usize
+    }
+}
+
+struct WCHmac256Key {
+    key: Vec<u8>
+}
+
+impl crypto::hmac::Key for WCHmac256Key {
+    fn sign_concat(&self, first: &[u8], middle: &[&[u8]], last: &[u8]) -> crypto::hmac::Tag {
+        let hmac_object = self.hmac_init();
+
+        self.hmac_update(hmac_object, first);
+
+        for m in middle {
+            self.hmac_update(hmac_object, m)
+        }
+
+        self.hmac_update(hmac_object, last);
+
+        let digest = self.hmac_final(hmac_object);
+        let digest_length = digest.len();
+
+
+        crypto::hmac::Tag::new(&digest[..digest_length])
+    }
+
+    fn tag_len(&self) -> usize {
+        32 as usize
+    }
+}
+
+impl WCHmac256Key {
+    fn hmac_init(&self) -> HmacObject {
+        unsafe {
+            let mut hmac_c_type: wolfcrypt_rs::Hmac = mem::zeroed();
+            let hmac_object = HmacObject::from_ptr(&mut hmac_c_type);
+            let mut ret;
+
+            ret = wc_HmacInit(
+                hmac_object.as_ptr(),
+                std::ptr::null_mut(),
+                INVALID_DEVID
+            );
+            if ret != 0 {
+                panic!("error while calling wc_HmacInit, ret = {}", ret);
+            }
+
+            ret = wc_HmacSetKey(
+                hmac_object.as_ptr(), 
+                WC_SHA256.try_into().unwrap(), 
+                self.key.as_ptr(), 
+                self.key.len() as word32
+            );
+            if ret != 0 {
+                panic!("error while calling wc_HmacSetKey, ret = {}", ret);
+            }
+
+            hmac_object
+        }
+    }
+
+    fn hmac_update(&self, hmac_object: HmacObject, input: &[u8]) {
+        unsafe {
+            let ret;
+
+            ret = wc_HmacUpdate(
+                hmac_object.as_ptr(), 
+                input.as_ptr(), 
+                input.len() as word32
+            );
+
+            if ret != 0 {
+                panic!("wc_HmacUpdate failed with ret value: {}", ret);
+            }
+        }
+    }
+
+    fn hmac_final(&self, hmac_object: HmacObject) -> [u8; 32] {
+        unsafe {
+            let mut digest: [u8; 32] = [0; 32];
+            let ret;
+
+            ret = wc_HmacFinal(
+                hmac_object.as_ptr(),
+                digest.as_mut_ptr()
+            );
+
+            if ret != 0 {
+                panic!("wc_HmacFinal failed with ret value: {}", ret);
+            }
+
+            digest
+        }
+    }
+}
+
+pub struct HmacObjectRef(Opaque);
+unsafe impl ForeignTypeRef for HmacObjectRef {
+    type CType = wolfcrypt_rs::Hmac;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct HmacObject(NonNull<wolfcrypt_rs::Hmac>);
+unsafe impl Sync for HmacObject {}
+unsafe impl Send for HmacObject {}
+unsafe impl ForeignType for HmacObject {
+    type CType = wolfcrypt_rs::Hmac;
+
+    type Ref = HmacObjectRef;
+
+    unsafe fn from_ptr(ptr: *mut Self::CType) -> Self {
+        Self(NonNull::new_unchecked(ptr))
+    }
+
+    fn as_ptr(&self) -> *mut Self::CType {
+        self.0.as_ptr()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rustls::crypto::hmac::Hmac;
+
+    #[test]
+    fn sha_256_hmac() {
+        let hmac = WCSha256Hmac;
+        let key = "this is my key".as_bytes();
+        let hash = hmac.with_key(key);
+
+        // First call to sign_concat
+        let tag1 = hash.sign_concat(
+            &[],
+            &[
+                "fake it".as_bytes(),
+                "till you".as_bytes(),
+                "make".as_bytes(),
+                "it".as_bytes(),
+            ],
+            &[],
+        );
+
+        // Second call to sign_concat with the same inputs
+        let tag2 = hash.sign_concat(
+            &[],
+            &[
+                "fake it".as_bytes(),
+                "till you".as_bytes(),
+                "make".as_bytes(),
+                "it".as_bytes(),
+            ],
+            &[],
+        );
+
+        // Assert that both tags are equal
+        assert_eq!(tag1.as_ref(), tag2.as_ref());
+    }
+}

@@ -47,7 +47,15 @@ mod tests {
 
         let mut plaintext = Vec::new();
         tls.read_to_end(&mut plaintext).unwrap();
-        stdout().write_all(&plaintext).unwrap();
+
+        // Convert plaintext to a String
+        let plaintext_str = String::from_utf8_lossy(&plaintext);
+
+        // Split the string into lines and take the first line
+        if let Some(first_line) = plaintext_str.lines().next() {
+            stdout().write_all(first_line.as_bytes()).unwrap();
+            stdout().write_all(b"\n").unwrap();
+        }
     }
 
     /* tls 1.3 against rust-lang.org */
@@ -84,6 +92,14 @@ mod tests {
 
         let mut plaintext = Vec::new();
         tls.read_to_end(&mut plaintext).unwrap();
-        stdout().write_all(&plaintext).unwrap();
+
+        // Convert plaintext to a String
+        let plaintext_str = String::from_utf8_lossy(&plaintext);
+
+        // Split the string into lines and take the first line
+        if let Some(first_line) = plaintext_str.lines().next() {
+            stdout().write_all(first_line.as_bytes()).unwrap();
+            stdout().write_all(b"\n").unwrap();
+        }
     }
 }

@@ -1,18 +1,15 @@
-#![no_std]
-
 extern crate alloc;
-#[cfg(feature = "std")]
 extern crate std;
 
 use alloc::sync::Arc;
 
 use rustls::crypto::CryptoProvider;
 use rustls::pki_types::PrivateKeyDer;
+use rustls::crypto::tls13::HkdfUsingHmac;
 
 mod random;
 mod hash;
 mod prf;
-#[cfg(feature = "std")]
 mod kx;
 mod sign;
 mod hmac;
@@ -49,10 +46,7 @@ impl rustls::crypto::KeyProvider for Provider {
     ) -> Result<Arc<dyn rustls::sign::SigningKey>, rustls::Error> {
         Ok(Arc::new(
             sign::EcdsaSigningKeyP256::try_from(key_der).map_err(|err| {
-                #[cfg(feature = "std")]
                 let err = rustls::OtherError(Arc::new(err));
-                #[cfg(not(feature = "std"))]
-                let err = rustls::Error::General(alloc::format!("{}", err));
                 err
             })?,
         ))
@@ -72,7 +66,7 @@ pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
             hash_provider: &hash::WCSha256,
             confidentiality_limit: u64::MAX,
         },
-        hkdf_provider: &rustls::crypto::tls13::HkdfUsingHmac(&hmac::Sha256Hmac),
+        hkdf_provider: &HkdfUsingHmac(&hmac::WCSha256Hmac),
         aead_alg: &aead::Chacha20Poly1305,
         quic: None,
     });
@@ -86,7 +80,7 @@ pub static TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCiphe
             confidentiality_limit: u64::MAX,
         },
         aead_alg: &aead::Chacha20Poly1305,
-        prf_provider: &prf::PrfTls12,
+        prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&hmac::WCSha256Hmac),
         kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
         sign: &[
             rustls::SignatureScheme::RSA_PSS_SHA256,
