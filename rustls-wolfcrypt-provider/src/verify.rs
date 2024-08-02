@@ -8,8 +8,8 @@ use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
 use std::ptr::NonNull;
 use der::Reader;
 use std::vec::Vec;
-use rsa::signature::Verifier;
-use rsa::{pkcs1v15, BigUint, RsaPublicKey};
+use rsa::{BigUint};
+use std::ffi::c_void;
 
 pub static ALGORITHMS: WebPkiSupportedAlgorithms = WebPkiSupportedAlgorithms {
     all: &[RSA_PSS_SHA256, RSA_PKCS1_SHA256],
@@ -21,29 +21,6 @@ pub static ALGORITHMS: WebPkiSupportedAlgorithms = WebPkiSupportedAlgorithms {
 
 static RSA_PSS_SHA256: &dyn SignatureVerificationAlgorithm = &RsaPssSha256Verify;
 static RSA_PKCS1_SHA256: &dyn SignatureVerificationAlgorithm = &RsaPkcs1Sha256Verify;
-
-pub struct RsaKeyObjectRef(Opaque);
-unsafe impl ForeignTypeRef for RsaKeyObjectRef {
-    type CType = RsaKey;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct RsaKeyObject(NonNull<RsaKey>);
-unsafe impl Sync for RsaKeyObject{}
-unsafe impl Send for RsaKeyObject{}
-unsafe impl ForeignType for RsaKeyObject {
-    type CType = RsaKey;
-
-    type Ref = RsaKeyObjectRef;
-
-    unsafe fn from_ptr(ptr: *mut Self::CType) -> Self {
-        Self(NonNull::new_unchecked(ptr))
-    }
-
-    fn as_ptr(&self) -> *mut Self::CType {
-        self.0.as_ptr()
-    }
-}
 
 #[derive(Debug)]
 struct RsaPssSha256Verify;
@@ -86,7 +63,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
             );
             if ret != 0 {
                 panic!("error while calling wc_hash, ret = {}", ret);
-            }
+            } 
 
             ret = wc_RsaPSS_VerifyCheck(
                     signature.as_mut_ptr(), 
@@ -105,6 +82,52 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
             } else { 
                 log::error!("value of ret: {}", ret);
                 Err(InvalidSignature) 
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct RsaPkcs1Sha256Verify;
+
+impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
+    fn public_key_alg_id(&self) -> AlgorithmIdentifier {
+        alg_id::RSA_ENCRYPTION
+    }
+
+    fn signature_alg_id(&self) -> AlgorithmIdentifier {
+        alg_id::RSA_PKCS1_SHA256
+    }
+
+    fn verify_signature(
+        &self,
+        public_key: &[u8],
+        message: &[u8],
+        signature: &[u8],
+    ) -> Result<(), InvalidSignature> {
+        unsafe {
+            let mut rsa_key_struct = wc_decode_spki_spk(public_key)?;
+            let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_struct);
+            let ret;
+
+            // Also performs the hashing (SHA256 in this case), 
+            // see: https://www.wolfssl.com/documentation/manuals/wolfssl/group__Signature.html#function-wc_signatureverify
+            ret = wc_SignatureVerify(
+                    wc_HashType_WC_HASH_TYPE_SHA256, 
+                    wc_SignatureType_WC_SIGNATURE_TYPE_RSA_W_ENC,
+                    message.as_ptr(), 
+                    message.len() as word32,
+                    signature.as_ptr(), 
+                    signature.len() as word32,
+                    rsa_key_object.as_ptr() as *const c_void, 
+                    mem::size_of_val(&rsa_key_struct).try_into().unwrap()
+            );
+
+            if ret == 0 {
+                Ok(())
+            } else {
+                log::error!("ret value: {}", ret);
+                Err(InvalidSignature)
             }
         }
     }
@@ -147,45 +170,27 @@ fn wc_decode_spki_spk(spki_spk: &[u8]) -> Result<RsaKey, InvalidSignature> {
     }
 }
 
-#[derive(Debug)]
-struct RsaPkcs1Sha256Verify;
-
-impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
-    fn public_key_alg_id(&self) -> AlgorithmIdentifier {
-        alg_id::RSA_ENCRYPTION
-    }
-
-    fn signature_alg_id(&self) -> AlgorithmIdentifier {
-        alg_id::RSA_PKCS1_SHA256
-    }
-
-    fn verify_signature(
-        &self,
-        public_key: &[u8],
-        message: &[u8],
-        signature: &[u8],
-    ) -> Result<(), InvalidSignature> {
-        let public_key = decode_spki_spk(public_key)?;
-
-        let signature = pkcs1v15::Signature::try_from(signature).map_err(|_| InvalidSignature)?;
-
-        pkcs1v15::VerifyingKey::<sha2::Sha256>::new(public_key)
-            .verify(message, &signature)
-            .map_err(|_| InvalidSignature)
-    }
+pub struct RsaKeyObjectRef(Opaque);
+unsafe impl ForeignTypeRef for RsaKeyObjectRef {
+    type CType = RsaKey;
 }
 
-fn decode_spki_spk(spki_spk: &[u8]) -> Result<RsaPublicKey, InvalidSignature> {
-    let mut reader = der::SliceReader::new(spki_spk).map_err(|_| InvalidSignature)?;
-    let ne: [der::asn1::UintRef; 2] = reader
-        .decode()
-        .map_err(|_| InvalidSignature)?;
+#[derive(Debug, Clone, Copy)]
+pub struct RsaKeyObject(NonNull<RsaKey>);
+unsafe impl Sync for RsaKeyObject{}
+unsafe impl Send for RsaKeyObject{}
+unsafe impl ForeignType for RsaKeyObject {
+    type CType = RsaKey;
 
-    RsaPublicKey::new(
-        BigUint::from_bytes_be(ne[0].as_bytes()),
-        BigUint::from_bytes_be(ne[1].as_bytes()),
-    )
-    .map_err(|_| InvalidSignature)
+    type Ref = RsaKeyObjectRef;
+
+    unsafe fn from_ptr(ptr: *mut Self::CType) -> Self {
+        Self(NonNull::new_unchecked(ptr))
+    }
+
+    fn as_ptr(&self) -> *mut Self::CType {
+        self.0.as_ptr()
+    }
 }
 
 #[cfg(test)]

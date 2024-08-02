@@ -1,8 +1,7 @@
 use alloc::boxed::Box;
-
 use rustls::crypto::hash;
 use std::mem;
-use wolfcrypt_rs::{wc_Sha256, word32, wc_InitSha256, wc_Sha256Update, wc_Sha256Final, WC_SHA256_DIGEST_SIZE};
+use wolfcrypt_rs::*;
 
 pub struct WCSha256;
 
@@ -34,8 +33,7 @@ impl hash::Hash for WCSha256 {
     }
 
     fn output_len(&self) -> usize {
-        const WC_SHA_256_DIGEST_SIZE_USIZE: usize = WC_SHA256_DIGEST_SIZE as usize;
-        WC_SHA_256_DIGEST_SIZE_USIZE
+        32 as usize
     }
 }
 

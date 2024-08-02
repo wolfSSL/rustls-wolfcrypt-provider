@@ -1,11 +1,4 @@
-/*
- * Contains wrappers to interface with the 
- * <wolfssl/wolfcrypt/random.h> FFI binding
- * that can be used as input into the rustls
- * API.
- * */
 use wolfcrypt_rs::*;
-
 use core::mem;
 
 // Calls wc_RNG_GenerateBlock, which copies a sz bytes of pseudorandom data to output. 

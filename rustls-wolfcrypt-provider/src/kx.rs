@@ -231,25 +231,45 @@ mod tests {
             }
 
             if ret == 0 {
-                ret = wc_curve25519_import_private_ex(priv_key_raw.as_mut_ptr(), 32, &mut priv_key, endianess.try_into().unwrap());
+                ret = wc_curve25519_import_private_ex(
+                        priv_key_raw.as_mut_ptr(), 
+                        32, 
+                        &mut priv_key, 
+                        endianess.try_into().unwrap()
+                );
                 if ret != 0 {
                     panic!("wc_curve25519_import_private failed\n");
                 }
             }
 
             if ret == 0 {
-                ret = wc_curve25519_check_public(pub_key_raw.as_mut_ptr(), 32, endianess.try_into().unwrap());
+                ret = wc_curve25519_check_public(
+                        pub_key_raw.as_mut_ptr(), 
+                        32, 
+                        endianess.try_into().unwrap()
+                );
                 if ret != 0 {
                     panic!("wc_curve25519_check_public failed\n");
                 }
             }
 
             if ret == 0 {
-                ret = wc_curve25519_import_public_ex(pub_key_raw.as_mut_ptr(), 32, &mut pub_key, endianess.try_into().unwrap());
+                ret = wc_curve25519_import_public_ex(
+                        pub_key_raw.as_mut_ptr(), 
+                        32, 
+                        &mut pub_key, 
+                        endianess.try_into().unwrap()
+                );
             }
 
             if ret == 0 {
-                ret = wc_curve25519_shared_secret_ex(&mut priv_key, &mut pub_key, secret.as_mut_ptr(), &mut secret_size, endianess.try_into().unwrap());
+                ret = wc_curve25519_shared_secret_ex(
+                        &mut priv_key, 
+                        &mut pub_key, 
+                        secret.as_mut_ptr(), 
+                        &mut secret_size, 
+                        endianess.try_into().unwrap()
+                );
             }
 
             wc_curve25519_free(&mut pub_key);

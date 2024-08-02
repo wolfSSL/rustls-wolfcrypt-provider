@@ -1,11 +1,9 @@
 use alloc::boxed::Box;
-
 use rustls::crypto;
 use core::mem;
 use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
 use std::{ptr::NonNull};
 use std::vec::Vec;
-
 use wolfcrypt_rs::*;
 
 pub struct WCSha256Hmac;
