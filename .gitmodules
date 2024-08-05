@@ -1,3 +1,0 @@
-[submodule "wolfcrypt-rs/wolfssl"]
-	path = wolfcrypt-rs/wolfssl
-	url = git@github.com:gasbytes/wolfssl.git
