@@ -1,6 +1,6 @@
 # rustls-wolfcrypt-provider
 
-Code that let you use wolfcrypt as crypto provider for rustls.
+Code that lets you use wolfcrypt as crypto provider for rustls.
 
 # Status: (WIP)
 **(WIP)**<br/>
