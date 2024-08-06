@@ -11,7 +11,7 @@ impl hash::Hash for WCSha256 {
             let sha256_struct: wc_Sha256 = mem::zeroed();
             let hash: [u8; 32] = [0; 32];
 
-            let mut hasher = WCHasher {
+            let mut hasher = WCHasher256 {
                 sha256_struct: sha256_struct,
                 hash: hash
             };
@@ -37,16 +37,17 @@ impl hash::Hash for WCSha256 {
     }
 }
 
-struct WCHasher {
+struct WCHasher256 {
     sha256_struct: wc_Sha256,
     hash: [u8; 32],
 }
 
-impl WCHasher {
+impl WCHasher256 {
     fn wchasher_init(&mut self) {
         unsafe {
             let ret;
 
+            // This function initializes SHA256. This is automatically called by wc_Sha256Hash.
             ret = wc_InitSha256(&mut self.sha256_struct);
             if ret != 0 {
                 panic!("wc_InitSha256 failed with ret: {}", ret);
@@ -59,6 +60,8 @@ impl WCHasher {
             let ret;
             let length: word32 = data.len() as word32;
 
+            // Hash the provided byte array of length len. 
+            // Can be called continually. 
             ret = wc_Sha256Update(&mut self.sha256_struct, data.as_ptr() as *const u8, length);
             if ret != 0 {
                 panic!("wc_Sha256Update failed with ret: {}", ret);
@@ -70,6 +73,8 @@ impl WCHasher {
         unsafe {
             let ret;
 
+            // Finalizes hashing of data. Result is placed into hash. 
+            // Resets state of the sha256 struct.
             ret = wc_Sha256Final(&mut self.sha256_struct, self.hash.as_mut_ptr());
             if ret != 0 {
                 panic!("wc_Sha256Final failed with ret: {}", ret);
@@ -80,18 +85,20 @@ impl WCHasher {
     }
 }
 
-unsafe impl Sync for WCHasher{}
-unsafe impl Send for WCHasher{}
-impl Clone for WCHasher {
-    fn clone(&self) -> WCHasher {
-        WCHasher {
+unsafe impl Sync for WCHasher256{}
+unsafe impl Send for WCHasher256{}
+impl Clone for WCHasher256 {
+    // Clone implementation.
+    // Returns a copy of the WCHasher256 struct.
+    fn clone(&self) -> WCHasher256 {
+        WCHasher256 {
             sha256_struct: self.sha256_struct.clone(),
             hash: self.hash.clone()
         }
     }
 }
 
-struct WCSha256Context(WCHasher);
+struct WCSha256Context(WCHasher256);
 
 impl hash::Context for WCSha256Context {
     fn fork_finish(&self) -> hash::Output {
@@ -124,7 +131,6 @@ mod tests {
 
         let hash_str1 = hex::encode(hash1);
         let hash_str2 = hex::encode(hash2);
-
 
         assert_eq!(
             hash_str1,

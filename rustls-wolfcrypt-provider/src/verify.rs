@@ -50,10 +50,18 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
             let mut rsa_key_struct = wc_decode_spki_spk(public_key)?;
             let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_struct);
 
+
+            // This function returns the size of the digest (output) for a hash_type. 
+            // The returns size is used to make sure the output buffer 
+            // provided to wc_Hash is large enough.
             digest_sz = wc_HashGetDigestSize(
                 wc_HashType_WC_HASH_TYPE_SHA256
             );
 
+            // This function performs a hash on the provided data buffer and 
+            // returns it in the hash buffer provided.
+            // In this case we hash with Sha256 (RSA_PSS_SHA256).
+            // We hash the message since it's not hashed.
             ret = wc_Hash(
                     wc_HashType_WC_HASH_TYPE_SHA256, 
                     message.as_ptr(), 
@@ -65,6 +73,9 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
                 panic!("error while calling wc_hash, ret = {}", ret);
             } 
 
+            // Verify the message signed with RSA-PSS.
+            // In this case 'message' has been, supposedly, 
+            // been signed by 'signature'.
             ret = wc_RsaPSS_VerifyCheck(
                     signature.as_mut_ptr(), 
                     signature.len() as word32, 
@@ -148,11 +159,16 @@ fn wc_decode_spki_spk(spki_spk: &[u8]) -> Result<RsaKey, InvalidSignature> {
         let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_struct);
         let mut ret;
 
+        // This function initializes a provided RsaKey struct. It also takes in a heap identifier, 
+        // for use with user defined memory overrides (see XMALLOC, XFREE, XREALLOC).
         ret = wc_InitRsaKey(rsa_key_object.as_ptr(), std::ptr::null_mut());
         if ret != 0 {
             panic!("error while calling wc_InitRsaKey, ret value: {}", ret);
         }
 
+        // This function decodes the raw elements of an RSA public key, taking in 
+        // the public modulus (n) and exponent (e). It stores these raw elements in the provided 
+        // RsaKey structure, allowing one to use them in the encryption/decryption process.
         ret = wc_RsaPublicKeyDecodeRaw(
                 n_bytes.as_ptr(), 
                 n_bytes.capacity().try_into().unwrap(), 

@@ -34,18 +34,31 @@ impl TryFrom<PrivateKeyDer<'_>> for EcdsaSigningKeyP256 {
                     let pkcs8_sz: word32 = pkcs8.len() as word32;
                     let mut ret;
 
+                    // This function initializes an ecc_key object for 
+                    // future use with message verification.
                     ret = wc_ecc_init(ecc_key_object.as_ptr());
                     if ret != 0 {
                         panic!("error while calling wc_ecc_init, ret: {}", ret);
                     }
 
                     let mut idx: u32 = 0; 
+
+                    // This function finds the beginning of the traditional
+                    // private key inside a PKCS#8 unencrypted buffer.
                     ret = wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz);
                     if ret < 0 {
                         panic!("error while calling wc_GetPkcs8TraditionalOffset, ret: {}", ret);
                     }
 
-                    ret = wc_EccPrivateKeyDecode(pkcs8.as_ptr() as *mut u8, &mut idx, ecc_key_object.as_ptr(), pkcs8_sz);
+                    // This function reads in an ECC private key from the input buffer, input, 
+                    // parses the private key, and uses it to generate an ecc_key object, 
+                    // which it stores in key.
+                    ret = wc_EccPrivateKeyDecode(
+                            pkcs8.as_ptr() as *mut u8, 
+                            &mut idx, 
+                            ecc_key_object.as_ptr(), 
+                            pkcs8_sz
+                    );
                     if ret != 0 {
                         panic!("error while calling wc_EccPrivateKeyDecode, ret: {}", ret);
                     }
@@ -88,6 +101,7 @@ impl Signer for EcdsaSigningKeyP256 {
             let ecc_key_arc = self.get_key();
             let ecc_key_object = ecc_key_arc.as_ref();
 
+            // We hash the message, since it's not, using Sha256 (ECDSA_NISTP256_SHA256)
             ret = wc_Sha256Hash(message.as_ptr(), message_length, digest.as_mut_ptr());
             if ret != 0 {
                 panic!("failed because of wc_Sha256Hash, ret value: {}", ret);
@@ -98,6 +112,8 @@ impl Signer for EcdsaSigningKeyP256 {
                 panic!("failed because of wc_InitRng, ret value: {}", ret);
             }
 
+            // This function signs a message digest 
+            // using an ecc_key object to guarantee authenticity.
             ret = wc_ecc_sign_hash(
                 digest.as_mut_ptr(), 
                 digest_length, 

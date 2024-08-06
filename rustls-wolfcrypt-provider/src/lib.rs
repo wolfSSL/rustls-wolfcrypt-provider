@@ -14,7 +14,7 @@ mod verify;
 mod aead;
 
 /*
- * Crypto provider struct that we populate with our crypto engine.
+ * Crypto provider struct that we populate with our own crypto backend (wolfcrypt).
  * */
 pub fn provider() -> CryptoProvider {
     CryptoProvider {

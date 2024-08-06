@@ -23,7 +23,7 @@ impl crypto::SupportedKxGroup for X25519 {
 
 pub struct KeyExchange {
     pub_key_bytes: [u8; 32],
-    priv_key_bytes: [u8; 32]
+    priv_key_bytes: [u8; 32],
 }
 
 impl KeyExchange {
@@ -39,6 +39,8 @@ impl KeyExchange {
             let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
             let endian: u32 = EC25519_LITTLE_ENDIAN;
 
+            // This function initializes a Curve25519 key. 
+            // It should be called before generating a key for the structure.
             ret = wc_curve25519_init(key_object.as_ptr());
             if ret < 0 {
                 panic!("panic while calling wc_curve25519_init, ret = {}", ret);
@@ -49,6 +51,8 @@ impl KeyExchange {
                 panic!("panic while calling wc_InitRng, ret = {}", ret);
             }
 
+            // This function generates a Curve25519 key using the given random number generator, rng, 
+            // of the size given (keysize), and stores it in the given curve25519_key structure. 
             ret = wc_curve25519_make_key(
                 &mut rng, 
                 32, 
@@ -58,6 +62,7 @@ impl KeyExchange {
                 panic!("wc_curve25519_make_key");
             }
 
+            // Export curve25519 key pair. Big or little endian.
             ret = wc_curve25519_export_key_raw_ex(
                 key_object.as_ptr(),
                 priv_key_raw.as_mut_ptr(), 
@@ -86,6 +91,8 @@ impl KeyExchange {
             let mut out_len: word32 = out.len() as word32;
             let mut private_key: curve25519_key = mem::zeroed();
 
+            // This function checks that a public key buffer holds a valid 
+            // Curve25519 key value given the endian ordering.
             ret = wc_curve25519_check_public(
                 peer_pub_key_array.as_ptr(), 
                 32, 
@@ -100,6 +107,8 @@ impl KeyExchange {
                 panic!("panic while calling wc_curve25519_init, ret = {}", ret);
             }
 
+            // This function imports a public key from the given input buffer 
+            // and stores it in the curve25519_key structure.
             ret = wc_curve25519_import_public_ex(
                 peer_pub_key_array.as_ptr(), 
                 32, 
@@ -115,6 +124,8 @@ impl KeyExchange {
                 panic!("panic while calling wc_curve25519_init, ret = {}", ret);
             }
 
+            // This function imports a private key from the given input buffer
+            // and stores it in the the curve25519_key structure.
             ret = wc_curve25519_import_private_ex(
                 self.priv_key_bytes.as_ptr(), 
                 32, 
@@ -125,6 +136,8 @@ impl KeyExchange {
                 panic!("panic while calling wc_curve25519_import_private, ret = {}", ret);
             }
 
+            // This function computes a shared secret key given a secret private key and 
+            // a received public key. Stores the generated secret in the buffer out.
             ret = wc_curve25519_shared_secret_ex(
                 &mut private_key, 
                 &mut pub_key_provided, 
@@ -150,6 +163,8 @@ impl crypto::ActiveKeyExchange for KeyExchange {
             .try_into()
             .map_err(|_| rustls::Error::from(rustls::PeerMisbehaved::InvalidKeyShare))?;
 
+        // We derive the shared secret with our private key and 
+        // the received public key.
         let secret = self.derive_shared_secret(peer_pub_key_array);
 
         Ok(crypto::SharedSecret::from(secret.as_slice()))

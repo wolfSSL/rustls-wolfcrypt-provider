@@ -76,16 +76,27 @@ impl MessageEncrypter for WCTls12Cipher {
     ) -> Result<OutboundOpaqueMessage, rustls::Error> {
         unsafe {
             let total_len = self.encrypted_payload_len(m.payload.len());
+
+            // We load the payload into the PrefixedPayload struct,
+            // required by OutboundOpaqueMessage.
             let mut payload = PrefixedPayload::with_capacity(total_len);
+
+            // We copy the payload provided into the PrefixedPayload variable
+            // just created using extend_from_chunks, since the payload 
+            // is contained inside the enum OutboundChunks.
             payload.extend_from_chunks(&m.payload);
 
             let nonce = Nonce::new(&self.iv, seq);
             let aad = make_tls12_aad(seq, m.typ, m.version, m.payload.len());
-            let mut cipher = vec!(0u8; m.payload.len());
+            let mut encrypted = vec!(0u8; m.payload.len());
             let mut auth_tag: [u8; CHACHA20_POLY1305_AEAD_AUTHTAG_SIZE as usize] = mem::zeroed();
             let payload_raw = payload.as_ref();
             let ret;
 
+            //  This function encrypts an input message, inPlaintext, 
+            //  using the ChaCha20 stream cipher, into the output buffer, outCiphertext. 
+            //  It also performs Poly-1305 authentication (on the cipher text), 
+            //  and stores the generated authentication tag in the output buffer, outAuthTag.
             ret = wc_ChaCha20Poly1305_Encrypt(
                 self.key.as_ptr(), 
                 nonce.0.as_ptr(), 
@@ -93,7 +104,7 @@ impl MessageEncrypter for WCTls12Cipher {
                 aad.len() as word32,
                 payload_raw.as_ptr(),
                 m.payload.len() as word32,
-                cipher.as_mut_ptr(), 
+                encrypted.as_mut_ptr(), 
                 auth_tag.as_mut_ptr() 
             );
             if ret < 0 {
@@ -101,7 +112,12 @@ impl MessageEncrypter for WCTls12Cipher {
             }
 
             let mut output = PrefixedPayload::with_capacity(total_len);
-            output.extend_from_slice(cipher.as_slice());
+            
+            // Finally we copy the encrypted payload into a PrefixedPayload
+            // struct, extending it from a slice (encrypted is a Vec<u8>)...
+            output.extend_from_slice(encrypted.as_slice());
+
+            // ...and add at the end of it the authentication tag.
             output.extend_from_slice(&auth_tag);
 
             Ok(
@@ -123,7 +139,10 @@ impl MessageDecrypter for WCTls12Cipher {
     ) -> Result<InboundPlainMessage<'a>, rustls::Error> {
         unsafe {
             let payload = &mut m.payload;
-            let message_len = payload.len() - CHACHAPOLY1305_OVERHEAD;
+
+            // We substract the tag, so this len will only consider 
+            // the message that we are trying to decrypt.
+            let message_len = payload.len() - CHACHAPOLY1305_OVERHEAD; 
             let nonce = Nonce::new(&self.iv, seq);
             let aad = make_tls12_aad(
                 seq,
@@ -135,6 +154,12 @@ impl MessageDecrypter for WCTls12Cipher {
             auth_tag.copy_from_slice(&payload[message_len..]);
             let ret;
 
+            // This function decrypts input ciphertext, inCiphertext, 
+            // using the ChaCha20 stream cipher, into the output buffer, outPlaintext. 
+            // It also performs Poly-1305 authentication, comparing the given inAuthTag 
+            // to an authentication generated with the inAAD (arbitrary length additional authentication data). 
+            // Note: If the generated authentication tag does not match the supplied 
+            // authentication tag, the text is not decrypted.
             ret = wc_ChaCha20Poly1305_Decrypt(
                 self.key.as_ptr(), 
                 nonce.0.as_ptr(), 
@@ -149,9 +174,12 @@ impl MessageDecrypter for WCTls12Cipher {
                 panic!("error while calling wc_ChaCha20Poly1305_Decrypt");
             }
 
+            // We extract the final result...
             payload.truncate(message_len);
 
             Ok(
+                // ...And convert it into the 
+                // InboundPlainMessage type.
                 m.into_plain_message()
             )
         }
@@ -211,6 +239,10 @@ impl MessageEncrypter for WCTls13Cipher {
             let total_len = self.encrypted_payload_len(m.payload.len());
             let mut payload = PrefixedPayload::with_capacity(total_len);
 
+            // We copy the payload provided into the PrefixedPayload variable
+            // just created using extend_from_chunks, since the payload 
+            // is contained inside the enum OutboundChunks, followed by 
+            // an extend_from_slice to add the ContentType at the end of it.
             payload.extend_from_chunks(&m.payload);
             payload.extend_from_slice(&m.typ.to_array());
 
@@ -219,6 +251,10 @@ impl MessageEncrypter for WCTls13Cipher {
             let mut auth_tag: [u8; CHACHA20_POLY1305_AEAD_AUTHTAG_SIZE as usize] = mem::zeroed();
             let ret;
 
+            // This function encrypts an input message, inPlaintext, 
+            // using the ChaCha20 stream cipher, into the output buffer, outCiphertext. 
+            // It also performs Poly-1305 authentication (on the cipher text), 
+            // and stores the generated authentication tag in the output buffer, outAuthTag.
             ret = wc_ChaCha20Poly1305_Encrypt(
                 self.key.as_ptr(), 
                 nonce.0.as_ptr(), 
@@ -233,6 +269,8 @@ impl MessageEncrypter for WCTls13Cipher {
                 panic!("error while calling wc_ChaCha20Poly1305_Encrypt");
             }
 
+            // Finally, we add the authentication tag at the end of it
+            // after the process of encryption is done.
             payload.extend_from_slice(&auth_tag);
 
             Ok(
@@ -265,12 +303,20 @@ impl MessageDecrypter for WCTls13Cipher {
         auth_tag.copy_from_slice(&payload[message_len..]);
         let ret;
 
+        // This function decrypts input ciphertext, inCiphertext, 
+        // using the ChaCha20 stream cipher, into the output buffer, outPlaintext. 
+        // It also performs Poly-1305 authentication, comparing the given inAuthTag 
+        // to an authentication generated with the inAAD (arbitrary length additional authentication data). 
+        // Note: If the generated authentication tag does not match the supplied 
+        // authentication tag, the text is not decrypted.
         ret = wc_ChaCha20Poly1305_Decrypt(
             self.key.as_ptr(), 
             nonce.0.as_ptr(), 
             aad.as_ptr(), 
             aad.len() as word32,
-            payload[..message_len].as_ptr(), 
+            // [..message_len] since we want to exclude the
+            // the auth_tag.
+            payload[..message_len].as_ptr(),
             message_len as word32, 
             auth_tag.as_ptr(), 
             payload[..message_len].as_mut_ptr(), 
@@ -279,6 +325,7 @@ impl MessageDecrypter for WCTls13Cipher {
             panic!("error while calling wc_ChaCha20Poly1305_Decrypt");
         }
 
+        // We extract the final result...
         payload.truncate(message_len);
 
         m.into_tls13_unpadded_message()
