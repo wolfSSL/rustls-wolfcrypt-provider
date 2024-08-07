@@ -9,7 +9,7 @@ impl hash::Hash for WCSha256 {
     fn start(&self) -> Box<dyn hash::Context> {
         unsafe {
             let sha256_struct: wc_Sha256 = mem::zeroed();
-            let hash: [u8; 32] = [0; 32];
+            let hash: [u8; WC_SHA256_DIGEST_SIZE as usize] = [0; WC_SHA256_DIGEST_SIZE as usize];
 
             let mut hasher = WCHasher256 {
                 sha256_struct: sha256_struct,
@@ -33,13 +33,14 @@ impl hash::Hash for WCSha256 {
     }
 
     fn output_len(&self) -> usize {
-        32 as usize
+        WC_SHA256_DIGEST_SIZE as usize
     }
 }
 
+
 struct WCHasher256 {
     sha256_struct: wc_Sha256,
-    hash: [u8; 32],
+    hash: [u8; WC_SHA256_DIGEST_SIZE as usize],
 }
 
 impl WCHasher256 {
@@ -85,19 +86,6 @@ impl WCHasher256 {
     }
 }
 
-unsafe impl Sync for WCHasher256{}
-unsafe impl Send for WCHasher256{}
-impl Clone for WCHasher256 {
-    // Clone implementation.
-    // Returns a copy of the WCHasher256 struct.
-    fn clone(&self) -> WCHasher256 {
-        WCHasher256 {
-            sha256_struct: self.sha256_struct.clone(),
-            hash: self.hash.clone()
-        }
-    }
-}
-
 struct WCSha256Context(WCHasher256);
 
 impl hash::Context for WCSha256Context {
@@ -120,11 +108,11 @@ impl hash::Context for WCSha256Context {
 
 #[cfg(test)]
 mod tests {
-    use super::WCSha256;
+    use super::{WCSha256};
     use rustls::crypto::hash::Hash;
 
     #[test]
-    fn sha256_test() {
+    fn test_sha256() {
         let wcsha256_struct = WCSha256;
         let hash1 = wcsha256_struct.hash("hello".as_bytes());
         let hash2 = wcsha256_struct.hash("hello".as_bytes());
@@ -136,5 +124,18 @@ mod tests {
             hash_str1,
             hash_str2
         );
+    }
+}
+
+unsafe impl Sync for WCHasher256{}
+unsafe impl Send for WCHasher256{}
+impl Clone for WCHasher256 {
+    // Clone implementation.
+    // Returns a copy of the WCHasher256 struct.
+    fn clone(&self) -> WCHasher256 {
+        WCHasher256 {
+            sha256_struct: self.sha256_struct.clone(),
+            hash: self.hash.clone()
+        }
     }
 }

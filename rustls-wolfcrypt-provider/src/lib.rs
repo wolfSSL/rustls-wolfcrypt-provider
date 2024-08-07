@@ -6,12 +6,16 @@ use rustls::crypto::CryptoProvider;
 use rustls::pki_types::PrivateKeyDer;
 use rustls::crypto::tls13::HkdfUsingHmac;
 mod random;
-mod hash;
 mod kx;
 mod sign;
 mod hmac;
 mod verify;
 mod aead;
+pub mod hash {
+    pub mod sha256;
+    pub mod sha384;
+}
+use crate::hash::sha256;
 
 /*
  * Crypto provider struct that we populate with our own crypto backend (wolfcrypt).
@@ -59,7 +63,7 @@ pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
     rustls::SupportedCipherSuite::Tls13(&rustls::Tls13CipherSuite {
         common: rustls::crypto::CipherSuiteCommon {
             suite: rustls::CipherSuite::TLS13_CHACHA20_POLY1305_SHA256,
-            hash_provider: &hash::WCSha256,
+            hash_provider: &sha256::WCSha256,
             confidentiality_limit: u64::MAX,
         },
         hkdf_provider: &HkdfUsingHmac(&hmac::WCSha256Hmac),
@@ -71,7 +75,7 @@ pub static TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCiphe
     rustls::SupportedCipherSuite::Tls12(&rustls::Tls12CipherSuite {
         common: rustls::crypto::CipherSuiteCommon {
             suite: rustls::CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
-            hash_provider: &hash::WCSha256,
+            hash_provider: &sha256::WCSha256,
             confidentiality_limit: u64::MAX,
         },
         aead_alg: &aead::Chacha20Poly1305,

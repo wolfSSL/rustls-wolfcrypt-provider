@@ -137,29 +137,6 @@ impl Signer for EcdsaSigningKeyP256 {
     }
 }
 
-pub struct ECCKeyObjectRef(Opaque);
-unsafe impl ForeignTypeRef for ECCKeyObjectRef {
-    type CType = ecc_key;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ECCKeyObject(NonNull<ecc_key>);
-unsafe impl Sync for ECCKeyObject{}
-unsafe impl Send for ECCKeyObject{}
-unsafe impl ForeignType for ECCKeyObject {
-    type CType = ecc_key;
-
-    type Ref = ECCKeyObjectRef;
-
-    unsafe fn from_ptr(ptr: *mut Self::CType) -> Self {
-        Self(NonNull::new_unchecked(ptr))
-    }
-
-    fn as_ptr(&self) -> *mut Self::CType {
-        self.0.as_ptr()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -227,6 +204,29 @@ mod tests {
 
             assert_eq!(1, is_valid_sig);
         }
+    }
+}
+
+pub struct ECCKeyObjectRef(Opaque);
+unsafe impl ForeignTypeRef for ECCKeyObjectRef {
+    type CType = ecc_key;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ECCKeyObject(NonNull<ecc_key>);
+unsafe impl Sync for ECCKeyObject{}
+unsafe impl Send for ECCKeyObject{}
+unsafe impl ForeignType for ECCKeyObject {
+    type CType = ecc_key;
+
+    type Ref = ECCKeyObjectRef;
+
+    unsafe fn from_ptr(ptr: *mut Self::CType) -> Self {
+        Self(NonNull::new_unchecked(ptr))
+    }
+
+    fn as_ptr(&self) -> *mut Self::CType {
+        self.0.as_ptr()
     }
 }
 

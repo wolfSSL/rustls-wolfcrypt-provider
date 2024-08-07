@@ -30,7 +30,7 @@ mod tests {
     use super::wolfcrypt_random_buffer_generator;
 
     #[test]
-    fn random() {
+    fn test_random() {
         let mut buff_1: [u8; 10] = [0; 10];
         let mut buff_2: [u8; 10] = [0; 10];
 

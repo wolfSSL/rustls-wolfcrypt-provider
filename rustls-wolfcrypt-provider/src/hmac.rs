@@ -140,7 +140,7 @@ mod tests {
     use rustls::crypto::hmac::Hmac;
 
     #[test]
-    fn sha_256_hmac() {
+    fn test_sha_256_hmac() {
         let hmac = WCSha256Hmac;
         let key = "this is my key".as_bytes();
         let hash = hmac.with_key(key);
