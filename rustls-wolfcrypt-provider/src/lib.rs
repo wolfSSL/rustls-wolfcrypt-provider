@@ -10,7 +10,10 @@ mod kx;
 mod sign;
 mod hmac;
 mod verify;
-mod aead;
+pub mod aead {
+    pub mod chacha20;
+}
+use crate::aead::chacha20;
 pub mod hash {
     pub mod sha256;
     pub mod sha384;
@@ -67,7 +70,7 @@ pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
             confidentiality_limit: u64::MAX,
         },
         hkdf_provider: &HkdfUsingHmac(&hmac::WCSha256Hmac),
-        aead_alg: &aead::Chacha20Poly1305,
+        aead_alg: &chacha20::Chacha20Poly1305,
         quic: None,
     });
 
@@ -78,7 +81,7 @@ pub static TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCiphe
             hash_provider: &sha256::WCSha256,
             confidentiality_limit: u64::MAX,
         },
-        aead_alg: &aead::Chacha20Poly1305,
+        aead_alg: &chacha20::Chacha20Poly1305,
         prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&hmac::WCSha256Hmac),
         kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
         sign: &[
