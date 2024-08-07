@@ -17,24 +17,25 @@ pub struct Chacha20Poly1305;
 
 impl Tls12AeadAlgorithm for Chacha20Poly1305 {
     fn encrypter(&self, key: AeadKey, iv: &[u8], _: &[u8]) -> Box<dyn MessageEncrypter> {
-        let mut key_as_array = [0u8; 32];
-        key_as_array[..32].copy_from_slice(key.as_ref());
+        let mut key_as_vec = vec!(0u8; 32);
+        key_as_vec.copy_from_slice(key.as_ref());
 
         Box::new(
             WCTls12Cipher {
-                key: key_as_array,
+                key: key_as_vec,
                 iv: Iv::copy(iv),
             }
         )
     }
 
     fn decrypter(&self, key: AeadKey, iv: &[u8]) -> Box<dyn MessageDecrypter> {
-        let mut key_as_array = [0u8; 32];
-        key_as_array[..32].copy_from_slice(key.as_ref());
+        let mut key_as_vec = vec!(0u8; 32);
+        key_as_vec.copy_from_slice(key.as_ref());
+
 
         Box::new(
             WCTls12Cipher {
-                key: key_as_array,
+                key: key_as_vec,
                 iv: Iv::copy(iv),
             }
         )
@@ -64,7 +65,7 @@ impl Tls12AeadAlgorithm for Chacha20Poly1305 {
 }
 
 pub struct WCTls12Cipher {
-    key: [u8; 32],
+    key: Vec<u8>,
     iv: Iv,
 }
 
