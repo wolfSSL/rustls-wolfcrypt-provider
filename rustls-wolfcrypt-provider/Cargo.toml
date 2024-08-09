@@ -35,6 +35,7 @@ aes-gcm = "0.10.3"
 
 [dev-dependencies]
 rcgen = "0.13"
+serial_test = "3.1.1"
 tokio = { version = "1.34", features = ["macros", "rt", "net", "io-util", "io-std"] }
 webpki-roots = "0.26"
 

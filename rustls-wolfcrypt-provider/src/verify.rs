@@ -12,15 +12,19 @@ use rsa::{BigUint};
 use std::ffi::c_void;
 
 pub static ALGORITHMS: WebPkiSupportedAlgorithms = WebPkiSupportedAlgorithms {
-    all: &[RSA_PSS_SHA256, RSA_PKCS1_SHA256],
+    all: &[RSA_PSS_SHA256, RSA_PSS_SHA384, RSA_PKCS1_SHA256, RSA_PKCS1_SHA384],
     mapping: &[
         (SignatureScheme::RSA_PSS_SHA256, &[RSA_PSS_SHA256]),
+        (SignatureScheme::RSA_PSS_SHA384, &[RSA_PSS_SHA384]),
         (SignatureScheme::RSA_PKCS1_SHA256, &[RSA_PKCS1_SHA256]),
+        (SignatureScheme::RSA_PKCS1_SHA384, &[RSA_PKCS1_SHA384]),
     ],
 };
 
 static RSA_PSS_SHA256: &dyn SignatureVerificationAlgorithm = &RsaPssSha256Verify;
+static RSA_PSS_SHA384: &dyn SignatureVerificationAlgorithm = &RsaPssSha384Verify;
 static RSA_PKCS1_SHA256: &dyn SignatureVerificationAlgorithm = &RsaPkcs1Sha256Verify;
+static RSA_PKCS1_SHA384: &dyn SignatureVerificationAlgorithm = &RsaPkcs1Sha384Verify;
 
 #[derive(Debug)]
 struct RsaPssSha256Verify;
@@ -99,6 +103,83 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
 }
 
 #[derive(Debug)]
+struct RsaPssSha384Verify;
+
+impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
+    fn public_key_alg_id(&self) -> AlgorithmIdentifier {
+        alg_id::RSA_ENCRYPTION
+    }
+
+    fn signature_alg_id(&self) -> AlgorithmIdentifier {
+        alg_id::RSA_PSS_SHA384
+    }
+
+    fn verify_signature(
+        &self,
+        public_key: &[u8],
+        message: &[u8],
+        signature: &[u8],
+    ) -> Result<(), InvalidSignature> {
+        unsafe {
+            let mut ret;
+            let digest_sz;
+            let mut digest: [u8; 48] = [0; 48];
+            let mut out: [u8; 256] = [0; 256];
+            let mut signature: Vec<u8> = signature.to_vec();
+
+            let mut rsa_key_struct = wc_decode_spki_spk(public_key)?;
+            let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_struct);
+
+
+            // This function returns the size of the digest (output) for a hash_type. 
+            // The returns size is used to make sure the output buffer 
+            // provided to wc_Hash is large enough.
+            digest_sz = wc_HashGetDigestSize(
+                wc_HashType_WC_HASH_TYPE_SHA384
+            );
+
+            // This function performs a hash on the provided data buffer and 
+            // returns it in the hash buffer provided.
+            // In this case we hash with Sha384 (RSA_PSS_SHA384).
+            // We hash the message since it's not hashed.
+            ret = wc_Hash(
+                    wc_HashType_WC_HASH_TYPE_SHA384, 
+                    message.as_ptr(), 
+                    message.len() as word32, 
+                    digest.as_mut_ptr(), 
+                    digest_sz as word32
+            );
+            if ret != 0 {
+                panic!("error while calling wc_hash, ret = {}", ret);
+            } 
+
+            // Verify the message signed with RSA-PSS.
+            // In this case 'message' has been, supposedly, 
+            // been signed by 'signature'.
+            ret = wc_RsaPSS_VerifyCheck(
+                    signature.as_mut_ptr(), 
+                    signature.len() as word32, 
+                    out.as_mut_ptr(), 
+                    out.len() as word32,
+                    digest.as_mut_ptr(), 
+                    digest_sz as word32, 
+                    wc_HashType_WC_HASH_TYPE_SHA384, 
+                    WC_MGF1SHA384.try_into().unwrap(), 
+                    rsa_key_object.as_ptr()
+            );
+
+            if ret >= 0 { 
+                Ok(()) 
+            } else { 
+                log::error!("value of ret: {}", ret);
+                Err(InvalidSignature) 
+            }
+        }
+    }
+}
+
+
+#[derive(Debug)]
 struct RsaPkcs1Sha256Verify;
 
 impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
@@ -143,6 +224,53 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
         }
     }
 }
+
+#[derive(Debug)]
+struct RsaPkcs1Sha384Verify;
+
+impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
+    fn public_key_alg_id(&self) -> AlgorithmIdentifier {
+        alg_id::RSA_ENCRYPTION
+    }
+
+    fn signature_alg_id(&self) -> AlgorithmIdentifier {
+        alg_id::RSA_PKCS1_SHA384
+    }
+
+    fn verify_signature(
+        &self,
+        public_key: &[u8],
+        message: &[u8],
+        signature: &[u8],
+    ) -> Result<(), InvalidSignature> {
+        unsafe {
+            let mut rsa_key_struct = wc_decode_spki_spk(public_key)?;
+            let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_struct);
+            let ret;
+
+            // Also performs the hashing (SHA384 in this case), 
+            // see: https://www.wolfssl.com/documentation/manuals/wolfssl/group__Signature.html#function-wc_signatureverify
+            ret = wc_SignatureVerify(
+                    wc_HashType_WC_HASH_TYPE_SHA384, 
+                    wc_SignatureType_WC_SIGNATURE_TYPE_RSA_W_ENC,
+                    message.as_ptr(), 
+                    message.len() as word32,
+                    signature.as_ptr(), 
+                    signature.len() as word32,
+                    rsa_key_object.as_ptr() as *const c_void, 
+                    mem::size_of_val(&rsa_key_struct).try_into().unwrap()
+            );
+
+            if ret == 0 {
+                Ok(())
+            } else {
+                log::error!("ret value: {}", ret);
+                Err(InvalidSignature)
+            }
+        }
+    }
+}
+
 
 fn wc_decode_spki_spk(spki_spk: &[u8]) -> Result<RsaKey, InvalidSignature> {
     unsafe {
