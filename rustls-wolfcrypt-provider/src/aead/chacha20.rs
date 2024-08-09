@@ -166,7 +166,7 @@ impl MessageDecrypter for WCTls12Cipher {
                 nonce.0.as_ptr(), 
                 aad.as_ptr(), 
                 aad.len() as word32,
-                payload[..message_len].as_ptr(), 
+                payload[..message_len].as_ptr(), // we decrypt only the payload, we don't include the tag.
                 message_len as word32, 
                 auth_tag.as_ptr(), 
                 payload[..message_len].as_mut_ptr(), 
@@ -256,6 +256,8 @@ impl MessageEncrypter for WCTls13Cipher {
             // using the ChaCha20 stream cipher, into the output buffer, outCiphertext. 
             // It also performs Poly-1305 authentication (on the cipher text), 
             // and stores the generated authentication tag in the output buffer, outAuthTag.
+            // We need to also need to include for the encoding type, apparently, hence the + 1
+            // otherwise the rustls returns EoF.
             ret = wc_ChaCha20Poly1305_Encrypt(
                 self.key.as_ptr(), 
                 nonce.0.as_ptr(), 

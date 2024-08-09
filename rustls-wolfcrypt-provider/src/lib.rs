@@ -12,8 +12,9 @@ mod hmac;
 mod verify;
 pub mod aead {
     pub mod chacha20;
+    pub mod aes128gcm;
 }
-use crate::aead::chacha20;
+use crate::aead::{chacha20, aes128gcm};
 pub mod hash {
     pub mod sha256;
     pub mod sha384;
@@ -60,6 +61,7 @@ impl rustls::crypto::KeyProvider for Provider {
 static ALL_CIPHER_SUITES: &[rustls::SupportedCipherSuite] = &[
     TLS13_CHACHA20_POLY1305_SHA256,
     TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+    TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256
 ];
 
 pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
@@ -82,6 +84,22 @@ pub static TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCiphe
             confidentiality_limit: u64::MAX,
         },
         aead_alg: &chacha20::Chacha20Poly1305,
+        prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&hmac::WCSha256Hmac),
+        kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
+        sign: &[
+            rustls::SignatureScheme::RSA_PSS_SHA256,
+            rustls::SignatureScheme::RSA_PKCS1_SHA256,
+        ],
+    });
+
+pub static TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256: rustls::SupportedCipherSuite =
+    rustls::SupportedCipherSuite::Tls12(&rustls::Tls12CipherSuite {
+        common: rustls::crypto::CipherSuiteCommon {
+            suite: rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+            hash_provider: &sha256::WCSha256,
+            confidentiality_limit: 1 << 23,
+        },
+        aead_alg: &aes128gcm::Aes128Gcm,
         prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&hmac::WCSha256Hmac),
         kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
         sign: &[
