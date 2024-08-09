@@ -8,18 +8,24 @@ use rustls::crypto::tls13::HkdfUsingHmac;
 mod random;
 mod kx;
 mod sign;
-mod hmac;
 mod verify;
 pub mod aead {
     pub mod chacha20;
     pub mod aes128gcm;
+    pub mod aes256gcm;
 }
 use crate::aead::{chacha20, aes128gcm};
+
 pub mod hash {
     pub mod sha256;
     pub mod sha384;
 }
-use crate::hash::sha256;
+use crate::hash::{sha256};
+
+pub mod hmac {
+    pub mod sha256hmac;
+}
+use crate::hmac::{sha256hmac};
 
 /*
  * Crypto provider struct that we populate with our own crypto backend (wolfcrypt).
@@ -71,7 +77,7 @@ pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
             hash_provider: &sha256::WCSha256,
             confidentiality_limit: u64::MAX,
         },
-        hkdf_provider: &HkdfUsingHmac(&hmac::WCSha256Hmac),
+        hkdf_provider: &HkdfUsingHmac(&sha256hmac::WCSha256Hmac),
         aead_alg: &chacha20::Chacha20Poly1305,
         quic: None,
     });
@@ -84,7 +90,7 @@ pub static TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCiphe
             confidentiality_limit: u64::MAX,
         },
         aead_alg: &chacha20::Chacha20Poly1305,
-        prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&hmac::WCSha256Hmac),
+        prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&sha256hmac::WCSha256Hmac),
         kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
         sign: &[
             rustls::SignatureScheme::RSA_PSS_SHA256,
@@ -100,7 +106,7 @@ pub static TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256: rustls::SupportedCipherSuite
             confidentiality_limit: 1 << 23,
         },
         aead_alg: &aes128gcm::Aes128Gcm,
-        prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&hmac::WCSha256Hmac),
+        prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&sha256hmac::WCSha256Hmac),
         kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
         sign: &[
             rustls::SignatureScheme::RSA_PSS_SHA256,
