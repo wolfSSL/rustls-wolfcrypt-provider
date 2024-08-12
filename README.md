@@ -7,6 +7,8 @@ Code that lets you use wolfcrypt as crypto provider for rustls.
 Currently supports these suites:
 - tls 1.3: 
     - `TLS13_CHACHA20_POLY1305_SHA256`;
+    - `TLS13_AES_128_GCM_SHA256`;
+    - `TLS13_AES_256_GCM_SHA384`;
 - tls 1.2: 
     - `TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`;
     - `TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256`;
