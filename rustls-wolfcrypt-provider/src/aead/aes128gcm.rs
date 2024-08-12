@@ -3,9 +3,9 @@ use rustls::crypto::cipher::{
     make_tls12_aad, AeadKey, InboundOpaqueMessage,
     InboundPlainMessage, Iv, KeyBlockShape, MessageDecrypter, MessageEncrypter, Nonce,
     OutboundOpaqueMessage, OutboundPlainMessage, PrefixedPayload, Tls12AeadAlgorithm,
-    UnsupportedOperationError
+    UnsupportedOperationError, make_tls13_aad, Tls13AeadAlgorithm
 };
-use rustls::{ConnectionTrafficSecrets};
+use rustls::{ConnectionTrafficSecrets, ProtocolVersion, ContentType};
 use std::mem;
 use std::vec;
 use std::{ptr::NonNull};
@@ -244,6 +244,197 @@ impl MessageDecrypter for WCTls12Decrypter {
             Ok(
                 m.into_plain_message()
             )
+        }
+    }
+}
+
+impl Tls13AeadAlgorithm for Aes128Gcm {
+    fn encrypter(&self, key: AeadKey, iv: Iv) -> Box<dyn MessageEncrypter> {
+        Box::new(
+            WCTls13Cipher{
+                key: key.as_ref().into(),
+                iv: iv,
+            }
+        )
+    }
+
+    fn decrypter(&self, key: AeadKey, iv: Iv) -> Box<dyn MessageDecrypter> {
+        Box::new(
+            WCTls13Cipher{
+                key: key.as_ref().into(),
+                iv: iv,
+            }
+        )
+    }
+
+    fn key_len(&self) -> usize {
+        16 as usize
+    }
+
+    fn extract_keys(
+        &self,
+        key: AeadKey,
+        iv: Iv,
+    ) -> Result<ConnectionTrafficSecrets, UnsupportedOperationError> {
+        Ok(
+            ConnectionTrafficSecrets::Aes128Gcm {
+                key: key,
+                iv: iv
+            }
+        )
+    }
+}
+
+pub struct WCTls13Cipher {
+    key: Vec<u8>,
+    iv: Iv,
+}
+
+impl MessageEncrypter for WCTls13Cipher {
+    fn encrypt(
+        &mut self,
+        m: OutboundPlainMessage,
+        seq: u64,
+    ) -> Result<OutboundOpaqueMessage, rustls::Error> {
+        unsafe {
+            let payload_len = m.payload.len(); 
+            let total_len = self.encrypted_payload_len(payload_len);
+            let mut payload = PrefixedPayload::with_capacity(total_len);
+
+            // We copy the payload provided into the PrefixedPayload variable
+            // just created using extend_from_chunks, since the payload 
+            // is contained inside the enum OutboundChunks, followed by 
+            // an extend_from_slice to add the ContentType at the end of it.
+            payload.extend_from_chunks(&m.payload);
+            payload.extend_from_slice(&m.typ.to_array());
+
+            let nonce = Nonce::new(&self.iv, seq);
+            let aad = make_tls13_aad(total_len);
+            let mut auth_tag: [u8; GCM_TAG_LENGTH as usize] = mem::zeroed();
+            let mut aes_struct: Aes = mem::zeroed();
+            let aes_object = AesObject::from_ptr(&mut aes_struct);
+            let mut ret;
+
+            // Initialize Aes structure.
+            ret = wc_AesInit(
+                aes_object.as_ptr(),
+                std::ptr::null_mut(),
+                INVALID_DEVID
+            );
+            if ret < 0 {
+                panic!("error while calling wc_AesInit");
+            }
+
+            // This function is used to set the key for AES GCM (Galois/Counter Mode). 
+            // It initializes an AES object with the given key. 
+            ret = wc_AesGcmSetKey(
+                aes_object.as_ptr(),
+                self.key.as_ptr(),
+                self.key.len() as word32
+            );
+            if ret < 0 {
+                panic!("error while calling wc_AesGcmSetKey");
+            }
+
+            // This function encrypts the input message, held in the buffer in, 
+            // and stores the resulting cipher text in the output buffer out. 
+            // It requires a new iv (initialization vector) for each call to encrypt. 
+            // It also encodes the input authentication vector, 
+            // authIn, into the authentication tag, authTag.
+            // Apparently we need to also need to include for the encoding type into the encrypted
+            // payload, hence the + 1 otherwise the rustls returns EoF.
+            ret = wc_AesGcmEncrypt(
+                    aes_object.as_ptr(), 
+                    payload.as_mut()[..payload_len + 1].as_mut_ptr(), 
+                    payload.as_ref()[..payload_len + 1].as_ptr(), 
+                    payload.as_ref()[..payload_len + 1].len() as word32, 
+                    nonce.0.as_ptr(), 
+                    nonce.0.len() as word32,
+                    auth_tag.as_mut_ptr(), 
+                    auth_tag.len() as word32, 
+                    aad.as_ptr(), 
+                    aad.len() as word32
+            );
+            if ret < 0 {
+                panic!("error while calling wc_AesGcmEncrypt, ret = {}", ret);
+            }
+
+            // Finally, we add the authentication tag at the end of it
+            // after the process of encryption is done.
+            payload.extend_from_slice(&auth_tag);
+
+            Ok(
+                OutboundOpaqueMessage::new(
+                    ContentType::ApplicationData,
+                    ProtocolVersion::TLSv1_2,
+                    payload,
+                )
+            )
+        }
+    }
+
+    fn encrypted_payload_len(&self, payload_len: usize) -> usize {
+        // the + 1 refers to the encoded type (included in the encrypted payload).
+        payload_len + 1 + GCM_TAG_LENGTH
+    }
+}
+
+impl MessageDecrypter for WCTls13Cipher {
+    fn decrypt<'a>(
+        &mut self,
+        mut m: InboundOpaqueMessage<'a>,
+        seq: u64,
+    ) -> Result<InboundPlainMessage<'a>, rustls::Error> {
+        unsafe {
+            let payload = &mut m.payload;
+            let nonce = Nonce::new(&self.iv, seq);
+            let aad = make_tls13_aad(payload.len());
+            let mut auth_tag = [0u8; GCM_TAG_LENGTH];
+            let message_len = payload.len() - GCM_TAG_LENGTH;
+            auth_tag.copy_from_slice(&payload[message_len..]);
+            let mut aes_struct: Aes = mem::zeroed();
+            let aes_object = AesObject::from_ptr(&mut aes_struct);
+            let mut ret;
+
+            ret = wc_AesInit(
+                aes_object.as_ptr(),
+                std::ptr::null_mut(),
+                INVALID_DEVID
+            );
+            if ret < 0 {
+                panic!("error while calling wc_AesInit");
+            }
+
+            ret = wc_AesGcmSetKey(
+                aes_object.as_ptr(),
+                self.key.as_ptr(),
+                self.key.len() as word32
+            );
+            if ret < 0 {
+                panic!("error while calling wc_AesGcmSetKey");
+            }
+
+            // Finally, we have everything to decrypt the message
+            // from the payload.
+            ret = wc_AesGcmDecrypt(
+                    aes_object.as_ptr(), 
+                    payload[..message_len].as_mut_ptr(), 
+                    payload[..message_len].as_ptr(), 
+                    payload[..message_len].len().try_into().unwrap(),
+                    nonce.0.as_ptr(), 
+                    nonce.0.len() as word32,
+                    auth_tag.as_ptr(), 
+                    auth_tag.len() as word32,
+                    aad.as_ptr(), 
+                    aad.len() as word32, 
+            );
+            if ret < 0 {
+                panic!("error while calling wc_AesGcmDecrypt, ret = {}", ret);
+            }
+
+            payload.truncate(message_len);
+
+            m.into_tls13_unpadded_message()
         }
     }
 }

@@ -4,6 +4,7 @@ use std::net::TcpStream;
 use std::sync::Arc;
 use rustls_wolfcrypt_provider::{
    TLS13_CHACHA20_POLY1305_SHA256,
+   TLS13_AES_128_GCM_SHA256,
    TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
    TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
    TLS12_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
@@ -90,7 +91,8 @@ mod tests {
     #[serial]
     fn test_tls13() {
         let ciphers = [
-            TLS13_CHACHA20_POLY1305_SHA256
+            TLS13_CHACHA20_POLY1305_SHA256,
+            TLS13_AES_128_GCM_SHA256,
         ];
 
         for cipher in ciphers {

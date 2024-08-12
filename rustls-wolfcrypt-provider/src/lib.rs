@@ -77,6 +77,7 @@ impl rustls::crypto::KeyProvider for Provider {
 
 static ALL_CIPHER_SUITES: &[rustls::SupportedCipherSuite] = &[
    TLS13_CHACHA20_POLY1305_SHA256,
+   TLS13_AES_128_GCM_SHA256,
    TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
    TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
    TLS12_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
@@ -98,6 +99,18 @@ pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
         },
         hkdf_provider: &HkdfUsingHmac(&sha256hmac::WCSha256Hmac),
         aead_alg: &chacha20::Chacha20Poly1305,
+        quic: None,
+    });
+
+pub static TLS13_AES_128_GCM_SHA256: rustls::SupportedCipherSuite =
+    rustls::SupportedCipherSuite::Tls13(&rustls::Tls13CipherSuite {
+        common: rustls::crypto::CipherSuiteCommon {
+            suite: rustls::CipherSuite::TLS13_AES_128_GCM_SHA256,
+            hash_provider: &sha256::WCSha256,
+            confidentiality_limit: 1 << 23,
+        },
+        hkdf_provider: &HkdfUsingHmac(&sha256hmac::WCSha256Hmac),
+        aead_alg: &aes128gcm::Aes128Gcm,
         quic: None,
     });
 
