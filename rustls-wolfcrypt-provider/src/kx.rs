@@ -21,105 +21,12 @@ impl crypto::SupportedKxGroup for X25519 {
     }
 }
 
-#[derive(Debug)]
-pub struct SecP256R1;
-
-impl crypto::SupportedKxGroup for SecP256R1 {
-    fn start(&self) -> Result<Box<dyn crypto::ActiveKeyExchange>, rustls::Error> {
-        Ok(Box::new(KeyExchange::use_secp256r1()))
-    }
-
-    fn name(&self) -> rustls::NamedGroup {
-        rustls::NamedGroup::secp256r1
-    }
-}
-
 pub struct KeyExchange {
-    pub_key_bytes: Vec<u8>,
-    priv_key_bytes: Vec<u8>,
-    key_type: rustls::NamedGroup
+    pub_key_bytes: [u8; 32],
+    priv_key_bytes: [u8; 32],
 }
 
 impl KeyExchange {
-    pub fn use_secp256r1() -> Self {
-        unsafe {
-            let mut priv_key: ecc_key = mem::zeroed();
-            let priv_key_object = ECCKeyObject::from_ptr(&mut priv_key);
-            let mut pub_key: ecc_key = mem::zeroed();
-            let pub_key_object = ECCKeyObject::from_ptr(&mut pub_key);
-            let mut rng: WC_RNG = mem::zeroed();
-            let mut pub_key_raw: [u8; 133] = [0; 133];
-            let mut pub_key_raw_len: word32 = pub_key_raw.len() as word32;
-            let mut priv_key_raw: [u8; 66] = [0; 66];
-            let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
-            let mut ret;
-
-            // This function initializes a ECC key. 
-            // It should be called before generating a key for the structure.
-            ret = wc_ecc_init(pub_key_object.as_ptr());
-            if ret < 0 {
-                panic!("panic while calling wc_ecc_init, ret = {}", ret);
-            }
-
-            // This function initializes a ECC key. 
-            // It should be called before generating a key for the structure.
-            ret = wc_ecc_init(priv_key_object.as_ptr());
-            if ret < 0 {
-                panic!("panic while calling wc_ecc_init, ret = {}", ret);
-            }
-
-            ret = wc_InitRng(&mut rng);
-            if ret < 0 {
-                panic!("panic while calling wc_InitRng, ret = {}", ret);
-            }
-
-            let key_size = wc_ecc_get_curve_size_from_id(ecc_curve_id_ECC_SECP256R1);
-            ret = wc_ecc_make_key_ex(
-                &mut rng, 
-                key_size, 
-                priv_key_object.as_ptr(), 
-                ecc_curve_id_ECC_SECP256R1
-            );
-            if ret != 0 {
-                panic!("error while calling wc_ecc_make_key_ex, ret = {}", ret);
-            }
-
-            ret = wc_ecc_make_key_ex(
-                &mut rng, 
-                key_size, 
-                pub_key_object.as_ptr(), 
-                ecc_curve_id_ECC_SECP256R1
-            );
-            if ret != 0 {
-                panic!("error while calling wc_ecc_make_key_ex, ret = {}", ret);
-            }
-
-            ret = wc_ecc_export_x963(
-                pub_key_object.as_ptr(),
-                pub_key_raw.as_mut_ptr(),
-                &mut pub_key_raw_len,
-            );
-            if ret != 0 {
-                panic!("error while calling wc_ecc_export_x963_ex, ret = {}", ret);
-            }
-
-            ret = wc_ecc_export_private_only(
-                    priv_key_object.as_ptr(), 
-                    priv_key_raw.as_mut_ptr(), 
-                    &mut priv_key_raw_len
-            );
-            if ret != 0 {
-                panic!("error while calling wc_ecc_export_private_only, ret = {}", ret);
-            }
-
-            KeyExchange {
-                pub_key_bytes: pub_key_raw.to_vec(),
-                priv_key_bytes: priv_key_raw.to_vec(),
-                key_type: rustls::NamedGroup::secp256r1,
-            }
-        }
-    }
-
     pub fn use_curve25519() -> Self {
         unsafe {
             let mut key: curve25519_key = mem::zeroed();
@@ -169,139 +76,80 @@ impl KeyExchange {
             }
 
             KeyExchange {
-                pub_key_bytes: pub_key_raw.to_vec(),
-                priv_key_bytes: priv_key_raw.to_vec(),
-                key_type: rustls::NamedGroup::X25519,
+                pub_key_bytes: pub_key_raw,
+                priv_key_bytes: priv_key_raw
             }
         }
     }
 
-    fn derive_shared_secret(&self, peer_pub_key: Vec<u8>) ->  Vec<u8> {
-        match self.key_type {
-            rustls::NamedGroup::X25519 => {
-                unsafe {
-                    let mut ret;
-                    let endian: u32 = EC25519_LITTLE_ENDIAN;
-                    let mut pub_key_provided: curve25519_key = mem::zeroed();
-                    let mut out: [u8; 32] = [0; 32];
-                    let mut out_len: word32 = out.len() as word32;
-                    let mut private_key: curve25519_key = mem::zeroed();
+    fn derive_shared_secret(&self, peer_pub_key_array: [u8; 32]) -> [u8; 32] {
+        unsafe {
+            let mut ret;
+            let endian: u32 = EC25519_LITTLE_ENDIAN;
+            let mut pub_key_provided: curve25519_key = mem::zeroed();
+            let mut out: [u8; 32] = [0; 32];
+            let mut out_len: word32 = out.len() as word32;
+            let mut private_key: curve25519_key = mem::zeroed();
 
-                    // This function checks that a public key buffer holds a valid 
-                    // Curve25519 key value given the endian ordering.
-                    ret = wc_curve25519_check_public(
-                        peer_pub_key.as_ptr(), 
-                        32, 
-                        endian.try_into().unwrap()
-                    );
-                    if ret < 0 {
-                        panic!("panic while calling wc_curve25519_check_public, ret = {}", ret);
-                    }
+            // This function checks that a public key buffer holds a valid 
+            // Curve25519 key value given the endian ordering.
+            ret = wc_curve25519_check_public(
+                peer_pub_key_array.as_ptr(), 
+                32, 
+                endian.try_into().unwrap()
+            );
+            if ret < 0 {
+                panic!("panic while calling wc_curve25519_check_public, ret = {}", ret);
+            }
 
-                    ret = wc_curve25519_init(&mut pub_key_provided);
-                    if ret < 0 {
-                        panic!("panic while calling wc_curve25519_init, ret = {}", ret);
-                    }
+            ret = wc_curve25519_init(&mut pub_key_provided);
+            if ret < 0 {
+                panic!("panic while calling wc_curve25519_init, ret = {}", ret);
+            }
 
-                    // This function imports a public key from the given input buffer 
-                    // and stores it in the curve25519_key structure.
-                    ret = wc_curve25519_import_public_ex(
-                        peer_pub_key.as_ptr(), 
-                        32, 
-                        &mut pub_key_provided, 
-                        endian.try_into().unwrap()
-                    );
-                    if ret < 0 {
-                        panic!("panic while calling wc_curve25519_import_public_ex, ret = {}", ret);
-                    }
+            // This function imports a public key from the given input buffer 
+            // and stores it in the curve25519_key structure.
+            ret = wc_curve25519_import_public_ex(
+                peer_pub_key_array.as_ptr(), 
+                32, 
+                &mut pub_key_provided, 
+                endian.try_into().unwrap()
+            );
+            if ret < 0 {
+                panic!("panic while calling wc_curve25519_import_public_ex, ret = {}", ret);
+            }
 
-                    ret = wc_curve25519_init(&mut private_key);
-                    if ret < 0 {
-                        panic!("panic while calling wc_curve25519_init, ret = {}", ret);
-                    }
+            ret = wc_curve25519_init(&mut private_key);
+            if ret < 0 {
+                panic!("panic while calling wc_curve25519_init, ret = {}", ret);
+            }
 
-                    // This function imports a private key from the given input buffer
-                    // and stores it in the the curve25519_key structure.
-                    ret = wc_curve25519_import_private_ex(
-                        self.priv_key_bytes.as_ptr(), 
-                        32, 
-                        &mut private_key, 
-                        endian.try_into().unwrap()
-                    );
-                    if ret != 0 {
-                        panic!("panic while calling wc_curve25519_import_private, ret = {}", ret);
-                    }
+            // This function imports a private key from the given input buffer
+            // and stores it in the the curve25519_key structure.
+            ret = wc_curve25519_import_private_ex(
+                self.priv_key_bytes.as_ptr(), 
+                32, 
+                &mut private_key, 
+                endian.try_into().unwrap()
+            );
+            if ret != 0 {
+                panic!("panic while calling wc_curve25519_import_private, ret = {}", ret);
+            }
 
-                    // This function computes a shared secret key given a secret private key and 
-                    // a received public key. Stores the generated secret in the buffer out.
-                    ret = wc_curve25519_shared_secret_ex(
-                        &mut private_key, 
-                        &mut pub_key_provided, 
-                        out.as_mut_ptr(),
-                        &mut out_len, 
-                        endian.try_into().unwrap()
-                    );
-                    if ret < 0 {
-                        panic!("panic while calling wc_curve25519_shared_secret_ex, ret = {}", ret);
-                    }
+            // This function computes a shared secret key given a secret private key and 
+            // a received public key. Stores the generated secret in the buffer out.
+            ret = wc_curve25519_shared_secret_ex(
+                &mut private_key, 
+                &mut pub_key_provided, 
+                out.as_mut_ptr(),
+                &mut out_len, 
+                endian.try_into().unwrap()
+            );
+            if ret < 0 {
+                panic!("panic while calling wc_curve25519_shared_secret_ex, ret = {}", ret);
+            }
 
-                    out.to_vec()
-                }
-            },
-            rustls::NamedGroup::secp256r1 => {
-                unsafe {
-                    let mut out: [u8; 32] = [0; 32];
-                    let mut out_len: word32 = out.len() as word32;
-                    let mut ret;
-                    let mut pub_key: ecc_key = mem::zeroed();
-                    let pub_key_object: ECCKeyObject = ECCKeyObject::from_ptr(&mut pub_key);
-                    let mut priv_key: ecc_key = mem::zeroed();
-                    let priv_key_object: ECCKeyObject = ECCKeyObject::from_ptr(&mut priv_key);
-
-                    ret = wc_ecc_init(pub_key_object.as_ptr());
-                    if ret != 0 {
-                        panic!("error while calling wc_ecc_init, ret = {}", ret);
-                    }
-
-                    ret = wc_ecc_init(priv_key_object.as_ptr());
-                    if ret != 0 {
-                        panic!("error while calling wc_ecc_init, ret = {}", ret);
-                    }
-
-                    ret = wc_ecc_import_x963(
-                        peer_pub_key.as_ptr(),
-                        peer_pub_key.len() as word32,
-                        pub_key_object.as_ptr()
-                    );
-                    if ret != 0 {
-                        panic!("error while calling wc_ecc_import_x963, ret = {}", ret);
-                    }
-
-                    ret = wc_ecc_import_private_key(
-                        self.priv_key_bytes.as_ptr(),
-                        self.priv_key_bytes.len() as word32,
-                        self.pub_key_bytes.as_ptr(),
-                        self.pub_key_bytes.len() as word32,
-                        priv_key_object.as_ptr()
-                    );
-                    if ret != 0 {
-                        panic!("error while calling wc_ecc_import_private_key, ret = {}", ret);
-                    }
-
-                    ret = wc_ecc_shared_secret(
-                        priv_key_object.as_ptr(),
-                        pub_key_object.as_ptr(),
-                        out.as_mut_ptr(),
-                        &mut out_len
-                    );
-                    if ret != 0 {
-                        panic!("error while calling wc_ecc_shared_secret, ret = {}", ret);
-                    }
-
-                    out.to_vec()
-                }
-            },
-            _ => unimplemented!(),
+            out
         }
     }
 }
@@ -311,23 +159,23 @@ impl crypto::ActiveKeyExchange for KeyExchange {
         self: Box<KeyExchange>,
         peer_pub_key: &[u8],
     ) -> Result<crypto::SharedSecret, rustls::Error> {
+        let peer_pub_key_array: [u8; 32] = peer_pub_key
+            .try_into()
+            .map_err(|_| rustls::Error::from(rustls::PeerMisbehaved::InvalidKeyShare))?;
+
         // We derive the shared secret with our private key and 
         // the received public key.
-        let secret = self.derive_shared_secret(peer_pub_key.to_vec());
+        let secret = self.derive_shared_secret(peer_pub_key_array);
 
         Ok(crypto::SharedSecret::from(secret.as_slice()))
     }
 
     fn pub_key(&self) -> &[u8] {
-        &self.pub_key_bytes.as_slice()
+        &self.pub_key_bytes
     }
 
     fn group(&self) -> rustls::NamedGroup {
-        match self.key_type {
-            rustls::NamedGroup::X25519 =>X25519.name(),
-            rustls::NamedGroup::secp256r1 =>X25519.name(),
-            _ => unimplemented!()
-        }
+        X25519.name()
     }
 }
 
@@ -353,33 +201,10 @@ unsafe impl ForeignType for Curve25519KeyObject {
     }
 }
 
-pub struct ECCKeyObjectRef(Opaque);
-unsafe impl ForeignTypeRef for ECCKeyObjectRef {
-    type CType = ecc_key;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ECCKeyObject(NonNull<ecc_key>);
-unsafe impl Sync for ECCKeyObject{}
-unsafe impl Send for ECCKeyObject{}
-unsafe impl ForeignType for ECCKeyObject {
-    type CType = ecc_key;
-
-    type Ref = ECCKeyObjectRef;
-
-    unsafe fn from_ptr(ptr: *mut Self::CType) -> Self {
-        Self(NonNull::new_unchecked(ptr))
-    }
-
-    fn as_ptr(&self) -> *mut Self::CType {
-        self.0.as_ptr()
-    }
-}
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hex_literal::hex;
     use rustls::crypto::ActiveKeyExchange;
 
     #[test]
@@ -394,13 +219,77 @@ mod tests {
     }
 
     #[test]
-    fn test_secp256r1() {
-        let alice = Box::new(KeyExchange::use_secp256r1());
-        let bob = Box::new(KeyExchange::use_secp256r1());
+    fn test_curve25519_wc() {
+        let alice_prv = hex!("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a");
+        let alice_pub = hex!("8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a");
+        let bob_prv   = hex!("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb");
+        let bob_pub   = hex!("de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f");
+        let alice_secret: [u8; 32] = [0; 32];
+        let bob_secret: [u8; 32] = [0; 32];
+        let endian: u32 = EC25519_LITTLE_ENDIAN;
 
-        assert_eq!(
-            alice.derive_shared_secret(bob.pub_key().try_into().unwrap()),
-            bob.derive_shared_secret(alice.pub_key().try_into().unwrap()),
-        )
+        assert_eq!(curve25519_secret(alice_prv, bob_pub, alice_secret, alice_secret.len() as word32, endian), 0);
+        assert_eq!(curve25519_secret(bob_prv, alice_pub, bob_secret, bob_secret.len() as word32, endian), 0);
+
+        assert_eq!(alice_secret, bob_secret);
+    }
+
+    fn curve25519_secret(mut priv_key_raw: [u8; 32], mut pub_key_raw: [u8; 32], mut secret: [u8; 32], mut secret_size: u32, endianess: u32) -> i32 {
+        unsafe {
+            let mut ret;
+            let mut priv_key: curve25519_key = mem::zeroed();
+            let mut pub_key: curve25519_key = mem::zeroed();
+
+            ret = wc_curve25519_init(&mut pub_key);
+            if ret == 0 {
+                ret = wc_curve25519_init(&mut priv_key);
+            }
+
+            if ret == 0 {
+                ret = wc_curve25519_import_private_ex(
+                        priv_key_raw.as_mut_ptr(), 
+                        32, 
+                        &mut priv_key, 
+                        endianess.try_into().unwrap()
+                );
+                if ret != 0 {
+                    panic!("wc_curve25519_import_private failed\n");
+                }
+            }
+
+            if ret == 0 {
+                ret = wc_curve25519_check_public(
+                        pub_key_raw.as_mut_ptr(), 
+                        32, 
+                        endianess.try_into().unwrap()
+                );
+                if ret != 0 {
+                    panic!("wc_curve25519_check_public failed\n");
+                }
+            }
+
+            if ret == 0 {
+                ret = wc_curve25519_import_public_ex(
+                        pub_key_raw.as_mut_ptr(), 
+                        32, 
+                        &mut pub_key, 
+                        endianess.try_into().unwrap()
+                );
+            }
+
+            if ret == 0 {
+                ret = wc_curve25519_shared_secret_ex(
+                        &mut priv_key, 
+                        &mut pub_key, 
+                        secret.as_mut_ptr(), 
+                        &mut secret_size, 
+                        endianess.try_into().unwrap()
+                );
+            }
+
+            wc_curve25519_free(&mut pub_key);
+            wc_curve25519_free(&mut priv_key);
+            return ret;
+        }
     }
 }
