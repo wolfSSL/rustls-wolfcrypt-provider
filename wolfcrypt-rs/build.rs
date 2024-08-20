@@ -81,6 +81,7 @@ fn setup_wolfssl() {
                     let output = Command::new("./configure")
                         .arg("--enable-all")
                         .arg("--enable-all-crypto")
+                        .arg("--enable-debug")
                         .arg("--disable-shared")
                         .arg("--prefix=/opt/wolfssl-rs/")
                         .output()

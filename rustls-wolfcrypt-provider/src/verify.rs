@@ -12,12 +12,13 @@ use rsa::{BigUint};
 use std::ffi::c_void;
 
 pub static ALGORITHMS: WebPkiSupportedAlgorithms = WebPkiSupportedAlgorithms {
-    all: &[RSA_PSS_SHA256, RSA_PSS_SHA384, RSA_PKCS1_SHA256, RSA_PKCS1_SHA384],
+    all: &[RSA_PSS_SHA256, RSA_PSS_SHA384, RSA_PKCS1_SHA256, RSA_PKCS1_SHA384, ECDSA_NISTP256_SHA256],
     mapping: &[
         (SignatureScheme::RSA_PSS_SHA256, &[RSA_PSS_SHA256]),
         (SignatureScheme::RSA_PSS_SHA384, &[RSA_PSS_SHA384]),
         (SignatureScheme::RSA_PKCS1_SHA256, &[RSA_PKCS1_SHA256]),
         (SignatureScheme::RSA_PKCS1_SHA384, &[RSA_PKCS1_SHA384]),
+        (SignatureScheme::ECDSA_NISTP256_SHA256, &[ECDSA_NISTP256_SHA256]),
     ],
 };
 
@@ -25,6 +26,7 @@ static RSA_PSS_SHA256: &dyn SignatureVerificationAlgorithm = &RsaPssSha256Verify
 static RSA_PSS_SHA384: &dyn SignatureVerificationAlgorithm = &RsaPssSha384Verify;
 static RSA_PKCS1_SHA256: &dyn SignatureVerificationAlgorithm = &RsaPkcs1Sha256Verify;
 static RSA_PKCS1_SHA384: &dyn SignatureVerificationAlgorithm = &RsaPkcs1Sha384Verify;
+static ECDSA_NISTP256_SHA256: &dyn SignatureVerificationAlgorithm = &EcdsaNistp256Sha256;
 
 #[derive(Debug)]
 struct RsaPssSha256Verify;
@@ -271,6 +273,93 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
     }
 }
 
+#[derive(Debug)]
+struct EcdsaNistp256Sha256;
+
+impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
+    fn public_key_alg_id(&self) -> AlgorithmIdentifier {
+        alg_id::ECDSA_P256
+    }
+
+    fn signature_alg_id(&self) -> AlgorithmIdentifier {
+        alg_id::ECDSA_SHA256
+    }
+
+    fn verify_signature(
+        &self,
+        public_key: &[u8],
+        message: &[u8],
+        signature: &[u8],
+    ) -> Result<(), InvalidSignature> {
+        unsafe {
+            let mut ecc_struct: ecc_key = mem::zeroed();
+            let ecc_object = ECCKeyObject::from_ptr(&mut ecc_struct);
+            let digest_sz;
+            let mut digest: [u8; 32] = [0; 32];
+            let mut ret;
+            let mut stat: i32 = 0;
+
+            ret = wc_ecc_init(ecc_object.as_ptr());
+            if ret != 0 {
+                panic!("failed when calling wc_ecc_init, ret = {}", ret);
+            }
+
+            /* Import public key x/y */
+            ret = wc_ecc_import_unsigned(
+                ecc_object.as_ptr(),
+                public_key.as_ptr(),                        /* Public "x" Coordinate */
+                public_key.as_ptr().wrapping_add(32),       /* Public "y" Coordinate */
+                std::ptr::null_mut(),                       /* Private "d" (optional) */
+                ecc_curve_id_ECC_SECP256R1                  /* ECC Curve Id */
+            );
+            if ret != 0 {
+                panic!("failed when calling wc_ecc_import_unsigned, ret = {}", ret);
+            }
+
+            // This function returns the size of the digest (output) for a hash_type.
+            // The returns size is used to make sure the output buffer
+            // provided to wc_Hash is large enough.
+            digest_sz = wc_HashGetDigestSize(
+                wc_HashType_WC_HASH_TYPE_SHA256
+            );
+
+            // This function performs a hash on the provided data buffer and
+            // returns it in the hash buffer provided.
+            // In this case we hash with Sha256 (RSA_PSS_SHA256).
+            // We hash the message since it's not hashed.
+            ret = wc_Hash(
+                wc_HashType_WC_HASH_TYPE_SHA256,
+                message.as_ptr(),
+                message.len() as word32,
+                digest.as_mut_ptr(),
+                digest_sz as word32
+            );
+            if ret != 0 {
+                panic!("error while calling wc_hash, ret = {}", ret);
+            }
+
+            ret = wc_ecc_verify_hash(
+                signature.as_ptr(),
+                signature.len() as word32,
+                digest.as_ptr(),
+                digest_sz as word32,
+                &mut stat,
+                ecc_object.as_ptr()
+            );
+            if ret != 0 {
+                panic!("error while calling wc_ecc_verify_hash, ret = {}", ret);
+            }
+
+            if stat == 1 {
+                Ok(())
+            } else {
+                log::error!("stat value: {}", ret);
+                Err(InvalidSignature)
+            }
+        }
+    }
+}
+
 
 fn wc_decode_spki_spk(spki_spk: &[u8]) -> Result<RsaKey, InvalidSignature> {
     unsafe {
@@ -408,5 +497,28 @@ mod tests {
 
             assert!(ret > 0);
         }
+    }
+}
+
+pub struct ECCKeyObjectRef(Opaque);
+unsafe impl ForeignTypeRef for ECCKeyObjectRef {
+    type CType = ecc_key;
+}
+
+#[derive(Debug, Clone)]
+pub struct ECCKeyObject(NonNull<ecc_key>);
+unsafe impl Sync for ECCKeyObject{}
+unsafe impl Send for ECCKeyObject{}
+unsafe impl ForeignType for ECCKeyObject {
+    type CType = ecc_key;
+
+    type Ref = ECCKeyObjectRef;
+
+    unsafe fn from_ptr(ptr: *mut Self::CType) -> Self {
+        Self(NonNull::new_unchecked(ptr))
+    }
+
+    fn as_ptr(&self) -> *mut Self::CType {
+        self.0.as_ptr()
     }
 }
