@@ -88,7 +88,13 @@ static ALL_RSA_SCHEMES: &[rustls::SignatureScheme] = &[
     rustls::SignatureScheme::RSA_PSS_SHA256,
     rustls::SignatureScheme::RSA_PSS_SHA384,
     rustls::SignatureScheme::RSA_PKCS1_SHA256,
-    rustls::SignatureScheme::RSA_PKCS1_SHA384,
+    rustls::SignatureScheme::RSA_PKCS1_SHA384
+];
+
+static ALL_ECDSA_SCHEMES: &[rustls::SignatureScheme] = &[
+    rustls::SignatureScheme::ECDSA_NISTP256_SHA256,
+    rustls::SignatureScheme::ECDSA_NISTP384_SHA384,
+    rustls::SignatureScheme::ECDSA_NISTP521_SHA512,
 ];
 
 pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
@@ -164,4 +170,43 @@ pub static TLS12_ECDHE_RSA_WITH_AES_256_GCM_SHA384: rustls::SupportedCipherSuite
         prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&sha384hmac::WCSha384Hmac),
         kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
         sign: ALL_RSA_SCHEMES
+    });
+
+pub static TLS12_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
+    rustls::SupportedCipherSuite::Tls12(&rustls::Tls12CipherSuite {
+        common: rustls::crypto::CipherSuiteCommon {
+            suite: rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+            hash_provider: &sha256::WCSha256,
+            confidentiality_limit: u64::MAX,
+        },
+        prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&sha256hmac::WCSha256Hmac),
+        kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
+        sign: ALL_ECDSA_SCHEMES,
+        aead_alg: &chacha20::Chacha20Poly1305,
+    });
+
+pub static TLS12_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256: rustls::SupportedCipherSuite =
+    rustls::SupportedCipherSuite::Tls12(&rustls::Tls12CipherSuite {
+        common: rustls::crypto::CipherSuiteCommon {
+            suite: rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+            hash_provider: &sha256::WCSha256,
+            confidentiality_limit: 1 << 23,
+        },
+        aead_alg: &aes128gcm::Aes128Gcm,
+        prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&sha256hmac::WCSha256Hmac),
+        kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
+        sign: ALL_ECDSA_SCHEMES
+    });
+
+pub static TLS12_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384: rustls::SupportedCipherSuite =
+    rustls::SupportedCipherSuite::Tls12(&rustls::Tls12CipherSuite {
+        common: rustls::crypto::CipherSuiteCommon {
+            suite: rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+            hash_provider: &sha384::WCSha384,
+            confidentiality_limit: 1 << 23,
+        },
+        aead_alg: &aes256gcm::Aes256Gcm,
+        prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&sha384hmac::WCSha384Hmac),
+        kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
+        sign: ALL_ECDSA_SCHEMES
     });

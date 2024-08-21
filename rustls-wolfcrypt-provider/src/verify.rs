@@ -12,13 +12,15 @@ use rsa::{BigUint};
 use std::ffi::c_void;
 
 pub static ALGORITHMS: WebPkiSupportedAlgorithms = WebPkiSupportedAlgorithms {
-    all: &[RSA_PSS_SHA256, RSA_PSS_SHA384, RSA_PKCS1_SHA256, RSA_PKCS1_SHA384, ECDSA_NISTP256_SHA256],
+    all: &[RSA_PSS_SHA256, RSA_PSS_SHA384, RSA_PKCS1_SHA256, RSA_PKCS1_SHA384, ECDSA_P256_SHA256, ECDSA_P384_SHA256, ECDSA_P256_SHA384, ECDSA_P384_SHA384, ECDSA_P521_SHA512],
     mapping: &[
         (SignatureScheme::RSA_PSS_SHA256, &[RSA_PSS_SHA256]),
         (SignatureScheme::RSA_PSS_SHA384, &[RSA_PSS_SHA384]),
         (SignatureScheme::RSA_PKCS1_SHA256, &[RSA_PKCS1_SHA256]),
         (SignatureScheme::RSA_PKCS1_SHA384, &[RSA_PKCS1_SHA384]),
-        (SignatureScheme::ECDSA_NISTP256_SHA256, &[ECDSA_NISTP256_SHA256]),
+        (SignatureScheme::ECDSA_NISTP256_SHA256, &[ECDSA_P256_SHA256, ECDSA_P384_SHA256]),
+        (SignatureScheme::ECDSA_NISTP384_SHA384, &[ECDSA_P256_SHA384, ECDSA_P384_SHA384]),
+        (SignatureScheme::ECDSA_NISTP521_SHA512, &[ECDSA_P521_SHA512]),
     ],
 };
 
@@ -26,7 +28,11 @@ static RSA_PSS_SHA256: &dyn SignatureVerificationAlgorithm = &RsaPssSha256Verify
 static RSA_PSS_SHA384: &dyn SignatureVerificationAlgorithm = &RsaPssSha384Verify;
 static RSA_PKCS1_SHA256: &dyn SignatureVerificationAlgorithm = &RsaPkcs1Sha256Verify;
 static RSA_PKCS1_SHA384: &dyn SignatureVerificationAlgorithm = &RsaPkcs1Sha384Verify;
-static ECDSA_NISTP256_SHA256: &dyn SignatureVerificationAlgorithm = &EcdsaNistp256Sha256;
+static ECDSA_P256_SHA256: &dyn SignatureVerificationAlgorithm = &EcdsaNistp256Sha256;
+static ECDSA_P256_SHA384: &dyn SignatureVerificationAlgorithm = &EcdsaNistp256Sha384;
+static ECDSA_P384_SHA256: &dyn SignatureVerificationAlgorithm = &EcdsaNistp384Sha256;
+static ECDSA_P384_SHA384: &dyn SignatureVerificationAlgorithm = &EcdsaNistp384Sha384;
+static ECDSA_P521_SHA512: &dyn SignatureVerificationAlgorithm = &EcdsaNistp521Sha512;
 
 #[derive(Debug)]
 struct RsaPssSha256Verify;
@@ -307,8 +313,8 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
             /* Import public key x/y */
             ret = wc_ecc_import_unsigned(
                 ecc_object.as_ptr(),
-                public_key.as_ptr(),                        /* Public "x" Coordinate */
-                public_key.as_ptr().wrapping_add(32),       /* Public "y" Coordinate */
+                public_key[1..32].as_ptr(),                        /* Public "x" Coordinate */
+                public_key[33..].as_ptr(),       /* Public "y" Coordinate */
                 std::ptr::null_mut(),                       /* Private "d" (optional) */
                 ecc_curve_id_ECC_SECP256R1                  /* ECC Curve Id */
             );
@@ -353,7 +359,356 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
             if stat == 1 {
                 Ok(())
             } else {
-                log::error!("stat value: {}", ret);
+                log::error!("stat value in EcdsaNistp256Sha256: {}", ret);
+                Err(InvalidSignature)
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct EcdsaNistp384Sha256;
+
+impl SignatureVerificationAlgorithm for EcdsaNistp384Sha256 {
+    fn public_key_alg_id(&self) -> AlgorithmIdentifier {
+        alg_id::ECDSA_P384
+    }
+
+    fn signature_alg_id(&self) -> AlgorithmIdentifier {
+        alg_id::ECDSA_SHA256
+    }
+
+    fn verify_signature(
+        &self,
+        public_key: &[u8],
+        message: &[u8],
+        signature: &[u8],
+    ) -> Result<(), InvalidSignature> {
+        unsafe {
+            let mut ecc_struct: ecc_key = mem::zeroed();
+            let ecc_object = ECCKeyObject::from_ptr(&mut ecc_struct);
+            let digest_sz;
+            let mut digest: [u8; 32] = [0; 32];
+            let mut ret;
+            let mut stat: i32 = 0;
+
+            ret = wc_ecc_init(ecc_object.as_ptr());
+            if ret != 0 {
+                panic!("failed when calling wc_ecc_init, ret = {}", ret);
+            }
+
+            /* Import public key x/y */
+            ret = wc_ecc_import_unsigned(
+                ecc_object.as_ptr(),
+                public_key[1..48].as_ptr(),                        /* Public "x" Coordinate */
+                public_key[49..].as_ptr(),       /* Public "y" Coordinate */
+                std::ptr::null_mut(),                       /* Private "d" (optional) */
+                ecc_curve_id_ECC_SECP384R1                  /* ECC Curve Id */
+            );
+            if ret != 0 {
+                panic!("failed when calling wc_ecc_import_unsigned, ret = {}", ret);
+            }
+
+            // This function returns the size of the digest (output) for a hash_type.
+            // The returns size is used to make sure the output buffer
+            // provided to wc_Hash is large enough.
+            digest_sz = wc_HashGetDigestSize(
+                wc_HashType_WC_HASH_TYPE_SHA256
+            );
+
+            // This function performs a hash on the provided data buffer and
+            // returns it in the hash buffer provided.
+            // In this case we hash with Sha256 (RSA_PSS_SHA256).
+            // We hash the message since it's not hashed.
+            ret = wc_Hash(
+                wc_HashType_WC_HASH_TYPE_SHA256,
+                message.as_ptr(),
+                message.len() as word32,
+                digest.as_mut_ptr(),
+                digest_sz as word32
+            );
+            if ret != 0 {
+                panic!("error while calling wc_hash, ret = {}", ret);
+            }
+
+            ret = wc_ecc_verify_hash(
+                signature.as_ptr(),
+                signature.len() as word32,
+                digest.as_ptr(),
+                digest_sz as word32,
+                &mut stat,
+                ecc_object.as_ptr()
+            );
+            if ret != 0 {
+                panic!("error while calling wc_ecc_verify_hash, ret = {}", ret);
+            }
+
+            if stat == 1 {
+                Ok(())
+            } else {
+                log::error!("stat value in EcdsaNistp384Sha256: {}", ret);
+                Err(InvalidSignature)
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct EcdsaNistp256Sha384;
+
+impl SignatureVerificationAlgorithm for EcdsaNistp256Sha384 {
+    fn public_key_alg_id(&self) -> AlgorithmIdentifier {
+        alg_id::ECDSA_P256
+    }
+
+    fn signature_alg_id(&self) -> AlgorithmIdentifier {
+        alg_id::ECDSA_SHA384
+    }
+
+    fn verify_signature(
+        &self,
+        public_key: &[u8],
+        message: &[u8],
+        signature: &[u8],
+    ) -> Result<(), InvalidSignature> {
+        unsafe {
+            let mut ecc_struct: ecc_key = mem::zeroed();
+            let ecc_object = ECCKeyObject::from_ptr(&mut ecc_struct);
+            let digest_sz;
+            let mut digest: [u8; 48] = [0; 48];
+            let mut ret;
+            let mut stat: i32 = 0;
+
+            ret = wc_ecc_init(ecc_object.as_ptr());
+            if ret != 0 {
+                panic!("failed when calling wc_ecc_init, ret = {}", ret);
+            }
+
+            /* Import public key x/y */
+            ret = wc_ecc_import_unsigned(
+                ecc_object.as_ptr(),
+                public_key[1..32].as_ptr(),                        /* Public "x" Coordinate */
+                public_key[33..].as_ptr(),       /* Public "y" Coordinate */
+                std::ptr::null_mut(),                       /* Private "d" (optional) */
+                ecc_curve_id_ECC_SECP256R1                  /* ECC Curve Id */
+            );
+            if ret != 0 {
+                panic!("failed when calling wc_ecc_import_unsigned, ret = {}", ret);
+            }
+
+            // This function returns the size of the digest (output) for a hash_type.
+            // The returns size is used to make sure the output buffer
+            // provided to wc_Hash is large enough.
+            digest_sz = wc_HashGetDigestSize(
+                wc_HashType_WC_HASH_TYPE_SHA384
+            );
+
+            // This function performs a hash on the provided data buffer and
+            // returns it in the hash buffer provided.
+            // In this case we hash with Sha384 (RSA_PSS_SHA384).
+            // We hash the message since it's not hashed.
+            ret = wc_Hash(
+                wc_HashType_WC_HASH_TYPE_SHA384,
+                message.as_ptr(),
+                message.len() as word32,
+                digest.as_mut_ptr(),
+                digest_sz as word32
+            );
+            if ret != 0 {
+                panic!("error while calling wc_hash, ret = {}", ret);
+            }
+
+
+            ret = wc_ecc_verify_hash(
+                signature.as_ptr(),
+                signature.len() as word32,
+                digest.as_ptr(),
+                digest_sz as word32,
+                &mut stat,
+                ecc_object.as_ptr()
+            );
+            if ret != 0 {
+                panic!("error while calling wc_ecc_verify_hash, ret = {}", ret);
+            }
+
+            if stat == 1 {
+                Ok(())
+            } else {
+                log::error!("stat value in EcdsaNistp256Sha384: {}", ret);
+                Err(InvalidSignature)
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct EcdsaNistp384Sha384;
+
+impl SignatureVerificationAlgorithm for EcdsaNistp384Sha384 {
+    fn public_key_alg_id(&self) -> AlgorithmIdentifier {
+        alg_id::ECDSA_P384
+    }
+
+    fn signature_alg_id(&self) -> AlgorithmIdentifier {
+        alg_id::ECDSA_SHA384
+    }
+
+    fn verify_signature(
+        &self,
+        public_key: &[u8],
+        message: &[u8],
+        signature: &[u8],
+    ) -> Result<(), InvalidSignature> {
+        unsafe {
+            let mut ecc_struct: ecc_key = mem::zeroed();
+            let ecc_object = ECCKeyObject::from_ptr(&mut ecc_struct);
+            let digest_sz;
+            let mut digest: [u8; 48] = [0; 48];
+            let mut ret;
+            let mut stat: i32 = 0;
+
+            ret = wc_ecc_init(ecc_object.as_ptr());
+            if ret != 0 {
+                panic!("failed when calling wc_ecc_init, ret = {}", ret);
+            }
+
+            /* Import public key x/y */
+            ret = wc_ecc_import_unsigned(
+                ecc_object.as_ptr(),
+                public_key[1..48].as_ptr(),                 /* Public "x" Coordinate */
+                public_key[49..].as_ptr(),                  /* Public "y" Coordinate */
+                std::ptr::null_mut(),                       /* Private "d" (optional) */
+                ecc_curve_id_ECC_SECP384R1                  /* ECC Curve Id */
+            );
+            if ret != 0 {
+                panic!("failed when calling wc_ecc_import_unsigned, ret = {}", ret);
+            }
+
+            // This function returns the size of the digest (output) for a hash_type.
+            // The returns size is used to make sure the output buffer
+            // provided to wc_Hash is large enough.
+            digest_sz = wc_HashGetDigestSize(
+                wc_HashType_WC_HASH_TYPE_SHA384
+            );
+
+            // This function performs a hash on the provided data buffer and
+            // returns it in the hash buffer provided.
+            // In this case we hash with Sha256 (RSA_PSS_SHA256).
+            // We hash the message since it's not hashed.
+            ret = wc_Hash(
+                wc_HashType_WC_HASH_TYPE_SHA384,
+                message.as_ptr(),
+                message.len() as word32,
+                digest.as_mut_ptr(),
+                digest_sz as word32
+            );
+            if ret != 0 {
+                panic!("error while calling wc_hash, ret = {}", ret);
+            }
+
+            ret = wc_ecc_verify_hash(
+                signature.as_ptr(),
+                signature.len() as word32,
+                digest.as_ptr(),
+                digest_sz as word32,
+                &mut stat,
+                ecc_object.as_ptr()
+            );
+            if ret != 0 {
+                panic!("error while calling wc_ecc_verify_hash, ret = {}", ret);
+            }
+
+            if stat == 1 {
+                Ok(())
+            } else {
+                log::error!("stat value in EcdsaNistp384Sha384: {}", ret);
+                Err(InvalidSignature)
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct EcdsaNistp521Sha512;
+
+impl SignatureVerificationAlgorithm for EcdsaNistp521Sha512 {
+    fn public_key_alg_id(&self) -> AlgorithmIdentifier {
+        alg_id::ECDSA_P521
+    }
+
+    fn signature_alg_id(&self) -> AlgorithmIdentifier {
+        alg_id::ECDSA_SHA512
+    }
+
+    fn verify_signature(
+        &self,
+        public_key: &[u8],
+        message: &[u8],
+        signature: &[u8],
+    ) -> Result<(), InvalidSignature> {
+        unsafe {
+            let mut ecc_struct: ecc_key = mem::zeroed();
+            let ecc_object = ECCKeyObject::from_ptr(&mut ecc_struct);
+            let digest_sz;
+            let mut digest: [u8; 64] = [0; 64];
+            let mut ret;
+            let mut stat: i32 = 0;
+
+            ret = wc_ecc_init(ecc_object.as_ptr());
+            if ret != 0 {
+                panic!("failed when calling wc_ecc_init, ret = {}", ret);
+            }
+
+            /* Import public key x/y */
+            ret = wc_ecc_import_unsigned(
+                ecc_object.as_ptr(),
+                public_key[1..64].as_ptr(),                 /* Public "x" Coordinate */
+                public_key[65..].as_ptr(),                  /* Public "y" Coordinate */
+                std::ptr::null_mut(),                       /* Private "d" (optional) */
+                ecc_curve_id_ECC_SECP521R1                  /* ECC Curve Id */
+            );
+            if ret != 0 {
+                panic!("failed when calling wc_ecc_import_unsigned, ret = {}", ret);
+            }
+
+            // This function returns the size of the digest (output) for a hash_type.
+            // The returns size is used to make sure the output buffer
+            // provided to wc_Hash is large enough.
+            digest_sz = wc_HashGetDigestSize(
+                wc_HashType_WC_HASH_TYPE_SHA512
+            );
+
+            // This function performs a hash on the provided data buffer and
+            // returns it in the hash buffer provided.
+            // In this case we hash with Sha256 (RSA_PSS_SHA256).
+            // We hash the message since it's not hashed.
+            ret = wc_Hash(
+                wc_HashType_WC_HASH_TYPE_SHA512,
+                message.as_ptr(),
+                message.len() as word32,
+                digest.as_mut_ptr(),
+                digest_sz as word32
+            );
+            if ret != 0 {
+                panic!("error while calling wc_hash, ret = {}", ret);
+            }
+
+            ret = wc_ecc_verify_hash(
+                signature.as_ptr(),
+                signature.len() as word32,
+                digest.as_ptr(),
+                digest_sz as word32,
+                &mut stat,
+                ecc_object.as_ptr()
+            );
+            if ret != 0 {
+                panic!("error while calling wc_ecc_verify_hash, ret = {}", ret);
+            }
+
+            if stat == 1 {
+                Ok(())
+            } else {
+                log::error!("stat value in EcdsaNistp521Sha512: {}", ret);
                 Err(InvalidSignature)
             }
         }
