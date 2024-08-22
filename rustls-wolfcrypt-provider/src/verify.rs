@@ -313,7 +313,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
             /* Import public key x/y */
             ret = wc_ecc_import_unsigned(
                 ecc_object.as_ptr(),
-                public_key[1..32].as_ptr(),                        /* Public "x" Coordinate */
+                public_key[1..33].as_ptr(),                        /* Public "x" Coordinate */
                 public_key[33..].as_ptr(),       /* Public "y" Coordinate */
                 std::ptr::null_mut(),                       /* Private "d" (optional) */
                 ecc_curve_id_ECC_SECP256R1                  /* ECC Curve Id */
@@ -400,7 +400,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha256 {
             /* Import public key x/y */
             ret = wc_ecc_import_unsigned(
                 ecc_object.as_ptr(),
-                public_key[1..48].as_ptr(),                        /* Public "x" Coordinate */
+                public_key[1..49].as_ptr(),                        /* Public "x" Coordinate */
                 public_key[49..].as_ptr(),       /* Public "y" Coordinate */
                 std::ptr::null_mut(),                       /* Private "d" (optional) */
                 ecc_curve_id_ECC_SECP384R1                  /* ECC Curve Id */
@@ -487,7 +487,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha384 {
             /* Import public key x/y */
             ret = wc_ecc_import_unsigned(
                 ecc_object.as_ptr(),
-                public_key[1..32].as_ptr(),                        /* Public "x" Coordinate */
+                public_key[1..33].as_ptr(),                        /* Public "x" Coordinate */
                 public_key[33..].as_ptr(),       /* Public "y" Coordinate */
                 std::ptr::null_mut(),                       /* Private "d" (optional) */
                 ecc_curve_id_ECC_SECP256R1                  /* ECC Curve Id */
@@ -575,7 +575,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha384 {
             /* Import public key x/y */
             ret = wc_ecc_import_unsigned(
                 ecc_object.as_ptr(),
-                public_key[1..48].as_ptr(),                 /* Public "x" Coordinate */
+                public_key[1..49].as_ptr(),                 /* Public "x" Coordinate */
                 public_key[49..].as_ptr(),                  /* Public "y" Coordinate */
                 std::ptr::null_mut(),                       /* Private "d" (optional) */
                 ecc_curve_id_ECC_SECP384R1                  /* ECC Curve Id */

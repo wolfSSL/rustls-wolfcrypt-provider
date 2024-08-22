@@ -40,7 +40,6 @@ pub struct KeyExchangeX25519 {
 }
 
 pub struct KeyExchangeSecP256r1 {
-    pub_key: ECCPubKey,
     priv_key_bytes: Vec<u8>,
     pub_key_bytes: Vec<u8>,
 }
@@ -55,10 +54,8 @@ pub struct ECCPubKey {
 impl KeyExchangeSecP256r1 {
     pub fn use_secp256r1() -> Self {
         unsafe {
-            let mut priv_key: ecc_key = mem::zeroed();
-            let priv_key_object = ECCKeyObject::from_ptr(&mut priv_key);
-            let mut pub_key: ecc_key = mem::zeroed();
-            let pub_key_object = ECCKeyObject::from_ptr(&mut pub_key);
+            let mut key: ecc_key = mem::zeroed();
+            let key_object = ECCKeyObject::from_ptr(&mut key);
             let mut rng: WC_RNG = mem::zeroed();
             let mut ret;
             let mut pub_key_raw = ECCPubKey {
@@ -70,12 +67,7 @@ impl KeyExchangeSecP256r1 {
             let mut priv_key_raw: [u8; 32] = [0; 32];
             let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
 
-            ret = wc_ecc_init(priv_key_object.as_ptr());
-            if ret != 0 {
-                panic!("failed while calling wc_ecc_init, ret = {}", ret);
-            }
-
-            ret = wc_ecc_init(pub_key_object.as_ptr());
+            ret = wc_ecc_init(key_object.as_ptr());
             if ret != 0 {
                 panic!("failed while calling wc_ecc_init, ret = {}", ret);
             }
@@ -88,17 +80,7 @@ impl KeyExchangeSecP256r1 {
             ret = wc_ecc_make_key_ex(
                 &mut rng, 
                 32, 
-                priv_key_object.as_ptr(),
-                ecc_curve_id_ECC_SECP256R1
-            );
-            if ret != 0 {
-                panic!("failed while calling wc_ecc_make_key, ret = {}", ret);
-            }
-
-            ret = wc_ecc_make_key_ex(
-                &mut rng, 
-                32, 
-                pub_key_object.as_ptr(),
+                key_object.as_ptr(),
                 ecc_curve_id_ECC_SECP256R1
             );
             if ret != 0 {
@@ -106,7 +88,7 @@ impl KeyExchangeSecP256r1 {
             }
 
             ret = wc_ecc_export_private_only(
-                priv_key_object.as_ptr(), 
+                key_object.as_ptr(), 
                 priv_key_raw.as_mut_ptr(), 
                 &mut priv_key_raw_len
             );
@@ -115,7 +97,7 @@ impl KeyExchangeSecP256r1 {
             }
 
             ret = wc_ecc_export_public_raw(
-                pub_key_object.as_ptr(),
+                key_object.as_ptr(),
                 pub_key_raw.qx.as_mut_ptr(),
                 &mut pub_key_raw.qx_len,
                 pub_key_raw.qy.as_mut_ptr(),
@@ -125,36 +107,35 @@ impl KeyExchangeSecP256r1 {
                 panic!("failed while calling wc_ecc_export_public_raw, ret = {}", ret);
             }
 
-            let mut cloned = pub_key_raw.qx.clone();
-            cloned.extend(pub_key_raw.qy.clone());
-            cloned.as_slice();
+            let mut pub_key_bytes = Vec::new();
+
+            pub_key_bytes.push(0x04);
+            pub_key_bytes.extend(pub_key_raw.qx.clone());
+            pub_key_bytes.extend(pub_key_raw.qy.clone());
+            pub_key_bytes.as_slice();
 
             KeyExchangeSecP256r1 {
-                pub_key: pub_key_raw,
                 priv_key_bytes: priv_key_raw.to_vec(),
-                pub_key_bytes: cloned.to_vec()
+                pub_key_bytes: pub_key_bytes.to_vec()
             }
-
         }
     }
 
     fn derive_shared_secret(&self, peer_pub_key: Vec<u8>) -> Vec<u8> {
         unsafe {
             let mut priv_key: ecc_key = mem::zeroed();
-            let priv_key_object = ECCKeyObject::from_ptr(&mut priv_key);
             let mut pub_key: ecc_key = mem::zeroed();
-            let pub_key_object = ECCKeyObject::from_ptr(&mut pub_key);
             let mut ret;
             let mut out: [u8; 32] = [0; 32];
             let mut out_len: word32 = out.len() as word32;
             let mut rng: WC_RNG = mem::zeroed();
 
-            ret = wc_ecc_init(priv_key_object.as_ptr());
+            ret = wc_ecc_init(&mut priv_key);
             if ret != 0 {
                 panic!("failed while calling wc_ecc_init, ret = {}", ret);
             }
 
-            ret = wc_ecc_init(pub_key_object.as_ptr());
+            ret = wc_ecc_init(&mut pub_key);
             if ret != 0 {
                 panic!("failed while calling wc_ecc_init, ret = {}", ret);
             }
@@ -164,7 +145,7 @@ impl KeyExchangeSecP256r1 {
                 self.priv_key_bytes.len() as word32, 
                 std::ptr::null_mut(), 
                 0,   
-                priv_key_object.as_ptr(),
+                &mut priv_key,
                 ecc_curve_id_ECC_SECP256R1
             );
             if ret != 0 {
@@ -176,8 +157,8 @@ impl KeyExchangeSecP256r1 {
              * https://www.rfc-editor.org/rfc/rfc8446#section-4.2.8.2.
              * */
             ret = wc_ecc_import_unsigned(
-                pub_key_object.as_ptr(),
-                peer_pub_key[1..32].as_ptr(),             
+                &mut pub_key,
+                peer_pub_key[1..33].as_ptr(),             
                 peer_pub_key[33..].as_ptr(),             
                 std::ptr::null_mut(),                 
                 ecc_curve_id_ECC_SECP256R1
@@ -186,21 +167,21 @@ impl KeyExchangeSecP256r1 {
                 panic!("failed while calling wc_ecc_import_unsigned, with ret value: {}", ret);
             }
 
+            ret = wc_InitRng(&mut rng);
+            if ret != 0 {
+                panic!("failed while calling wc_InitRng, ret = {}", ret);
+            }
+
             ret = wc_ecc_set_rng(
-                    pub_key_object.as_ptr(), 
+                    &mut pub_key, 
                     &mut rng
             );
              if ret != 0 {
                 panic!("failed while calling wc_ecc_set_rng, ret = {}", ret);
             }
 
-            ret = wc_InitRng(&mut rng);
-            if ret != 0 {
-                 panic!("failed while calling wc_InitRng, ret = {}", ret);
-            }
-
             ret = wc_ecc_set_rng(
-                    priv_key_object.as_ptr(), 
+                    &mut priv_key, 
                     &mut rng
             );
             if ret != 0 {
@@ -208,8 +189,8 @@ impl KeyExchangeSecP256r1 {
             }
 
             ret = wc_ecc_shared_secret(
-                priv_key_object.as_ptr(), 
-                pub_key_object.as_ptr(), 
+                &mut priv_key, 
+                &mut pub_key, 
                 out.as_mut_ptr(), 
                 &mut out_len
             );
@@ -392,6 +373,39 @@ impl crypto::ActiveKeyExchange for KeyExchangeSecP256r1 {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rustls::crypto::ActiveKeyExchange;
+
+    #[test]
+    fn test_curve25519_kx() {
+        let alice = Box::new(KeyExchangeX25519::use_curve25519());
+        let bob = Box::new(KeyExchangeX25519::use_curve25519());
+
+        assert_eq!(
+            alice.derive_shared_secret(bob.pub_key().try_into().unwrap()),
+            bob.derive_shared_secret(alice.pub_key().try_into().unwrap()),
+        )
+    }
+
+    #[test]
+    fn test_secp256r1_kx() {
+        env_logger::init();
+        log::debug!("alice");
+        let alice = Box::new(KeyExchangeSecP256r1::use_secp256r1());
+
+        log::debug!("bob");
+        let bob = Box::new(KeyExchangeSecP256r1::use_secp256r1());
+
+        assert_eq!(
+            alice.derive_shared_secret(bob.pub_key().try_into().unwrap()),
+            bob.derive_shared_secret(alice.pub_key().try_into().unwrap()),
+        )
+
+    }
+}
+
 
 pub struct Curve25519KeyObjectRef(Opaque);
 unsafe impl ForeignTypeRef for Curve25519KeyObjectRef {
@@ -435,36 +449,5 @@ unsafe impl ForeignType for ECCKeyObject {
 
     fn as_ptr(&self) -> *mut Self::CType {
         self.0.as_ptr()
-    }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rustls::crypto::ActiveKeyExchange;
-
-    #[test]
-    fn test_curve25519_kx() {
-        env_logger::init();
-        let alice = Box::new(KeyExchangeX25519::use_curve25519());
-        let bob = Box::new(KeyExchangeX25519::use_curve25519());
-
-        assert_eq!(
-            alice.derive_shared_secret(bob.pub_key().try_into().unwrap()),
-            bob.derive_shared_secret(alice.pub_key().try_into().unwrap()),
-        )
-    }
-
-    #[test]
-    fn test_secp256r1_kx() {
-        let alice = Box::new(KeyExchangeSecP256r1::use_secp256r1());
-        let bob = Box::new(KeyExchangeSecP256r1::use_secp256r1());
-
-        assert_eq!(
-            alice.derive_shared_secret(bob.pub_key().try_into().unwrap()),
-            bob.derive_shared_secret(alice.pub_key().try_into().unwrap()),
-        )
-
     }
 }
