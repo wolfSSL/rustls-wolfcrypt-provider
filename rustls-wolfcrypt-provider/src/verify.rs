@@ -662,8 +662,8 @@ impl SignatureVerificationAlgorithm for EcdsaNistp521Sha512 {
             /* Import public key x/y */
             ret = wc_ecc_import_unsigned(
                 ecc_object.as_ptr(),
-                public_key[1..64].as_ptr(),                 /* Public "x" Coordinate */
-                public_key[65..].as_ptr(),                  /* Public "y" Coordinate */
+                public_key[1..67].as_ptr(),                 /* Public "x" Coordinate */
+                public_key[67..].as_ptr(),                  /* Public "y" Coordinate */
                 std::ptr::null_mut(),                       /* Private "d" (optional) */
                 ecc_curve_id_ECC_SECP521R1                  /* ECC Curve Id */
             );
