@@ -19,7 +19,7 @@ use serial_test::serial;
 mod tests {
     use super::*;
 
-    /* tls 1.2 against rust-lang.org */
+    /* tls 1.2 request against rust-lang.org */
     #[test]
     #[serial]
     fn test_tls12() {
@@ -87,7 +87,7 @@ mod tests {
         }
     }
 
-    /* tls 1.3 against rust-lang.org */
+    /* tls 1.3 request against rust-lang.org */
     #[test]
     #[serial]
     fn test_tls13() {
