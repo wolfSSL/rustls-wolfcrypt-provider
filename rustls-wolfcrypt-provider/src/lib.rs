@@ -7,12 +7,14 @@ use rustls::pki_types::PrivateKeyDer;
 use rustls::crypto::tls13::HkdfUsingHmac;
 mod random;
 mod kx;
-mod sign;
 mod verify;
 pub mod aead {
     pub mod chacha20;
     pub mod aes128gcm;
     pub mod aes256gcm;
+}
+pub mod sign {
+    pub mod ecdsap256;
 }
 use crate::aead::{chacha20, aes128gcm, aes256gcm};
 
@@ -67,7 +69,7 @@ impl rustls::crypto::KeyProvider for Provider {
         key_der: PrivateKeyDer<'static>,
     ) -> Result<Arc<dyn rustls::sign::SigningKey>, rustls::Error> {
         Ok(Arc::new(
-            sign::EcdsaSigningKeyP256::try_from(key_der).map_err(|err| {
+            sign::ecdsap256::EcdsaSigningKeyP256::try_from(key_der).map_err(|err| {
                 let err = rustls::OtherError(Arc::new(err));
                 err
             })?,
