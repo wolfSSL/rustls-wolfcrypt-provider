@@ -5,6 +5,7 @@ Code that lets you use [wolfcrypt](https://github.com/wolfSSL/wolfssl/tree/maste
 
 # Status
 **This is very much in an alpha stage, particularly because the Rustls API is not yet stable.**
+
 **This code currently works with Rustls = 0.23.9.**
 
 # Cipher suites (currently) supported
@@ -19,6 +20,7 @@ Code that lets you use [wolfcrypt](https://github.com/wolfSSL/wolfssl/tree/maste
     - `TLS12_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`;
     - `TLS12_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`;
     - `TLS12_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`;
+
 For more details about the supported curves, verification/signing methods, and algorithms in general, [please consult the respective folders](https://github.com/gasbytes/rustls-wolfcrypt-provider/tree/main/rustls-wolfcrypt-provider/src).
 
 # Usage
