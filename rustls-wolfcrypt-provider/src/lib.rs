@@ -70,8 +70,7 @@ impl rustls::crypto::KeyProvider for Provider {
     ) -> Result<Arc<dyn rustls::sign::SigningKey>, rustls::Error> {
         Ok(Arc::new(
             sign::ecdsap256::EcdsaSigningKeyP256::try_from(key_der).map_err(|err| {
-                let err = rustls::OtherError(Arc::new(err));
-                err
+                rustls::OtherError(Arc::new(err))
             })?,
         ))
     }

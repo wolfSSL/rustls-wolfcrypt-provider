@@ -12,8 +12,8 @@ impl hash::Hash for WCSha256 {
             let hash: [u8; WC_SHA256_DIGEST_SIZE as usize] = [0; WC_SHA256_DIGEST_SIZE as usize];
 
             let mut hasher = WCHasher256 {
-                sha256_struct: sha256_struct,
-                hash: hash
+                sha256_struct,
+                hash,
             };
 
             hasher.wchasher_init();

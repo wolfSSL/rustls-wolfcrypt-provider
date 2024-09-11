@@ -70,7 +70,7 @@ impl Tls12AeadAlgorithm for Aes256Gcm {
 
         Ok(
             ConnectionTrafficSecrets::Aes256Gcm {
-                key: key,
+                key,
                 iv: Iv::new(iv_as_vec.try_into().unwrap())
             }
         )
@@ -193,7 +193,7 @@ impl MessageDecrypter for WCTls12Decrypter {
             nonce[..(GCM_NONCE_LENGTH - 8)].copy_from_slice(&self.implicit_iv.as_ref());
             nonce[(GCM_NONCE_LENGTH - 8)..].copy_from_slice(&payload[..(GCM_NONCE_LENGTH - 4)]);
 
-            let mut auth_tag = vec!(0u8; GCM_TAG_LENGTH);
+            let mut auth_tag = [0u8; GCM_TAG_LENGTH];
             auth_tag.copy_from_slice(&payload[payload_len - GCM_TAG_LENGTH..]);
             let aad = make_tls12_aad(seq, m.typ, m.version, payload_len - GCM_TAG_LENGTH - (GCM_NONCE_LENGTH - 4));
             let mut aes_struct: Aes = mem::zeroed();
@@ -253,7 +253,7 @@ impl Tls13AeadAlgorithm for Aes256Gcm {
         Box::new(
             WCTls13Cipher{
                 key: key.as_ref().into(),
-                iv: iv,
+                iv,
             }
         )
     }
@@ -262,7 +262,7 @@ impl Tls13AeadAlgorithm for Aes256Gcm {
         Box::new(
             WCTls13Cipher{
                 key: key.as_ref().into(),
-                iv: iv,
+                iv,
             }
         )
     }
@@ -278,8 +278,8 @@ impl Tls13AeadAlgorithm for Aes256Gcm {
     ) -> Result<ConnectionTrafficSecrets, UnsupportedOperationError> {
         Ok(
             ConnectionTrafficSecrets::Aes256Gcm {
-                key: key,
-                iv: iv
+                key,
+                iv,
             }
         )
     }
