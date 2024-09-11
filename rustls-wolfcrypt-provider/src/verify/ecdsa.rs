@@ -26,7 +26,6 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
         unsafe {
             let mut ecc_struct: ecc_key = mem::zeroed();
             let ecc_object = ECCKeyObject::from_ptr(&mut ecc_struct);
-            let digest_sz;
             let mut digest: [u8; 32] = [0; 32];
             let mut ret;
             let mut stat: i32 = 0;
@@ -51,7 +50,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
             // This function returns the size of the digest (output) for a hash_type.
             // The returns size is used to make sure the output buffer
             // provided to wc_Hash is large enough.
-            digest_sz = wc_HashGetDigestSize(
+            let digest_sz = wc_HashGetDigestSize(
                 wc_HashType_WC_HASH_TYPE_SHA256
             );
 
@@ -113,7 +112,6 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha256 {
         unsafe {
             let mut ecc_struct: ecc_key = mem::zeroed();
             let ecc_object = ECCKeyObject::from_ptr(&mut ecc_struct);
-            let digest_sz;
             let mut digest: [u8; 32] = [0; 32];
             let mut ret;
             let mut stat: i32 = 0;
@@ -138,7 +136,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha256 {
             // This function returns the size of the digest (output) for a hash_type.
             // The returns size is used to make sure the output buffer
             // provided to wc_Hash is large enough.
-            digest_sz = wc_HashGetDigestSize(
+            let digest_sz = wc_HashGetDigestSize(
                 wc_HashType_WC_HASH_TYPE_SHA256
             );
 
@@ -200,7 +198,6 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha384 {
         unsafe {
             let mut ecc_struct: ecc_key = mem::zeroed();
             let ecc_object = ECCKeyObject::from_ptr(&mut ecc_struct);
-            let digest_sz;
             let mut digest: [u8; 48] = [0; 48];
             let mut ret;
             let mut stat: i32 = 0;
@@ -225,7 +222,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha384 {
             // This function returns the size of the digest (output) for a hash_type.
             // The returns size is used to make sure the output buffer
             // provided to wc_Hash is large enough.
-            digest_sz = wc_HashGetDigestSize(
+            let digest_sz = wc_HashGetDigestSize(
                 wc_HashType_WC_HASH_TYPE_SHA384
             );
 
@@ -288,7 +285,6 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha384 {
         unsafe {
             let mut ecc_struct: ecc_key = mem::zeroed();
             let ecc_object = ECCKeyObject::from_ptr(&mut ecc_struct);
-            let digest_sz;
             let mut digest: [u8; 48] = [0; 48];
             let mut ret;
             let mut stat: i32 = 0;
@@ -313,7 +309,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha384 {
             // This function returns the size of the digest (output) for a hash_type.
             // The returns size is used to make sure the output buffer
             // provided to wc_Hash is large enough.
-            digest_sz = wc_HashGetDigestSize(
+            let digest_sz = wc_HashGetDigestSize(
                 wc_HashType_WC_HASH_TYPE_SHA384
             );
 

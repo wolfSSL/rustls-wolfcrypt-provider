@@ -12,8 +12,8 @@ impl hash::Hash for WCSha384 {
             let hash: [u8; WC_SHA384_DIGEST_SIZE as usize] = [0; WC_SHA384_DIGEST_SIZE as usize];
 
             let mut hasher = WCHasher384 {
-                sha384_struct: sha384_struct,
-                hash: hash
+                sha384_struct,
+                hash,
             };
 
             hasher.wchasher_init();
@@ -71,11 +71,9 @@ impl WCHasher384 {
 
     fn wchasher_final(&mut self) -> &[u8] {
         unsafe {
-            let ret;
-
             // Finalizes hashing of data. Result is placed into hash. 
             // Resets state of the sha384 struct.
-            ret = wc_Sha384Final(&mut self.sha384_struct, self.hash.as_mut_ptr());
+            let ret = wc_Sha384Final(&mut self.sha384_struct, self.hash.as_mut_ptr());
             if ret != 0 {
                 panic!("wc_Sha384Final failed with ret: {}", ret);
             }
@@ -89,7 +87,7 @@ struct WCSha384Context(WCHasher384);
 
 impl hash::Context for WCSha384Context {
     fn fork_finish(&self) -> hash::Output {
-        hash::Output::new(&self.0.clone().wchasher_final()[..])
+        hash::Output::new(self.0.clone().wchasher_final())
     }
 
     fn fork(&self) -> Box<dyn hash::Context> {
@@ -97,7 +95,7 @@ impl hash::Context for WCSha384Context {
     }
 
     fn finish(mut self: Box<Self>) -> hash::Output {
-        hash::Output::new(&self.0.wchasher_final()[..])
+        hash::Output::new(self.0.wchasher_final())
     }
 
     fn update(&mut self, data: &[u8]) {
@@ -134,8 +132,8 @@ impl Clone for WCHasher384{
     // Returns a copy of the WCHasher256 struct.
     fn clone(&self) -> WCHasher384 {
         WCHasher384 {
-            sha384_struct: self.sha384_struct.clone(),
-            hash: self.hash.clone()
+            sha384_struct: self.sha384_struct,
+            hash: self.hash
         }
     }
 }

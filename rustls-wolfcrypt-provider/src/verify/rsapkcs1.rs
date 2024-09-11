@@ -75,11 +75,10 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
         unsafe {
             let mut rsa_key_struct = wc_decode_spki_spk(public_key)?;
             let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_struct);
-            let ret;
 
             // Also performs the hashing (SHA384 in this case), 
             // see: https://www.wolfssl.com/documentation/manuals/wolfssl/group__Signature.html#function-wc_signatureverify
-            ret = wc_SignatureVerify(
+            let ret = wc_SignatureVerify(
                     wc_HashType_WC_HASH_TYPE_SHA384, 
                     wc_SignatureType_WC_SIGNATURE_TYPE_RSA_W_ENC,
                     message.as_ptr(), 

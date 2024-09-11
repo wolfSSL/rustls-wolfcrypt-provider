@@ -195,7 +195,7 @@ impl Tls13AeadAlgorithm for Chacha20Poly1305 {
         Box::new(
             WCTls13Cipher {
                 key: key_as_array,
-                iv: iv,
+                iv,
             }
         )
     }
@@ -207,7 +207,7 @@ impl Tls13AeadAlgorithm for Chacha20Poly1305 {
         Box::new(
             WCTls13Cipher {
                 key: key_as_array,
-                iv: iv,
+                iv,
             }
         )
     }

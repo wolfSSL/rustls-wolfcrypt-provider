@@ -28,7 +28,6 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
     ) -> Result<(), InvalidSignature> {
         unsafe {
             let mut ret;
-            let digest_sz;
             let mut digest: [u8; 32] = [0; 32];
             let mut out: [u8; 256] = [0; 256];
             let mut signature: Vec<u8> = signature.to_vec();
@@ -40,7 +39,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
             // This function returns the size of the digest (output) for a hash_type. 
             // The returns size is used to make sure the output buffer 
             // provided to wc_Hash is large enough.
-            digest_sz = wc_HashGetDigestSize(
+            let digest_sz = wc_HashGetDigestSize(
                 wc_HashType_WC_HASH_TYPE_SHA256
             );
 
@@ -104,7 +103,6 @@ impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
     ) -> Result<(), InvalidSignature> {
         unsafe {
             let mut ret;
-            let digest_sz;
             let mut digest: [u8; 48] = [0; 48];
             let mut out: [u8; 256] = [0; 256];
             let mut signature: Vec<u8> = signature.to_vec();
@@ -116,7 +114,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
             // This function returns the size of the digest (output) for a hash_type. 
             // The returns size is used to make sure the output buffer 
             // provided to wc_Hash is large enough.
-            digest_sz = wc_HashGetDigestSize(
+            let digest_sz = wc_HashGetDigestSize(
                 wc_HashType_WC_HASH_TYPE_SHA384
             );
 
