@@ -22,6 +22,12 @@ pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) {
         if ret != 0 {
             panic!("Error while generating block!");
         }
+
+        // Correctly free the RNG object.
+        ret = wc_FreeRng(&mut rng);
+        if ret != 0 {
+            panic!("Error while freeing RNG!");
+        }
     }
 }
 
