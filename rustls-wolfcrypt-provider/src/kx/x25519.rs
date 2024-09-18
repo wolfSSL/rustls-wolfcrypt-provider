@@ -1,7 +1,7 @@
 use std::mem;
 use wolfcrypt_rs::*;
-use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
-use std::{ptr::NonNull};
+use foreign_types::{ForeignType};
+use crate::types::types::*;
 
 pub struct KeyExchangeX25519 {
     pub pub_key_bytes: Vec<u8>,
@@ -151,61 +151,5 @@ mod tests {
             alice.derive_shared_secret(bob.pub_key().try_into().unwrap()),
             bob.derive_shared_secret(alice.pub_key().try_into().unwrap()),
         )
-    }
-}
-
-pub struct Curve25519KeyObjectRef(Opaque);
-unsafe impl ForeignTypeRef for Curve25519KeyObjectRef {
-    type CType = curve25519_key;
-}
-
-pub struct Curve25519KeyObject(NonNull<curve25519_key>);
-unsafe impl Sync for Curve25519KeyObject{}
-unsafe impl Send for Curve25519KeyObject{}
-unsafe impl ForeignType for Curve25519KeyObject {
-    type CType = curve25519_key;
-
-    type Ref = Curve25519KeyObjectRef;
-
-    unsafe fn from_ptr(ptr: *mut Self::CType) -> Self {
-        Self(NonNull::new_unchecked(ptr))
-    }
-
-    fn as_ptr(&self) -> *mut Self::CType {
-        self.0.as_ptr()
-    }
-}
-
-pub struct WCRNGObjectRef(Opaque);
-unsafe impl ForeignTypeRef for WCRNGObjectRef {
-    type CType = WC_RNG;
-}
-
-pub struct  WCRNGObject(NonNull<WC_RNG>);
-unsafe impl Sync for WCRNGObject{}
-unsafe impl Send for WCRNGObject{}
-unsafe impl ForeignType for WCRNGObject {
-    type CType = WC_RNG;
-
-    type Ref = WCRNGObjectRef;
-
-    unsafe fn from_ptr(ptr: *mut Self::CType) -> Self {
-        Self(NonNull::new_unchecked(ptr))
-    }
-
-    fn as_ptr(&self) -> *mut Self::CType {
-        self.0.as_ptr()
-    }
-}
-
-impl Drop for WCRNGObject {
-    fn drop(&mut self) {
-        unsafe {
-            // Correctly free the RNG object.
-            let ret = wc_FreeRng(self.as_ptr());
-            if ret != 0 {
-                panic!("Error while freeing RNG!");
-            }
-        }
     }
 }

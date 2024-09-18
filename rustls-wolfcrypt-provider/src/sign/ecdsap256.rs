@@ -5,8 +5,8 @@ use rustls::pki_types::PrivateKeyDer;
 use rustls::sign::{Signer, SigningKey};
 use rustls::{SignatureAlgorithm, SignatureScheme};
 use wolfcrypt_rs::*;
-use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
-use std::ptr::NonNull;
+use foreign_types::{ForeignType};
+use crate::types::types::*;
 use std::mem;
 
 #[derive(Clone, Debug)]
@@ -134,29 +134,6 @@ impl Signer for EcdsaSigningKeyP256 {
 
     fn scheme(&self) -> SignatureScheme {
         self.scheme
-    }
-}
-
-pub struct ECCKeyObjectRef(Opaque);
-unsafe impl ForeignTypeRef for ECCKeyObjectRef {
-    type CType = ecc_key;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ECCKeyObject(NonNull<ecc_key>);
-unsafe impl Sync for ECCKeyObject{}
-unsafe impl Send for ECCKeyObject{}
-unsafe impl ForeignType for ECCKeyObject {
-    type CType = ecc_key;
-
-    type Ref = ECCKeyObjectRef;
-
-    unsafe fn from_ptr(ptr: *mut Self::CType) -> Self {
-        Self(NonNull::new_unchecked(ptr))
-    }
-
-    fn as_ptr(&self) -> *mut Self::CType {
-        self.0.as_ptr()
     }
 }
 

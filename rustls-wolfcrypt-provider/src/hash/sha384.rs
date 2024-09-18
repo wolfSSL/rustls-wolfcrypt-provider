@@ -137,5 +137,3 @@ impl Clone for WCHasher384{
         }
     }
 }
-
-

@@ -2,11 +2,11 @@ use rustls::pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerifica
 use webpki::alg_id;
 use wolfcrypt_rs::*;
 use std::mem;
-use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
-use std::ptr::NonNull;
+use foreign_types::{ForeignType};
 use der::Reader;
 use rsa::{BigUint};
 use std::ffi::c_void;
+use crate::types::types::*;
 
 #[derive(Debug)]
 pub struct RsaPkcs1Sha256Verify;
@@ -140,27 +140,3 @@ fn wc_decode_spki_spk(spki_spk: &[u8]) -> Result<RsaKey, InvalidSignature> {
         }
     }
 }
-
-pub struct RsaKeyObjectRef(Opaque);
-unsafe impl ForeignTypeRef for RsaKeyObjectRef {
-    type CType = RsaKey;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct RsaKeyObject(NonNull<RsaKey>);
-unsafe impl Sync for RsaKeyObject{}
-unsafe impl Send for RsaKeyObject{}
-unsafe impl ForeignType for RsaKeyObject {
-    type CType = RsaKey;
-
-    type Ref = RsaKeyObjectRef;
-
-    unsafe fn from_ptr(ptr: *mut Self::CType) -> Self {
-        Self(NonNull::new_unchecked(ptr))
-    }
-
-    fn as_ptr(&self) -> *mut Self::CType {
-        self.0.as_ptr()
-    }
-}
-
