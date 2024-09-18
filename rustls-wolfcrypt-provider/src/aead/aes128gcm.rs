@@ -8,8 +8,8 @@ use rustls::crypto::cipher::{
 use rustls::{ConnectionTrafficSecrets, ProtocolVersion, ContentType};
 use std::mem;
 use std::vec;
-use std::{ptr::NonNull};
-use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
+use foreign_types::{ForeignType};
+use crate::types::types::*;
 use wolfcrypt_rs::*;
 
 const GCM_NONCE_LENGTH: usize = 12;
@@ -438,27 +438,3 @@ impl MessageDecrypter for WCTls13Cipher {
         }
     }
 }
-
-pub struct AesObjectRef(Opaque);
-unsafe impl ForeignTypeRef for AesObjectRef {
-    type CType = Aes;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct AesObject(NonNull<Aes>);
-unsafe impl Sync for AesObject{}
-unsafe impl Send for AesObject{}
-unsafe impl ForeignType for AesObject {
-    type CType = Aes;
-
-    type Ref = AesObjectRef;
-
-    unsafe fn from_ptr(ptr: *mut Self::CType) -> Self {
-        Self(NonNull::new_unchecked(ptr))
-    }
-
-    fn as_ptr(&self) -> *mut Self::CType {
-        self.0.as_ptr()
-    }
-}
-

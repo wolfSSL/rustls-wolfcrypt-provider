@@ -1,8 +1,8 @@
 use alloc::boxed::Box;
 use rustls::crypto;
 use core::mem;
-use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
-use std::{ptr::NonNull};
+use foreign_types::{ForeignType};
+use crate::types::types::*;
 use std::vec::Vec;
 use wolfcrypt_rs::*;
 
@@ -104,29 +104,6 @@ impl WCHmac384Key {
 
             digest
         }
-    }
-}
-
-pub struct HmacObjectRef(Opaque);
-unsafe impl ForeignTypeRef for HmacObjectRef {
-    type CType = wolfcrypt_rs::Hmac;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct HmacObject(NonNull<wolfcrypt_rs::Hmac>);
-unsafe impl Sync for HmacObject {}
-unsafe impl Send for HmacObject {}
-unsafe impl ForeignType for HmacObject {
-    type CType = wolfcrypt_rs::Hmac;
-
-    type Ref = HmacObjectRef;
-
-    unsafe fn from_ptr(ptr: *mut Self::CType) -> Self {
-        Self(NonNull::new_unchecked(ptr))
-    }
-
-    fn as_ptr(&self) -> *mut Self::CType {
-        self.0.as_ptr()
     }
 }
 
