@@ -1,6 +1,6 @@
-use wolfcrypt_rs::*;
 use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
 use std::ptr::NonNull;
+use wolfcrypt_rs::*;
 
 macro_rules! define_foreign_type {
     ($struct_name:ident, $ref_name:ident, $c_type:ty) => {
@@ -11,8 +11,8 @@ macro_rules! define_foreign_type {
 
         #[derive(Debug, Clone)]
         pub struct $struct_name(NonNull<$c_type>);
-        unsafe impl Sync for $struct_name{}
-        unsafe impl Send for $struct_name{}
+        unsafe impl Sync for $struct_name {}
+        unsafe impl Send for $struct_name {}
         unsafe impl ForeignType for $struct_name {
             type CType = $c_type;
             type Ref = $ref_name;
@@ -26,7 +26,7 @@ macro_rules! define_foreign_type {
             }
         }
     };
-    
+
     // For types that also need Drop implementations
     ($struct_name:ident, $ref_name:ident, $c_type:ty, drop($drop_fn:ident)) => {
         define_foreign_type!($struct_name, $ref_name, $c_type);
@@ -36,7 +36,10 @@ macro_rules! define_foreign_type {
                 unsafe {
                     let ret = $drop_fn(self.as_ptr());
                     if ret != 0 {
-                        panic!("Error while freeing resource in Drop for {}", stringify!($struct_name));
+                        panic!(
+                            "Error while freeing resource in Drop for {}",
+                            stringify!($struct_name)
+                        );
                     }
                 }
             }
@@ -53,8 +56,8 @@ macro_rules! define_foreign_type_with_copy {
 
         #[derive(Debug, Clone, Copy)]
         pub struct $struct_name(NonNull<$c_type>);
-        unsafe impl Sync for $struct_name{}
-        unsafe impl Send for $struct_name{}
+        unsafe impl Sync for $struct_name {}
+        unsafe impl Send for $struct_name {}
         unsafe impl ForeignType for $struct_name {
             type CType = $c_type;
             type Ref = $ref_name;
@@ -78,7 +81,10 @@ macro_rules! define_foreign_type_with_copy {
                 unsafe {
                     let ret = $drop_fn(self.as_ptr());
                     if ret != 0 {
-                        panic!("Error while freeing resource in Drop for {}", stringify!($struct_name));
+                        panic!(
+                            "Error while freeing resource in Drop for {}",
+                            stringify!($struct_name)
+                        );
                     }
                 }
             }

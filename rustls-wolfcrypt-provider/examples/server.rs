@@ -90,13 +90,12 @@ impl TestPki {
     }
 
     fn server_config(self) -> Arc<ServerConfig> {
-        let mut server_config =
-            ServerConfig::builder_with_provider(provider().into())
-                .with_safe_default_protocol_versions()
-                .unwrap()
-                .with_no_client_auth()
-                .with_single_cert(vec![self.server_cert_der], self.server_key_der)
-                .unwrap();
+        let mut server_config = ServerConfig::builder_with_provider(provider().into())
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_no_client_auth()
+            .with_single_cert(vec![self.server_cert_der], self.server_key_der)
+            .unwrap();
 
         server_config.key_log = Arc::new(rustls::KeyLogFile::new());
 

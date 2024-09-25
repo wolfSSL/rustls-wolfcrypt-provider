@@ -1,9 +1,9 @@
+use crate::types::*;
+use foreign_types::ForeignType;
 use rustls::pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerificationAlgorithm};
+use std::mem;
 use webpki::alg_id;
 use wolfcrypt_rs::*;
-use std::mem;
-use foreign_types::{ForeignType};
-use crate::types::types::*;
 
 #[derive(Debug)]
 pub struct EcdsaNistp256Sha256;
@@ -38,10 +38,10 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
             /* Import public key x/y */
             ret = wc_ecc_import_unsigned(
                 ecc_object.as_ptr(),
-                public_key[1..33].as_ptr(),                        /* Public "x" Coordinate */
-                public_key[33..].as_ptr(),       /* Public "y" Coordinate */
-                std::ptr::null_mut(),                       /* Private "d" (optional) */
-                ecc_curve_id_ECC_SECP256R1                  /* ECC Curve Id */
+                public_key[1..33].as_ptr(), /* Public "x" Coordinate */
+                public_key[33..].as_ptr(),  /* Public "y" Coordinate */
+                std::ptr::null_mut(),       /* Private "d" (optional) */
+                ecc_curve_id_ECC_SECP256R1, /* ECC Curve Id */
             );
             if ret != 0 {
                 panic!("failed when calling wc_ecc_import_unsigned, ret = {}", ret);
@@ -50,9 +50,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
             // This function returns the size of the digest (output) for a hash_type.
             // The returns size is used to make sure the output buffer
             // provided to wc_Hash is large enough.
-            let digest_sz = wc_HashGetDigestSize(
-                wc_HashType_WC_HASH_TYPE_SHA256
-            );
+            let digest_sz = wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA256);
 
             // This function performs a hash on the provided data buffer and
             // returns it in the hash buffer provided.
@@ -63,7 +61,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
                 message.as_ptr(),
                 message.len() as word32,
                 digest.as_mut_ptr(),
-                digest_sz as word32
+                digest_sz as word32,
             );
             if ret != 0 {
                 panic!("error while calling wc_hash, ret = {}", ret);
@@ -75,7 +73,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
                 digest.as_ptr(),
                 digest_sz as word32,
                 &mut stat,
-                ecc_object.as_ptr()
+                ecc_object.as_ptr(),
             );
             if ret != 0 {
                 panic!("error while calling wc_ecc_verify_hash, ret = {}", ret);
@@ -124,10 +122,10 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha256 {
             /* Import public key x/y */
             ret = wc_ecc_import_unsigned(
                 ecc_object.as_ptr(),
-                public_key[1..49].as_ptr(),                        /* Public "x" Coordinate */
-                public_key[49..].as_ptr(),       /* Public "y" Coordinate */
-                std::ptr::null_mut(),                       /* Private "d" (optional) */
-                ecc_curve_id_ECC_SECP384R1                  /* ECC Curve Id */
+                public_key[1..49].as_ptr(), /* Public "x" Coordinate */
+                public_key[49..].as_ptr(),  /* Public "y" Coordinate */
+                std::ptr::null_mut(),       /* Private "d" (optional) */
+                ecc_curve_id_ECC_SECP384R1, /* ECC Curve Id */
             );
             if ret != 0 {
                 panic!("failed when calling wc_ecc_import_unsigned, ret = {}", ret);
@@ -136,9 +134,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha256 {
             // This function returns the size of the digest (output) for a hash_type.
             // The returns size is used to make sure the output buffer
             // provided to wc_Hash is large enough.
-            let digest_sz = wc_HashGetDigestSize(
-                wc_HashType_WC_HASH_TYPE_SHA256
-            );
+            let digest_sz = wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA256);
 
             // This function performs a hash on the provided data buffer and
             // returns it in the hash buffer provided.
@@ -149,7 +145,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha256 {
                 message.as_ptr(),
                 message.len() as word32,
                 digest.as_mut_ptr(),
-                digest_sz as word32
+                digest_sz as word32,
             );
             if ret != 0 {
                 panic!("error while calling wc_hash, ret = {}", ret);
@@ -161,7 +157,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha256 {
                 digest.as_ptr(),
                 digest_sz as word32,
                 &mut stat,
-                ecc_object.as_ptr()
+                ecc_object.as_ptr(),
             );
             if ret != 0 {
                 panic!("error while calling wc_ecc_verify_hash, ret = {}", ret);
@@ -210,10 +206,10 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha384 {
             /* Import public key x/y */
             ret = wc_ecc_import_unsigned(
                 ecc_object.as_ptr(),
-                public_key[1..33].as_ptr(),                        /* Public "x" Coordinate */
-                public_key[33..].as_ptr(),       /* Public "y" Coordinate */
-                std::ptr::null_mut(),                       /* Private "d" (optional) */
-                ecc_curve_id_ECC_SECP256R1                  /* ECC Curve Id */
+                public_key[1..33].as_ptr(), /* Public "x" Coordinate */
+                public_key[33..].as_ptr(),  /* Public "y" Coordinate */
+                std::ptr::null_mut(),       /* Private "d" (optional) */
+                ecc_curve_id_ECC_SECP256R1, /* ECC Curve Id */
             );
             if ret != 0 {
                 panic!("failed when calling wc_ecc_import_unsigned, ret = {}", ret);
@@ -222,9 +218,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha384 {
             // This function returns the size of the digest (output) for a hash_type.
             // The returns size is used to make sure the output buffer
             // provided to wc_Hash is large enough.
-            let digest_sz = wc_HashGetDigestSize(
-                wc_HashType_WC_HASH_TYPE_SHA384
-            );
+            let digest_sz = wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA384);
 
             // This function performs a hash on the provided data buffer and
             // returns it in the hash buffer provided.
@@ -235,12 +229,11 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha384 {
                 message.as_ptr(),
                 message.len() as word32,
                 digest.as_mut_ptr(),
-                digest_sz as word32
+                digest_sz as word32,
             );
             if ret != 0 {
                 panic!("error while calling wc_hash, ret = {}", ret);
             }
-
 
             ret = wc_ecc_verify_hash(
                 signature.as_ptr(),
@@ -248,7 +241,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha384 {
                 digest.as_ptr(),
                 digest_sz as word32,
                 &mut stat,
-                ecc_object.as_ptr()
+                ecc_object.as_ptr(),
             );
             if ret != 0 {
                 panic!("error while calling wc_ecc_verify_hash, ret = {}", ret);
@@ -297,10 +290,10 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha384 {
             /* Import public key x/y */
             ret = wc_ecc_import_unsigned(
                 ecc_object.as_ptr(),
-                public_key[1..49].as_ptr(),                 /* Public "x" Coordinate */
-                public_key[49..].as_ptr(),                  /* Public "y" Coordinate */
-                std::ptr::null_mut(),                       /* Private "d" (optional) */
-                ecc_curve_id_ECC_SECP384R1                  /* ECC Curve Id */
+                public_key[1..49].as_ptr(), /* Public "x" Coordinate */
+                public_key[49..].as_ptr(),  /* Public "y" Coordinate */
+                std::ptr::null_mut(),       /* Private "d" (optional) */
+                ecc_curve_id_ECC_SECP384R1, /* ECC Curve Id */
             );
             if ret != 0 {
                 panic!("failed when calling wc_ecc_import_unsigned, ret = {}", ret);
@@ -309,9 +302,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha384 {
             // This function returns the size of the digest (output) for a hash_type.
             // The returns size is used to make sure the output buffer
             // provided to wc_Hash is large enough.
-            let digest_sz = wc_HashGetDigestSize(
-                wc_HashType_WC_HASH_TYPE_SHA384
-            );
+            let digest_sz = wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA384);
 
             // This function performs a hash on the provided data buffer and
             // returns it in the hash buffer provided.
@@ -322,7 +313,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha384 {
                 message.as_ptr(),
                 message.len() as word32,
                 digest.as_mut_ptr(),
-                digest_sz as word32
+                digest_sz as word32,
             );
             if ret != 0 {
                 panic!("error while calling wc_hash, ret = {}", ret);
@@ -334,7 +325,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha384 {
                 digest.as_ptr(),
                 digest_sz as word32,
                 &mut stat,
-                ecc_object.as_ptr()
+                ecc_object.as_ptr(),
             );
             if ret != 0 {
                 panic!("error while calling wc_ecc_verify_hash, ret = {}", ret);
@@ -371,7 +362,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp521Sha512 {
         unsafe {
             let mut ecc_struct: ecc_key = mem::zeroed();
             let ecc_object = ECCKeyObject::from_ptr(&mut ecc_struct);
-            let digest_sz;
+
             let mut digest: [u8; 64] = [0; 64];
             let mut ret;
             let mut stat: i32 = 0;
@@ -384,10 +375,10 @@ impl SignatureVerificationAlgorithm for EcdsaNistp521Sha512 {
             /* Import public key x/y */
             ret = wc_ecc_import_unsigned(
                 ecc_object.as_ptr(),
-                public_key[1..67].as_ptr(),                 /* Public "x" Coordinate */
-                public_key[67..].as_ptr(),                  /* Public "y" Coordinate */
-                std::ptr::null_mut(),                       /* Private "d" (optional) */
-                ecc_curve_id_ECC_SECP521R1                  /* ECC Curve Id */
+                public_key[1..67].as_ptr(), /* Public "x" Coordinate */
+                public_key[67..].as_ptr(),  /* Public "y" Coordinate */
+                std::ptr::null_mut(),       /* Private "d" (optional) */
+                ecc_curve_id_ECC_SECP521R1, /* ECC Curve Id */
             );
             if ret != 0 {
                 panic!("failed when calling wc_ecc_import_unsigned, ret = {}", ret);
@@ -396,9 +387,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp521Sha512 {
             // This function returns the size of the digest (output) for a hash_type.
             // The returns size is used to make sure the output buffer
             // provided to wc_Hash is large enough.
-            digest_sz = wc_HashGetDigestSize(
-                wc_HashType_WC_HASH_TYPE_SHA512
-            );
+            let digest_sz = wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA512);
 
             // This function performs a hash on the provided data buffer and
             // returns it in the hash buffer provided.
@@ -409,7 +398,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp521Sha512 {
                 message.as_ptr(),
                 message.len() as word32,
                 digest.as_mut_ptr(),
-                digest_sz as word32
+                digest_sz as word32,
             );
             if ret != 0 {
                 panic!("error while calling wc_hash, ret = {}", ret);
@@ -421,7 +410,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp521Sha512 {
                 digest.as_ptr(),
                 digest_sz as word32,
                 &mut stat,
-                ecc_object.as_ptr()
+                ecc_object.as_ptr(),
             );
             if ret != 0 {
                 panic!("error while calling wc_ecc_verify_hash, ret = {}", ret);

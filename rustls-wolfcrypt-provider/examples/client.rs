@@ -1,23 +1,19 @@
+use rustls_wolfcrypt_provider::provider;
 use std::io::{stdout, Read, Write};
 use std::net::TcpStream;
 use std::sync::Arc;
-use rustls_wolfcrypt_provider::provider;
 
 fn main() {
     env_logger::init();
 
-    let root_store = rustls::RootCertStore::from_iter(
-        webpki_roots::TLS_SERVER_ROOTS
-            .iter()
-            .cloned(),
-    );
+    let root_store =
+        rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
-    let config =
-        rustls::ClientConfig::builder_with_provider(provider().into())
-            .with_safe_default_protocol_versions()
-            .unwrap()
-            .with_root_certificates(root_store)
-            .with_no_client_auth();
+    let config = rustls::ClientConfig::builder_with_provider(provider().into())
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
 
     let server_name = "www.rust-lang.org".try_into().unwrap();
     let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
@@ -34,10 +30,7 @@ fn main() {
         .as_bytes(),
     )
     .unwrap();
-    let ciphersuite = tls
-        .conn
-        .negotiated_cipher_suite()
-        .unwrap();
+    let ciphersuite = tls.conn.negotiated_cipher_suite().unwrap();
     writeln!(
         &mut std::io::stderr(),
         "Current ciphersuite: {:?}",

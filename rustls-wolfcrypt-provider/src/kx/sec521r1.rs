@@ -1,7 +1,7 @@
+use crate::types::*;
+use foreign_types::ForeignType;
 use std::mem;
 use wolfcrypt_rs::*;
-use foreign_types::{ForeignType};
-use crate::types::types::*;
 
 pub struct KeyExchangeSecP521r1 {
     pub priv_key_bytes: Vec<u8>,
@@ -12,7 +12,7 @@ pub struct ECCPubKey {
     qx: Vec<u8>,
     qx_len: word32,
     qy: Vec<u8>,
-    qy_len: word32
+    qy_len: word32,
 }
 
 impl KeyExchangeSecP521r1 {
@@ -44,22 +44,25 @@ impl KeyExchangeSecP521r1 {
             let key_size = wc_ecc_get_curve_size_from_id(ecc_curve_id_ECC_SECP521R1);
 
             ret = wc_ecc_make_key_ex(
-                &mut rng, 
-                key_size, 
+                &mut rng,
+                key_size,
                 key_object.as_ptr(),
-                ecc_curve_id_ECC_SECP521R1
+                ecc_curve_id_ECC_SECP521R1,
             );
             if ret != 0 {
                 panic!("failed while calling wc_ecc_make_key, ret = {}", ret);
             }
 
             ret = wc_ecc_export_private_only(
-                key_object.as_ptr(), 
-                priv_key_raw.as_mut_ptr(), 
-                &mut priv_key_raw_len
+                key_object.as_ptr(),
+                priv_key_raw.as_mut_ptr(),
+                &mut priv_key_raw_len,
             );
             if ret != 0 {
-                panic!("failed while calling wc_ecc_export_private_only, ret = {}", ret);
+                panic!(
+                    "failed while calling wc_ecc_export_private_only, ret = {}",
+                    ret
+                );
             }
 
             ret = wc_ecc_export_public_raw(
@@ -70,7 +73,10 @@ impl KeyExchangeSecP521r1 {
                 &mut pub_key_raw.qy_len,
             );
             if ret != 0 {
-                panic!("failed while calling wc_ecc_export_public_raw, ret = {}", ret);
+                panic!(
+                    "failed while calling wc_ecc_export_public_raw, ret = {}",
+                    ret
+                );
             }
 
             let mut pub_key_bytes = Vec::new();
@@ -82,7 +88,7 @@ impl KeyExchangeSecP521r1 {
 
             KeyExchangeSecP521r1 {
                 priv_key_bytes: priv_key_raw.to_vec(),
-                pub_key_bytes: pub_key_bytes.to_vec()
+                pub_key_bytes: pub_key_bytes.to_vec(),
             }
         }
     }
@@ -107,30 +113,36 @@ impl KeyExchangeSecP521r1 {
             }
 
             ret = wc_ecc_import_private_key_ex(
-                self.priv_key_bytes.as_ptr(), 
-                self.priv_key_bytes.len() as word32, 
-                std::ptr::null_mut(), 
-                0,   
+                self.priv_key_bytes.as_ptr(),
+                self.priv_key_bytes.len() as word32,
+                std::ptr::null_mut(),
+                0,
                 &mut priv_key,
-                ecc_curve_id_ECC_SECP521R1
+                ecc_curve_id_ECC_SECP521R1,
             );
             if ret != 0 {
-                panic!("failed while calling wc_ecc_import_private_key_ex, with ret value: {}", ret);
+                panic!(
+                    "failed while calling wc_ecc_import_private_key_ex, with ret value: {}",
+                    ret
+                );
             }
 
-            /* 
+            /*
              * Skipping first byte because rustls uses this format:
              * https://www.rfc-editor.org/rfc/rfc8446#section-4.2.8.2.
              * */
             ret = wc_ecc_import_unsigned(
                 &mut pub_key,
-                peer_pub_key[1..67].as_ptr(),             
-                peer_pub_key[67..].as_ptr(),             
-                std::ptr::null_mut(),                 
-                ecc_curve_id_ECC_SECP521R1
+                peer_pub_key[1..67].as_ptr(),
+                peer_pub_key[67..].as_ptr(),
+                std::ptr::null_mut(),
+                ecc_curve_id_ECC_SECP521R1,
             );
             if ret != 0 {
-                panic!("failed while calling wc_ecc_import_unsigned, with ret value: {}", ret);
+                panic!(
+                    "failed while calling wc_ecc_import_unsigned, with ret value: {}",
+                    ret
+                );
             }
 
             ret = wc_InitRng(&mut rng);
@@ -138,30 +150,22 @@ impl KeyExchangeSecP521r1 {
                 panic!("failed while calling wc_InitRng, ret = {}", ret);
             }
 
-            ret = wc_ecc_set_rng(
-                    &mut pub_key, 
-                    &mut rng
-            );
-             if ret != 0 {
-                panic!("failed while calling wc_ecc_set_rng, ret = {}", ret);
-            }
-
-            ret = wc_ecc_set_rng(
-                    &mut priv_key, 
-                    &mut rng
-            );
+            ret = wc_ecc_set_rng(&mut pub_key, &mut rng);
             if ret != 0 {
                 panic!("failed while calling wc_ecc_set_rng, ret = {}", ret);
             }
 
-            ret = wc_ecc_shared_secret(
-                &mut priv_key, 
-                &mut pub_key, 
-                out.as_mut_ptr(), 
-                &mut out_len
-            );
+            ret = wc_ecc_set_rng(&mut priv_key, &mut rng);
             if ret != 0 {
-                panic!("failed while calling wc_ecc_shared_secret, with ret value: {}", ret);
+                panic!("failed while calling wc_ecc_set_rng, ret = {}", ret);
+            }
+
+            ret = wc_ecc_shared_secret(&mut priv_key, &mut pub_key, out.as_mut_ptr(), &mut out_len);
+            if ret != 0 {
+                panic!(
+                    "failed while calling wc_ecc_shared_secret, with ret value: {}",
+                    ret
+                );
             }
 
             out.to_vec()

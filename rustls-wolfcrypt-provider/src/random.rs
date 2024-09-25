@@ -1,7 +1,7 @@
-use wolfcrypt_rs::*;
+use crate::types::*;
 use core::mem;
-use foreign_types::{ForeignType};
-use crate::types::types::*;
+use foreign_types::ForeignType;
+use wolfcrypt_rs::*;
 
 pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) {
     unsafe {
@@ -10,9 +10,9 @@ pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) {
         let buff_length: word32 = buff.len() as word32;
         let mut ret;
 
-        // Gets the seed (from OS) and key cipher for rng. 
-        // rng->drbg (deterministic random bit generator) allocated 
-        // (should be deallocated with wc_FreeRng). 
+        // Gets the seed (from OS) and key cipher for rng.
+        // rng->drbg (deterministic random bit generator) allocated
+        // (should be deallocated with wc_FreeRng).
         // This is a blocking operation.
         ret = wc_InitRng(rng_object.as_ptr());
         if ret != 0 {
@@ -25,7 +25,6 @@ pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) {
         if ret != 0 {
             panic!("Error while generating block!");
         }
-
     }
 }
 

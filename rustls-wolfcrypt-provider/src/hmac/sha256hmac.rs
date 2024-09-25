@@ -1,8 +1,8 @@
+use crate::types::*;
 use alloc::boxed::Box;
-use rustls::crypto;
 use core::mem;
-use foreign_types::{ForeignType};
-use crate::types::types::*;
+use foreign_types::ForeignType;
+use rustls::crypto;
 use std::vec::Vec;
 use wolfcrypt_rs::*;
 
@@ -10,9 +10,7 @@ pub struct WCSha256Hmac;
 
 impl crypto::hmac::Hmac for WCSha256Hmac {
     fn with_key(&self, key: &[u8]) -> Box<dyn crypto::hmac::Key> {
-        Box::new(WCHmac256Key {
-            key: key.to_vec()
-        })
+        Box::new(WCHmac256Key { key: key.to_vec() })
     }
 
     fn hash_output_len(&self) -> usize {
@@ -21,7 +19,7 @@ impl crypto::hmac::Hmac for WCSha256Hmac {
 }
 
 struct WCHmac256Key {
-    key: Vec<u8>
+    key: Vec<u8>,
 }
 
 impl crypto::hmac::Key for WCHmac256Key {
@@ -39,7 +37,6 @@ impl crypto::hmac::Key for WCHmac256Key {
         let digest = self.hmac_final(hmac_object);
         let digest_length = digest.len();
 
-
         crypto::hmac::Tag::new(&digest[..digest_length])
     }
 
@@ -54,13 +51,13 @@ impl WCHmac256Key {
             let mut hmac_c_type: wolfcrypt_rs::Hmac = mem::zeroed();
             let hmac_object = HmacObject::from_ptr(&mut hmac_c_type);
 
-            // This function initializes an Hmac object, setting 
+            // This function initializes an Hmac object, setting
             // its encryption type, key and HMAC length.
             let ret = wc_HmacSetKey(
-                hmac_object.as_ptr(), 
-                WC_SHA256.try_into().unwrap(), 
-                self.key.as_ptr(), 
-                self.key.len() as word32
+                hmac_object.as_ptr(),
+                WC_SHA256.try_into().unwrap(),
+                self.key.as_ptr(),
+                self.key.len() as word32,
             );
             if ret != 0 {
                 panic!("error while calling wc_HmacSetKey, ret = {}", ret);
@@ -72,15 +69,11 @@ impl WCHmac256Key {
 
     fn hmac_update(&self, hmac_object: HmacObject, input: &[u8]) {
         unsafe {
-            // This function updates the message to authenticate using HMAC. It should be called after the 
-            // Hmac object has been initialized with wc_HmacSetKey. This function may be called multiple 
-            // times to update the message to hash. After calling wc_HmacUpdate as desired, one should call 
+            // This function updates the message to authenticate using HMAC. It should be called after the
+            // Hmac object has been initialized with wc_HmacSetKey. This function may be called multiple
+            // times to update the message to hash. After calling wc_HmacUpdate as desired, one should call
             // wc_HmacFinal to obtain the final authenticated message tag.
-            let ret = wc_HmacUpdate(
-                hmac_object.as_ptr(), 
-                input.as_ptr(), 
-                input.len() as word32
-            );
+            let ret = wc_HmacUpdate(hmac_object.as_ptr(), input.as_ptr(), input.len() as word32);
 
             if ret != 0 {
                 panic!("wc_HmacUpdate failed with ret value: {}", ret);
@@ -93,10 +86,7 @@ impl WCHmac256Key {
             let mut digest: [u8; 32] = [0; 32];
 
             // This function computes the final hash of an Hmac object's message.
-            let ret = wc_HmacFinal(
-                hmac_object.as_ptr(),
-                digest.as_mut_ptr()
-            );
+            let ret = wc_HmacFinal(hmac_object.as_ptr(), digest.as_mut_ptr());
 
             if ret != 0 {
                 panic!("wc_HmacFinal failed with ret value: {}", ret);

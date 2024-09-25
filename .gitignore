@@ -1,2 +1,6 @@
-./rustls-wolfcrypt-provider/target
-./rustls-wolfcrypt-provider/Cargo.lock
+.DS_Store
+/wolfcrypt-rs/target
+/rustls-wolfcrypt-provider/target
+/.vscode
+/Cargo.lock
+/wolfcrypt-rs/wolfssl-5.7.2-stable/

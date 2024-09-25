@@ -1,13 +1,13 @@
+use crate::types::*;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use foreign_types::ForeignType;
 use rustls::pki_types::PrivateKeyDer;
 use rustls::sign::{Signer, SigningKey};
 use rustls::{SignatureAlgorithm, SignatureScheme};
-use wolfcrypt_rs::*;
-use foreign_types::{ForeignType};
-use crate::types::types::*;
 use std::mem;
+use wolfcrypt_rs::*;
 
 #[derive(Clone, Debug)]
 pub struct EcdsaSigningKeyP256 {
@@ -34,39 +34,43 @@ impl TryFrom<PrivateKeyDer<'_>> for EcdsaSigningKeyP256 {
                     let pkcs8_sz: word32 = pkcs8.len() as word32;
                     let mut ret;
 
-                    // This function initializes an ecc_key object for 
+                    // This function initializes an ecc_key object for
                     // future use with message verification.
                     ret = wc_ecc_init(ecc_key_object.as_ptr());
                     if ret != 0 {
                         panic!("error while calling wc_ecc_init, ret: {}", ret);
                     }
 
-                    let mut idx: u32 = 0; 
+                    let mut idx: u32 = 0;
 
                     // This function finds the beginning of the traditional
                     // private key inside a PKCS#8 unencrypted buffer.
-                    ret = wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz);
+                    ret =
+                        wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz);
                     if ret < 0 {
-                        panic!("error while calling wc_GetPkcs8TraditionalOffset, ret: {}", ret);
+                        panic!(
+                            "error while calling wc_GetPkcs8TraditionalOffset, ret: {}",
+                            ret
+                        );
                     }
 
-                    // This function reads in an ECC private key from the input buffer, input, 
-                    // parses the private key, and uses it to generate an ecc_key object, 
+                    // This function reads in an ECC private key from the input buffer, input,
+                    // parses the private key, and uses it to generate an ecc_key object,
                     // which it stores in key.
                     ret = wc_EccPrivateKeyDecode(
-                            pkcs8.as_ptr() as *mut u8, 
-                            &mut idx, 
-                            ecc_key_object.as_ptr(), 
-                            pkcs8_sz
+                        pkcs8.as_ptr() as *mut u8,
+                        &mut idx,
+                        ecc_key_object.as_ptr(),
+                        pkcs8_sz,
                     );
                     if ret != 0 {
                         panic!("error while calling wc_EccPrivateKeyDecode, ret: {}", ret);
                     }
 
-                   Ok(Self {
-                     key: Arc::new(ecc_key_object),
-                     scheme: SignatureScheme::ECDSA_NISTP256_SHA256,
-                   })
+                    Ok(Self {
+                        key: Arc::new(ecc_key_object),
+                        scheme: SignatureScheme::ECDSA_NISTP256_SHA256,
+                    })
                 }
             }
             _ => panic!("unsupported private key format"),
@@ -112,15 +116,15 @@ impl Signer for EcdsaSigningKeyP256 {
                 panic!("failed because of wc_InitRng, ret value: {}", ret);
             }
 
-            // This function signs a message digest 
+            // This function signs a message digest
             // using an ecc_key object to guarantee authenticity.
             ret = wc_ecc_sign_hash(
-                digest.as_mut_ptr(), 
-                digest_length, 
-                sig.as_mut_ptr(), 
-                &mut sig_sz, 
-                &mut rng, 
-                ecc_key_object.as_ptr()
+                digest.as_mut_ptr(),
+                digest_length,
+                sig.as_mut_ptr(),
+                &mut sig_sz,
+                &mut rng,
+                ecc_key_object.as_ptr(),
             );
             if ret != 0 {
                 panic!("error while calling wc_ecc_sign_hash");
@@ -142,7 +146,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_signer() { 
+    fn test_signer() {
         unsafe {
             let message = "message to verify".as_bytes();
             let message_length: word32 = message.len() as word32;
@@ -176,12 +180,12 @@ mod tests {
             }
 
             ret = wc_ecc_sign_hash(
-                    digest.as_mut_ptr(), 
-                    digest_length, 
-                    sig.as_mut_ptr(), 
-                    &mut sig_sz, 
-                    &mut rng, 
-                    ecc_key_object.as_ptr()
+                digest.as_mut_ptr(),
+                digest_length,
+                sig.as_mut_ptr(),
+                &mut sig_sz,
+                &mut rng,
+                ecc_key_object.as_ptr(),
             );
             if ret != 0 {
                 panic!("error while calling wc_ecc_sign_hash");
@@ -189,12 +193,12 @@ mod tests {
 
             let mut is_valid_sig: i32 = 0;
             ret = wc_ecc_verify_hash(
-                  sig.as_mut_ptr(), 
-                  sig_sz, 
-                  digest.as_mut_ptr(), 
-                  digest_length,
-                  &mut is_valid_sig, 
-                  ecc_key_object.as_ptr()
+                sig.as_mut_ptr(),
+                sig_sz,
+                digest.as_mut_ptr(),
+                digest_length,
+                &mut is_valid_sig,
+                ecc_key_object.as_ptr(),
             );
             if ret != 0 {
                 panic!("error while calling wc_ecc_verify_hash");

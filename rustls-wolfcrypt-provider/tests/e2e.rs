@@ -1,24 +1,19 @@
-use std::io::{Read, Write};
-use std::env;
-use std::io::{stdout};
-use std::process::{Command, Child};
-use std::net::TcpStream;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::io::BufReader;
-use std::fs::File;
+use rustls::version::{TLS12, TLS13};
 use rustls_wolfcrypt_provider::{
-   TLS13_CHACHA20_POLY1305_SHA256,
-   TLS13_AES_128_GCM_SHA256,
-   TLS13_AES_256_GCM_SHA384,
-   TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
-   TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-   TLS12_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-};
-use rustls::{
-    version::{TLS12, TLS13},
+    TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256, TLS12_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+    TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, TLS13_AES_128_GCM_SHA256,
+    TLS13_AES_256_GCM_SHA384, TLS13_CHACHA20_POLY1305_SHA256,
 };
 use serial_test::serial;
+use std::env;
+use std::fs::File;
+use std::io::stdout;
+use std::io::BufReader;
+use std::io::{Read, Write};
+use std::net::TcpStream;
+use std::process::{Child, Command};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 /*
  * Version config used by the server to specify
@@ -27,7 +22,7 @@ use serial_test::serial;
 const TLSV1_2: &str = "-v 3";
 const TLSV1_3: &str = "-v 4";
 
-/* 
+/*
  * Starts background job for wolfssl server (localhost:4443).
  * */
 fn start_wolfssl_server(current_dir_string: String, tls_version: &str) -> Child {
@@ -72,40 +67,41 @@ mod tests {
 
         for cipher in ciphers {
             let server_thread = {
-                let wolfssl_server = Arc::new(Mutex::new(start_wolfssl_server(current_dir_string.clone(), TLSV1_2)));
+                let wolfssl_server = Arc::new(Mutex::new(start_wolfssl_server(
+                    current_dir_string.clone(),
+                    TLSV1_2,
+                )));
                 thread::spawn(move || {
                     wolfssl_server
                         .lock()
                         .unwrap()
                         .wait()
                         .expect("wolfssl server stopped unexpectedly");
-                    })
+                })
             };
 
             // Wait for the server to start
             thread::sleep(std::time::Duration::from_secs(1));
 
-            let mut root_store = rustls::RootCertStore::from_iter(
-                webpki_roots::TLS_SERVER_ROOTS
-                .iter()
-                .cloned(),
-            );
+            let mut root_store =
+                rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
             let certs = rustls_pemfile::certs(&mut BufReader::new(
-                &mut File::open(current_dir_string.clone() + "/tests/certs/RootCA.pem").unwrap()))
-                .collect::<Result<Vec<_>, _>>()
-                .unwrap();
+                &mut File::open(current_dir_string.clone() + "/tests/certs/RootCA.pem").unwrap(),
+            ))
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
 
             root_store.add_parsable_certificates(certs);
 
-            let config =
-                rustls::ClientConfig::builder_with_provider(
-                    rustls_wolfcrypt_provider::provider_with_specified_ciphers([cipher].to_vec()).into()
-                )
-                .with_protocol_versions(&[&TLS12])
-                .unwrap()
-                .with_root_certificates(root_store)
-                .with_no_client_auth();
+            let config = rustls::ClientConfig::builder_with_provider(
+                rustls_wolfcrypt_provider::provider_with_specified_ciphers([cipher].to_vec())
+                    .into(),
+            )
+            .with_protocol_versions(&[&TLS12])
+            .unwrap()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
 
             let server_name = "localhost".try_into().unwrap();
             let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
@@ -121,17 +117,16 @@ mod tests {
                     "\r\n"
                 )
                 .as_bytes(),
-            ).unwrap();
+            )
+            .unwrap();
 
-            let ciphersuite = tls
-                .conn
-                .negotiated_cipher_suite()
-                .unwrap();
+            let ciphersuite = tls.conn.negotiated_cipher_suite().unwrap();
             writeln!(
                 &mut std::io::stderr(),
                 "Current ciphersuite: {:?}",
                 ciphersuite.suite()
-            ).unwrap();
+            )
+            .unwrap();
 
             let mut plaintext = Vec::new();
             tls.read_to_end(&mut plaintext).unwrap();
@@ -165,40 +160,41 @@ mod tests {
 
         for cipher in ciphers {
             let server_thread = {
-                let wolfssl_server = Arc::new(Mutex::new(start_wolfssl_server(current_dir_string.clone(), TLSV1_3)));
+                let wolfssl_server = Arc::new(Mutex::new(start_wolfssl_server(
+                    current_dir_string.clone(),
+                    TLSV1_3,
+                )));
                 thread::spawn(move || {
                     wolfssl_server
                         .lock()
                         .unwrap()
                         .wait()
                         .expect("wolfssl server stopped unexpectedly");
-                    })
+                })
             };
 
             // Wait for the server to start
             thread::sleep(std::time::Duration::from_secs(1));
 
-            let mut root_store = rustls::RootCertStore::from_iter(
-                webpki_roots::TLS_SERVER_ROOTS
-                .iter()
-                .cloned(),
-            );
+            let mut root_store =
+                rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
             let certs = rustls_pemfile::certs(&mut BufReader::new(
-                &mut File::open(current_dir_string.clone() + "/tests/certs/RootCA.pem").unwrap()))
-                .collect::<Result<Vec<_>, _>>()
-                .unwrap();
+                &mut File::open(current_dir_string.clone() + "/tests/certs/RootCA.pem").unwrap(),
+            ))
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
 
             root_store.add_parsable_certificates(certs);
 
-            let config =
-                rustls::ClientConfig::builder_with_provider(
-                    rustls_wolfcrypt_provider::provider_with_specified_ciphers([cipher].to_vec()).into()
-                )
-                .with_protocol_versions(&[&TLS13])
-                .unwrap()
-                .with_root_certificates(root_store)
-                .with_no_client_auth();
+            let config = rustls::ClientConfig::builder_with_provider(
+                rustls_wolfcrypt_provider::provider_with_specified_ciphers([cipher].to_vec())
+                    .into(),
+            )
+            .with_protocol_versions(&[&TLS13])
+            .unwrap()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
 
             let server_name = "localhost".try_into().unwrap();
             let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
@@ -214,17 +210,16 @@ mod tests {
                     "\r\n"
                 )
                 .as_bytes(),
-            ).unwrap();
+            )
+            .unwrap();
 
-            let ciphersuite = tls
-                .conn
-                .negotiated_cipher_suite()
-                .unwrap();
+            let ciphersuite = tls.conn.negotiated_cipher_suite().unwrap();
             writeln!(
                 &mut std::io::stderr(),
                 "Current ciphersuite: {:?}",
                 ciphersuite.suite()
-            ).unwrap();
+            )
+            .unwrap();
 
             let mut plaintext = Vec::new();
             tls.read_to_end(&mut plaintext).unwrap();
@@ -254,20 +249,17 @@ mod tests {
         ];
 
         for cipher in ciphers {
-            let root_store = rustls::RootCertStore::from_iter(
-                webpki_roots::TLS_SERVER_ROOTS
-                .iter()
-                .cloned(),
-            );
+            let root_store =
+                rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
-            let config =
-                rustls::ClientConfig::builder_with_provider(
-                    rustls_wolfcrypt_provider::provider_with_specified_ciphers([cipher].to_vec()).into()
-                )
-                .with_protocol_versions(&[&TLS12])
-                .unwrap()
-                .with_root_certificates(root_store)
-                .with_no_client_auth();
+            let config = rustls::ClientConfig::builder_with_provider(
+                rustls_wolfcrypt_provider::provider_with_specified_ciphers([cipher].to_vec())
+                    .into(),
+            )
+            .with_protocol_versions(&[&TLS12])
+            .unwrap()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
 
             let server_name = "www.rust-lang.org".try_into().unwrap();
             let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
@@ -283,17 +275,16 @@ mod tests {
                     "\r\n"
                 )
                 .as_bytes(),
-            ).unwrap();
+            )
+            .unwrap();
 
-            let ciphersuite = tls
-                .conn
-                .negotiated_cipher_suite()
-                .unwrap();
+            let ciphersuite = tls.conn.negotiated_cipher_suite().unwrap();
             writeln!(
                 &mut std::io::stderr(),
                 "Current ciphersuite: {:?}",
                 ciphersuite.suite()
-            ).unwrap();
+            )
+            .unwrap();
 
             let mut plaintext = Vec::new();
             tls.read_to_end(&mut plaintext).unwrap();
@@ -319,20 +310,17 @@ mod tests {
         ];
 
         for cipher in ciphers {
-            let root_store = rustls::RootCertStore::from_iter(
-                webpki_roots::TLS_SERVER_ROOTS
-                .iter()
-                .cloned(),
-            );
+            let root_store =
+                rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
-            let config =
-                rustls::ClientConfig::builder_with_provider(
-                    rustls_wolfcrypt_provider::provider_with_specified_ciphers([cipher].to_vec()).into()
-                )
-                .with_protocol_versions(&[&TLS13])
-                .unwrap()
-                .with_root_certificates(root_store)
-                .with_no_client_auth();
+            let config = rustls::ClientConfig::builder_with_provider(
+                rustls_wolfcrypt_provider::provider_with_specified_ciphers([cipher].to_vec())
+                    .into(),
+            )
+            .with_protocol_versions(&[&TLS13])
+            .unwrap()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
 
             let server_name = "www.rust-lang.org".try_into().unwrap();
             let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
@@ -348,17 +336,16 @@ mod tests {
                     "\r\n"
                 )
                 .as_bytes(),
-            ).unwrap();
+            )
+            .unwrap();
 
-            let ciphersuite = tls
-                .conn
-                .negotiated_cipher_suite()
-                .unwrap();
+            let ciphersuite = tls.conn.negotiated_cipher_suite().unwrap();
             writeln!(
                 &mut std::io::stderr(),
                 "Current ciphersuite: {:?}",
                 ciphersuite.suite()
-            ).unwrap();
+            )
+            .unwrap();
 
             let mut plaintext = Vec::new();
             tls.read_to_end(&mut plaintext).unwrap();

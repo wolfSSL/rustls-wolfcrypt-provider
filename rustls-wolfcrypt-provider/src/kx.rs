@@ -2,10 +2,10 @@ use alloc::boxed::Box;
 use crypto::SupportedKxGroup;
 use rustls::crypto;
 
-mod x25519;
 mod sec256r1;
 mod sec384r1;
 mod sec521r1;
+mod x25519;
 
 pub const ALL_KX_GROUPS: &[&dyn SupportedKxGroup] = &[&X25519, &SecP256R1, &SecP384R1, &SecP521R1];
 
@@ -66,7 +66,7 @@ impl crypto::ActiveKeyExchange for x25519::KeyExchangeX25519 {
         self: Box<Self>,
         peer_pub_key: &[u8],
     ) -> Result<crypto::SharedSecret, rustls::Error> {
-        // We derive the shared secret with our private key and 
+        // We derive the shared secret with our private key and
         // the received public key.
         let secret = self.derive_shared_secret(peer_pub_key.to_vec());
 
@@ -87,7 +87,7 @@ impl crypto::ActiveKeyExchange for sec256r1::KeyExchangeSecP256r1 {
         self: Box<Self>,
         peer_pub_key: &[u8],
     ) -> Result<crypto::SharedSecret, rustls::Error> {
-        // We derive the shared secret with our private key and 
+        // We derive the shared secret with our private key and
         // the received public key.
         let secret = self.derive_shared_secret(peer_pub_key.to_vec());
 
@@ -108,7 +108,7 @@ impl crypto::ActiveKeyExchange for sec384r1::KeyExchangeSecP384r1 {
         self: Box<Self>,
         peer_pub_key: &[u8],
     ) -> Result<crypto::SharedSecret, rustls::Error> {
-        // We derive the shared secret with our private key and 
+        // We derive the shared secret with our private key and
         // the received public key.
         let secret = self.derive_shared_secret(peer_pub_key.to_vec());
 
@@ -129,7 +129,7 @@ impl crypto::ActiveKeyExchange for sec521r1::KeyExchangeSecP521r1 {
         self: Box<Self>,
         peer_pub_key: &[u8],
     ) -> Result<crypto::SharedSecret, rustls::Error> {
-        // We derive the shared secret with our private key and 
+        // We derive the shared secret with our private key and
         // the received public key.
         let secret = self.derive_shared_secret(peer_pub_key.to_vec());
 

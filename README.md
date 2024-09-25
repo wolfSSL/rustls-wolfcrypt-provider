@@ -6,7 +6,11 @@ Code that lets you use [wolfcrypt](https://github.com/wolfSSL/wolfssl/tree/maste
 # Status
 **This is very much in an alpha stage, particularly because the Rustls API is not yet stable.**
 
-**This code currently works with Rustls = 0.23.9.**
+**This code currently works with Rustls = 0.23.13.**
+
+# Repo Structure
+- `rustls-wolfcrypt-provider`: crate containing the code that lets you use rustls with wolfcrypt as crypto provider;
+- `wolfcrypt-rs`: Low-level unsafe bindings for wolfcrypt generated using [bindgen](https://github.com/rust-lang/rust-bindgen);
 
 # Cipher suites (currently) supported
 - tls 1.3: 
@@ -36,7 +40,7 @@ cd rustls-wolfcrypt-provider/
 Build wolfssl and generate bindings:
 ```
 cd wolfcrypt-rs/
-cargo build
+make build
 ```
 Enter sudo password (requested to run `sudo make install`), the final installation of wolfssl
 will be located in `/opt/wolfcrypt-rs/`, built with this configuration:
@@ -45,14 +49,14 @@ will be located in `/opt/wolfcrypt-rs/`, built with this configuration:
 ./configure --enable-all --enable-all-crypto --disable-shared --prefix=/opt/wolfssl-rs/
 ```
 
-To check if everything went smoothly, run `cargo test` to run the sanity checks in `wolfcrypt-rs`.
+To check if everything went smoothly, run `make test` to run the sanity checks in `wolfcrypt-rs`.
 
 ## Setup rustls
 
 ```
 cd ../rustls-wolfcrypt-provider
-cargo build
-cargo test
+make build
+make test
 ```
 
 For rustls usage consult the `examples` folder. 

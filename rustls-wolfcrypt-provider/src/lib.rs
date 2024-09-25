@@ -2,21 +2,21 @@ extern crate alloc;
 extern crate std;
 
 use alloc::sync::Arc;
+use rustls::crypto::tls13::HkdfUsingHmac;
 use rustls::crypto::CryptoProvider;
 use rustls::pki_types::PrivateKeyDer;
-use rustls::crypto::tls13::HkdfUsingHmac;
-mod random;
 mod kx;
+mod random;
 mod verify;
 pub mod aead {
-    pub mod chacha20;
     pub mod aes128gcm;
     pub mod aes256gcm;
+    pub mod chacha20;
 }
 pub mod sign {
     pub mod ecdsap256;
 }
-use crate::aead::{chacha20, aes128gcm, aes256gcm};
+use crate::aead::{aes128gcm, aes256gcm, chacha20};
 
 pub mod hash {
     pub mod sha256;
@@ -30,9 +30,7 @@ pub mod hmac {
 }
 use crate::hmac::{sha256hmac, sha384hmac};
 
-pub mod types {
-    pub mod types;
-}
+pub mod types;
 
 /*
  * Crypto provider struct that we populate with our own crypto backend (wolfcrypt).
@@ -47,7 +45,9 @@ pub fn provider() -> CryptoProvider {
     }
 }
 
-pub fn provider_with_specified_ciphers(ciphers: Vec<rustls::SupportedCipherSuite>) -> CryptoProvider {
+pub fn provider_with_specified_ciphers(
+    ciphers: Vec<rustls::SupportedCipherSuite>,
+) -> CryptoProvider {
     CryptoProvider {
         cipher_suites: ciphers,
         kx_groups: kx::ALL_KX_GROUPS.to_vec(),
@@ -73,30 +73,29 @@ impl rustls::crypto::KeyProvider for Provider {
         key_der: PrivateKeyDer<'static>,
     ) -> Result<Arc<dyn rustls::sign::SigningKey>, rustls::Error> {
         Ok(Arc::new(
-            sign::ecdsap256::EcdsaSigningKeyP256::try_from(key_der).map_err(|err| {
-                rustls::OtherError(Arc::new(err))
-            })?,
+            sign::ecdsap256::EcdsaSigningKeyP256::try_from(key_der)
+                .map_err(|err| rustls::OtherError(Arc::new(err)))?,
         ))
     }
 }
 
 static ALL_CIPHER_SUITES: &[rustls::SupportedCipherSuite] = &[
-   TLS13_CHACHA20_POLY1305_SHA256,
-   TLS13_AES_128_GCM_SHA256,
-   TLS13_AES_256_GCM_SHA384,
-   TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
-   TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-   TLS12_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-   TLS12_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
-   TLS12_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-   TLS12_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+    TLS13_CHACHA20_POLY1305_SHA256,
+    TLS13_AES_128_GCM_SHA256,
+    TLS13_AES_256_GCM_SHA384,
+    TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+    TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+    TLS12_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+    TLS12_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+    TLS12_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+    TLS12_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 ];
 
 static ALL_RSA_SCHEMES: &[rustls::SignatureScheme] = &[
     rustls::SignatureScheme::RSA_PSS_SHA256,
     rustls::SignatureScheme::RSA_PSS_SHA384,
     rustls::SignatureScheme::RSA_PKCS1_SHA256,
-    rustls::SignatureScheme::RSA_PKCS1_SHA384
+    rustls::SignatureScheme::RSA_PKCS1_SHA384,
 ];
 
 static ALL_ECDSA_SCHEMES: &[rustls::SignatureScheme] = &[
@@ -151,7 +150,7 @@ pub static TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCiphe
         aead_alg: &chacha20::Chacha20Poly1305,
         prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&sha256hmac::WCSha256Hmac),
         kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
-        sign: ALL_RSA_SCHEMES
+        sign: ALL_RSA_SCHEMES,
     });
 
 pub static TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256: rustls::SupportedCipherSuite =
@@ -164,7 +163,7 @@ pub static TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256: rustls::SupportedCipherSuite
         aead_alg: &aes128gcm::Aes128Gcm,
         prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&sha256hmac::WCSha256Hmac),
         kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
-        sign: ALL_RSA_SCHEMES
+        sign: ALL_RSA_SCHEMES,
     });
 
 pub static TLS12_ECDHE_RSA_WITH_AES_256_GCM_SHA384: rustls::SupportedCipherSuite =
@@ -177,7 +176,7 @@ pub static TLS12_ECDHE_RSA_WITH_AES_256_GCM_SHA384: rustls::SupportedCipherSuite
         aead_alg: &aes256gcm::Aes256Gcm,
         prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&sha384hmac::WCSha384Hmac),
         kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
-        sign: ALL_RSA_SCHEMES
+        sign: ALL_RSA_SCHEMES,
     });
 
 pub static TLS12_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
@@ -203,7 +202,7 @@ pub static TLS12_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256: rustls::SupportedCipherSui
         aead_alg: &aes128gcm::Aes128Gcm,
         prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&sha256hmac::WCSha256Hmac),
         kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
-        sign: ALL_ECDSA_SCHEMES
+        sign: ALL_ECDSA_SCHEMES,
     });
 
 pub static TLS12_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384: rustls::SupportedCipherSuite =
@@ -216,5 +215,5 @@ pub static TLS12_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384: rustls::SupportedCipherSui
         aead_alg: &aes256gcm::Aes256Gcm,
         prf_provider: &rustls::crypto::tls12::PrfUsingHmac(&sha384hmac::WCSha384Hmac),
         kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
-        sign: ALL_ECDSA_SCHEMES
+        sign: ALL_ECDSA_SCHEMES,
     });
