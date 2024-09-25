@@ -385,6 +385,7 @@ mod tests {
             }
 
             assert_eq!(generated_cipher_text, cipher);
+            assert_eq!(generated_auth_tag, auth_tag);
 
             ret = wc_ChaCha20Poly1305_Decrypt(
                 key.as_mut_ptr(),
