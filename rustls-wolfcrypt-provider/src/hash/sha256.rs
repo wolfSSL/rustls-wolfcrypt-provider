@@ -100,6 +100,19 @@ impl hash::Context for WCSha256Context {
     }
 }
 
+unsafe impl Sync for WCHasher256 {}
+unsafe impl Send for WCHasher256 {}
+impl Clone for WCHasher256 {
+    // Clone implementation.
+    // Returns a copy of the WCHasher256 struct.
+    fn clone(&self) -> WCHasher256 {
+        WCHasher256 {
+            sha256_struct: self.sha256_struct,
+            hash: self.hash,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::WCSha256;
@@ -115,18 +128,5 @@ mod tests {
         let hash_str2 = hex::encode(hash2);
 
         assert_eq!(hash_str1, hash_str2);
-    }
-}
-
-unsafe impl Sync for WCHasher256 {}
-unsafe impl Send for WCHasher256 {}
-impl Clone for WCHasher256 {
-    // Clone implementation.
-    // Returns a copy of the WCHasher256 struct.
-    fn clone(&self) -> WCHasher256 {
-        WCHasher256 {
-            sha256_struct: self.sha256_struct,
-            hash: self.hash,
-        }
     }
 }

@@ -173,6 +173,27 @@ impl KeyExchangeSecP521r1 {
     }
 }
 
+impl rustls::crypto::ActiveKeyExchange for KeyExchangeSecP521r1 {
+    fn complete(
+        self: Box<Self>,
+        peer_pub_key: &[u8],
+    ) -> Result<rustls::crypto::SharedSecret, rustls::Error> {
+        // We derive the shared secret with our private key and
+        // the received public key.
+        let secret = self.derive_shared_secret(peer_pub_key.to_vec());
+
+        Ok(rustls::crypto::SharedSecret::from(secret.as_slice()))
+    }
+
+    fn pub_key(&self) -> &[u8] {
+        self.pub_key_bytes.as_slice()
+    }
+
+    fn group(&self) -> rustls::NamedGroup {
+        rustls::NamedGroup::secp521r1
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
