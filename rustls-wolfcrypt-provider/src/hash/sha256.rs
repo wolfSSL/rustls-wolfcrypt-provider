@@ -8,11 +8,11 @@ pub struct WCSha256;
 impl hash::Hash for WCSha256 {
     fn start(&self) -> Box<dyn hash::Context> {
         unsafe {
-            let sha256_struct: wc_Sha256 = mem::zeroed();
+            let sha256_c_type: wc_Sha256 = mem::zeroed();
             let hash: [u8; WC_SHA256_DIGEST_SIZE as usize] = [0; WC_SHA256_DIGEST_SIZE as usize];
 
             let mut hasher = WCHasher256 {
-                sha256_struct,
+                sha256_c_type,
                 hash,
             };
 
@@ -38,7 +38,7 @@ impl hash::Hash for WCSha256 {
 }
 
 struct WCHasher256 {
-    sha256_struct: wc_Sha256,
+    sha256_c_type: wc_Sha256,
     hash: [u8; WC_SHA256_DIGEST_SIZE as usize],
 }
 
@@ -46,7 +46,7 @@ impl WCHasher256 {
     fn wchasher_init(&mut self) {
         unsafe {
             // This function initializes SHA256. This is automatically called by wc_Sha256Hash.
-            let ret = wc_InitSha256(&mut self.sha256_struct);
+            let ret = wc_InitSha256(&mut self.sha256_c_type);
             if ret != 0 {
                 panic!("wc_InitSha256 failed with ret: {}", ret);
             }
@@ -59,7 +59,7 @@ impl WCHasher256 {
 
             // Hash the provided byte array of length len.
             // Can be called continually.
-            let ret = wc_Sha256Update(&mut self.sha256_struct, data.as_ptr(), length);
+            let ret = wc_Sha256Update(&mut self.sha256_c_type, data.as_ptr(), length);
             if ret != 0 {
                 panic!("wc_Sha256Update failed with ret: {}", ret);
             }
@@ -70,7 +70,7 @@ impl WCHasher256 {
         unsafe {
             // Finalizes hashing of data. Result is placed into hash.
             // Resets state of the sha256 struct.
-            let ret = wc_Sha256Final(&mut self.sha256_struct, self.hash.as_mut_ptr());
+            let ret = wc_Sha256Final(&mut self.sha256_c_type, self.hash.as_mut_ptr());
             if ret != 0 {
                 panic!("wc_Sha256Final failed with ret: {}", ret);
             }
@@ -107,7 +107,7 @@ impl Clone for WCHasher256 {
     // Returns a copy of the WCHasher256 struct.
     fn clone(&self) -> WCHasher256 {
         WCHasher256 {
-            sha256_struct: self.sha256_struct,
+            sha256_c_type: self.sha256_c_type,
             hash: self.hash,
         }
     }
@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn test_sha256() {
-        let wcsha256_struct = WCSha256;
+        let wcsha256_struct= WCSha256;
         let hash1 = wcsha256_struct.hash("hello".as_bytes());
         let hash2 = wcsha256_struct.hash("hello".as_bytes());
 

@@ -48,7 +48,7 @@ impl crypto::hmac::Key for WCHmac256Key {
 impl WCHmac256Key {
     fn hmac_init(&self) -> HmacObject {
         unsafe {
-            let mut hmac_c_type: wolfcrypt_rs::Hmac = mem::zeroed();
+            let mut hmac_c_type: Hmac = mem::zeroed();
             let hmac_object = HmacObject::from_ptr(&mut hmac_c_type);
 
             // This function initializes an Hmac object, setting

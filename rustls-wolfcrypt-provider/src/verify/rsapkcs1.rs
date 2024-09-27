@@ -27,8 +27,8 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
         unsafe {
-            let mut rsa_key_struct = wc_decode_spki_spk(public_key)?;
-            let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_struct);
+            let mut rsa_key_c_type = wc_decode_spki_spk(public_key)?;
+            let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_c_type);
 
             // Also performs the hashing (SHA256 in this case),
             // see: https://www.wolfssl.com/documentation/manuals/wolfssl/group__Signature.html#function-wc_signatureverify
@@ -40,7 +40,7 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
                 signature.as_ptr(),
                 signature.len() as word32,
                 rsa_key_object.as_ptr() as *const c_void,
-                mem::size_of_val(&rsa_key_struct).try_into().unwrap(),
+                mem::size_of_val(&rsa_key_c_type).try_into().unwrap(),
             );
 
             if ret == 0 {
@@ -72,8 +72,8 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
         unsafe {
-            let mut rsa_key_struct = wc_decode_spki_spk(public_key)?;
-            let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_struct);
+            let mut rsa_key_c_type = wc_decode_spki_spk(public_key)?;
+            let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_c_type);
 
             // Also performs the hashing (SHA384 in this case),
             // see: https://www.wolfssl.com/documentation/manuals/wolfssl/group__Signature.html#function-wc_signatureverify
@@ -85,7 +85,7 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
                 signature.as_ptr(),
                 signature.len() as word32,
                 rsa_key_object.as_ptr() as *const c_void,
-                mem::size_of_val(&rsa_key_struct).try_into().unwrap(),
+                mem::size_of_val(&rsa_key_c_type).try_into().unwrap(),
             );
 
             if ret == 0 {
@@ -107,8 +107,8 @@ fn wc_decode_spki_spk(spki_spk: &[u8]) -> Result<RsaKey, InvalidSignature> {
         let n_bytes = n.to_bytes_be();
         let e_bytes = e.to_bytes_be();
 
-        let mut rsa_key_struct: RsaKey = mem::zeroed();
-        let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_struct);
+        let mut rsa_key_c_type: RsaKey = mem::zeroed();
+        let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_c_type);
         let mut ret;
 
         // This function initializes a provided RsaKey struct. It also takes in a heap identifier,
@@ -130,7 +130,7 @@ fn wc_decode_spki_spk(spki_spk: &[u8]) -> Result<RsaKey, InvalidSignature> {
         );
 
         if ret == 0 {
-            Ok(rsa_key_struct)
+            Ok(rsa_key_c_type)
         } else {
             log::error!("ret value: {}", ret);
             Err(InvalidSignature)

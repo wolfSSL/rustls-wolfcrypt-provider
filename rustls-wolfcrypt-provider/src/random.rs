@@ -6,7 +6,7 @@ use wolfcrypt_rs::*;
 pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) {
     unsafe {
         let mut rng: WC_RNG = mem::zeroed();
-        let rng_object = WCRNGObject::from_ptr(&mut rng);
+        let rng_object = WCRngObject::from_ptr(&mut rng);
         let buff_length: word32 = buff.len() as word32;
         let mut ret;
 

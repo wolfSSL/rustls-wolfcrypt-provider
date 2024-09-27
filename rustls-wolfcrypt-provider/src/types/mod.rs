@@ -92,7 +92,7 @@ macro_rules! define_foreign_type_with_copy {
     };
 }
 
-define_foreign_type!(WCRNGObject, WCRNGObjectRef, WC_RNG, drop(wc_FreeRng));
+define_foreign_type!(WCRngObject, WCRngObjectRef, WC_RNG, drop(wc_FreeRng));
 define_foreign_type!(Curve25519KeyObject, Curve25519KeyObjectRef, curve25519_key);
 define_foreign_type!(ECCKeyObject, ECCKeyObjectRef, ecc_key);
 define_foreign_type_with_copy!(RsaKeyObject, RsaKeyObjectRef, RsaKey);

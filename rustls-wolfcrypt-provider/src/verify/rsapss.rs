@@ -32,8 +32,8 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
             let mut out: [u8; 256] = [0; 256];
             let mut signature: Vec<u8> = signature.to_vec();
 
-            let mut rsa_key_struct = wc_decode_spki_spk(public_key)?;
-            let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_struct);
+            let mut rsa_key_c_type = wc_decode_spki_spk(public_key)?;
+            let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_c_type);
 
             // This function returns the size of the digest (output) for a hash_type.
             // The returns size is used to make sure the output buffer
@@ -104,8 +104,8 @@ impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
             let mut out: [u8; 256] = [0; 256];
             let mut signature: Vec<u8> = signature.to_vec();
 
-            let mut rsa_key_struct = wc_decode_spki_spk(public_key)?;
-            let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_struct);
+            let mut rsa_key_c_type = wc_decode_spki_spk(public_key)?;
+            let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_c_type);
 
             // This function returns the size of the digest (output) for a hash_type.
             // The returns size is used to make sure the output buffer
@@ -161,8 +161,8 @@ fn wc_decode_spki_spk(spki_spk: &[u8]) -> Result<RsaKey, InvalidSignature> {
         let n_bytes = n.to_bytes_be();
         let e_bytes = e.to_bytes_be();
 
-        let mut rsa_key_struct: RsaKey = mem::zeroed();
-        let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_struct);
+        let mut rsa_key_c_type: RsaKey = mem::zeroed();
+        let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_c_type);
         let mut ret;
 
         // This function initializes a provided RsaKey struct. It also takes in a heap identifier,
@@ -184,7 +184,7 @@ fn wc_decode_spki_spk(spki_spk: &[u8]) -> Result<RsaKey, InvalidSignature> {
         );
 
         if ret == 0 {
-            Ok(rsa_key_struct)
+            Ok(rsa_key_c_type)
         } else {
             log::error!("ret value: {}", ret);
             Err(InvalidSignature)

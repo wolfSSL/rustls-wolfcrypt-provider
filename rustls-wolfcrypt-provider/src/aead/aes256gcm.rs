@@ -108,8 +108,8 @@ impl MessageEncrypter for WCTls12Encrypter {
 
             let aad = make_tls12_aad(seq, m.typ, m.version, m.payload.len());
             let mut auth_tag = vec![0u8; GCM_TAG_LENGTH];
-            let mut aes_struct: Aes = mem::zeroed();
-            let aes_object = AesObject::from_ptr(&mut aes_struct);
+            let mut aes_c_type: Aes = mem::zeroed();
+            let aes_object = AesObject::from_ptr(&mut aes_c_type);
             let mut ret;
 
             // Initialize Aes structure.
@@ -189,8 +189,8 @@ impl MessageDecrypter for WCTls12Decrypter {
                 m.version,
                 payload_len - GCM_TAG_LENGTH - (GCM_NONCE_LENGTH - 4),
             );
-            let mut aes_struct: Aes = mem::zeroed();
-            let aes_object = AesObject::from_ptr(&mut aes_struct);
+            let mut aes_c_type: Aes = mem::zeroed();
+            let aes_object = AesObject::from_ptr(&mut aes_c_type);
             let mut ret;
 
             ret = wc_AesInit(aes_object.as_ptr(), std::ptr::null_mut(), INVALID_DEVID);
@@ -292,8 +292,8 @@ impl MessageEncrypter for WCTls13Cipher {
             let nonce = Nonce::new(&self.iv, seq);
             let aad = make_tls13_aad(total_len);
             let mut auth_tag: [u8; GCM_TAG_LENGTH] = mem::zeroed();
-            let mut aes_struct: Aes = mem::zeroed();
-            let aes_object = AesObject::from_ptr(&mut aes_struct);
+            let mut aes_c_type: Aes = mem::zeroed();
+            let aes_object = AesObject::from_ptr(&mut aes_c_type);
             let mut ret;
 
             // Initialize Aes structure.
@@ -367,8 +367,8 @@ impl MessageDecrypter for WCTls13Cipher {
             let mut auth_tag = [0u8; GCM_TAG_LENGTH];
             let message_len = payload.len() - GCM_TAG_LENGTH;
             auth_tag.copy_from_slice(&payload[message_len..]);
-            let mut aes_struct: Aes = mem::zeroed();
-            let aes_object = AesObject::from_ptr(&mut aes_struct);
+            let mut aes_c_type: Aes = mem::zeroed();
+            let aes_object = AesObject::from_ptr(&mut aes_c_type);
             let mut ret;
 
             ret = wc_AesInit(aes_object.as_ptr(), std::ptr::null_mut(), INVALID_DEVID);
@@ -456,8 +456,8 @@ mod tests {
             let mut result_encrypted: [u8; 60] = [0; 60];
             let mut result_decrypted: [u8; 60] = [0; 60];
             let mut result_tag: [u8; 16] = [0; 16];
-            let mut aes_struct: Aes = mem::zeroed();
-            let aes_object = AesObject::from_ptr(&mut aes_struct);
+            let mut aes_c_type: Aes = mem::zeroed();
+            let aes_object = AesObject::from_ptr(&mut aes_c_type);
             let mut ret;
 
             // Initialize Aes structure.

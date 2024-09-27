@@ -14,7 +14,7 @@ impl KeyExchangeX25519 {
             let mut key: curve25519_key = mem::zeroed();
             let key_object = Curve25519KeyObject::from_ptr(&mut key);
             let mut rng: WC_RNG = mem::zeroed();
-            let rng_object = WCRNGObject::from_ptr(&mut rng);
+            let rng_object = WCRngObject::from_ptr(&mut rng);
             let mut ret;
             let mut pub_key_raw: [u8; 32] = [0; 32];
             let mut pub_key_raw_len: word32 = pub_key_raw.len() as word32;

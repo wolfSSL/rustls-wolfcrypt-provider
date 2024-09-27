@@ -8,11 +8,11 @@ pub struct WCSha384;
 impl hash::Hash for WCSha384 {
     fn start(&self) -> Box<dyn hash::Context> {
         unsafe {
-            let sha384_struct: wc_Sha384 = mem::zeroed();
+            let sha384_c_type: wc_Sha384 = mem::zeroed();
             let hash: [u8; WC_SHA384_DIGEST_SIZE as usize] = [0; WC_SHA384_DIGEST_SIZE as usize];
 
             let mut hasher = WCHasher384 {
-                sha384_struct,
+                sha384_c_type,
                 hash,
             };
 
@@ -38,7 +38,7 @@ impl hash::Hash for WCSha384 {
 }
 
 struct WCHasher384 {
-    sha384_struct: wc_Sha384,
+    sha384_c_type: wc_Sha384,
     hash: [u8; WC_SHA384_DIGEST_SIZE as usize],
 }
 
@@ -46,7 +46,7 @@ impl WCHasher384 {
     fn wchasher_init(&mut self) {
         unsafe {
             // This function initializes SHA384. This is automatically called by wc_Sha384Hash.
-            let ret = wc_InitSha384(&mut self.sha384_struct);
+            let ret = wc_InitSha384(&mut self.sha384_c_type);
             if ret != 0 {
                 panic!("wc_InitSha384 failed with ret: {}", ret);
             }
@@ -59,7 +59,7 @@ impl WCHasher384 {
 
             // Hash the provided byte array of length len.
             // Can be called continually.
-            let ret = wc_Sha384Update(&mut self.sha384_struct, data.as_ptr(), length);
+            let ret = wc_Sha384Update(&mut self.sha384_c_type, data.as_ptr(), length);
             if ret != 0 {
                 panic!("wc_Sha384Update failed with ret: {}", ret);
             }
@@ -70,7 +70,7 @@ impl WCHasher384 {
         unsafe {
             // Finalizes hashing of data. Result is placed into hash.
             // Resets state of the sha384 struct.
-            let ret = wc_Sha384Final(&mut self.sha384_struct, self.hash.as_mut_ptr());
+            let ret = wc_Sha384Final(&mut self.sha384_c_type, self.hash.as_mut_ptr());
             if ret != 0 {
                 panic!("wc_Sha384Final failed with ret: {}", ret);
             }
@@ -107,9 +107,9 @@ mod tests {
 
     #[test]
     fn test_sha384() {
-        let wcsha384_struct = WCSha384;
-        let hash1 = wcsha384_struct.hash("hello".as_bytes());
-        let hash2 = wcsha384_struct.hash("hello".as_bytes());
+        let wcsha384_c_type = WCSha384;
+        let hash1 = wcsha384_c_type.hash("hello".as_bytes());
+        let hash2 = wcsha384_c_type.hash("hello".as_bytes());
 
         let hash_str1 = hex::encode(hash1);
         let hash_str2 = hex::encode(hash2);
@@ -125,7 +125,7 @@ impl Clone for WCHasher384 {
     // Returns a copy of the WCHasher256 struct.
     fn clone(&self) -> WCHasher384 {
         WCHasher384 {
-            sha384_struct: self.sha384_struct,
+            sha384_c_type: self.sha384_c_type,
             hash: self.hash,
         }
     }

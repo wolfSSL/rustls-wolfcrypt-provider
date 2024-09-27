@@ -24,8 +24,8 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
         unsafe {
-            let mut ecc_struct: ecc_key = mem::zeroed();
-            let ecc_object = ECCKeyObject::from_ptr(&mut ecc_struct);
+            let mut ecc_c_type: ecc_key = mem::zeroed();
+            let ecc_object = ECCKeyObject::from_ptr(&mut ecc_c_type);
             let mut digest: [u8; 32] = [0; 32];
             let mut ret;
             let mut stat: i32 = 0;
@@ -108,8 +108,8 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha256 {
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
         unsafe {
-            let mut ecc_struct: ecc_key = mem::zeroed();
-            let ecc_object = ECCKeyObject::from_ptr(&mut ecc_struct);
+            let mut ecc_c_type: ecc_key = mem::zeroed();
+            let ecc_object = ECCKeyObject::from_ptr(&mut ecc_c_type);
             let mut digest: [u8; 32] = [0; 32];
             let mut ret;
             let mut stat: i32 = 0;
@@ -192,8 +192,8 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha384 {
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
         unsafe {
-            let mut ecc_struct: ecc_key = mem::zeroed();
-            let ecc_object = ECCKeyObject::from_ptr(&mut ecc_struct);
+            let mut ecc_c_type: ecc_key = mem::zeroed();
+            let ecc_object = ECCKeyObject::from_ptr(&mut ecc_c_type);
             let mut digest: [u8; 48] = [0; 48];
             let mut ret;
             let mut stat: i32 = 0;
@@ -276,8 +276,8 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha384 {
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
         unsafe {
-            let mut ecc_struct: ecc_key = mem::zeroed();
-            let ecc_object = ECCKeyObject::from_ptr(&mut ecc_struct);
+            let mut ecc_c_type: ecc_key = mem::zeroed();
+            let ecc_object = ECCKeyObject::from_ptr(&mut ecc_c_type);
             let mut digest: [u8; 48] = [0; 48];
             let mut ret;
             let mut stat: i32 = 0;
@@ -360,8 +360,8 @@ impl SignatureVerificationAlgorithm for EcdsaNistp521Sha512 {
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
         unsafe {
-            let mut ecc_struct: ecc_key = mem::zeroed();
-            let ecc_object = ECCKeyObject::from_ptr(&mut ecc_struct);
+            let mut ecc_c_type: ecc_key = mem::zeroed();
+            let ecc_object = ECCKeyObject::from_ptr(&mut ecc_c_type);
 
             let mut digest: [u8; 64] = [0; 64];
             let mut ret;

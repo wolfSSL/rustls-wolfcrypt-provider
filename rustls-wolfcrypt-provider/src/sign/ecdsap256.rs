@@ -28,8 +28,8 @@ impl TryFrom<PrivateKeyDer<'_>> for EcdsaSigningKeyP256 {
         match value {
             PrivateKeyDer::Pkcs8(der) => {
                 unsafe {
-                    let mut ecc_key_struct: ecc_key = mem::zeroed();
-                    let ecc_key_object = ECCKeyObject::from_ptr(&mut ecc_key_struct);
+                    let mut ecc_c_type: ecc_key = mem::zeroed();
+                    let ecc_key_object = ECCKeyObject::from_ptr(&mut ecc_c_type);
                     let pkcs8: &[u8] = der.secret_pkcs8_der();
                     let pkcs8_sz: word32 = pkcs8.len() as word32;
                     let mut ret;
@@ -152,8 +152,8 @@ mod tests {
             let message_length: word32 = message.len() as word32;
             let mut digest: [u8; 32] = [0; 32];
             let digest_length: word32 = digest.len() as word32;
-            let mut ecc_key_struct: ecc_key = mem::zeroed();
-            let ecc_key_object = ECCKeyObject::from_ptr(&mut ecc_key_struct);
+            let mut ecc_c_type: ecc_key = mem::zeroed();
+            let ecc_key_object = ECCKeyObject::from_ptr(&mut ecc_c_type);
             let mut rng: WC_RNG = mem::zeroed();
             let mut sig: [u8; 265] = [0; 265];
             let mut sig_sz: word32 = sig.len() as word32;
