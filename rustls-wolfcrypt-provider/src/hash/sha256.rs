@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn test_sha256() {
-        let wcsha256_struct= WCSha256;
+        let wcsha256_struct = WCSha256;
         let hash1 = wcsha256_struct.hash("hello".as_bytes());
         let hash2 = wcsha256_struct.hash("hello".as_bytes());
 
