@@ -3,7 +3,7 @@ use std::ptr::NonNull;
 use wolfcrypt_rs::*;
 
 macro_rules! define_foreign_type {
-    ($struct_name:ident, $ref_name:ident, $c_type:ty) => {
+    ($struct_name:ident, $ref_name:ident, $c_type:ty, $init_function:ident) => {
         pub struct $ref_name(Opaque);
         unsafe impl ForeignTypeRef for $ref_name {
             type CType = $c_type;
@@ -25,11 +25,31 @@ macro_rules! define_foreign_type {
                 self.0.as_ptr()
             }
         }
+
+        impl $struct_name {
+            // Given a $c_type (FFI C binding), it creates an object around it
+            // using the ForeignType's function from_ptr function.
+            pub fn new(c_type: &mut $c_type) -> $struct_name {
+                unsafe {
+                    let new_object: $struct_name = $struct_name::from_ptr(c_type);
+                    new_object
+                }
+            }
+
+            // Given an $init_function, it calls it with the object's ptr as argument.
+            pub fn init(&self) {
+                unsafe {
+                    if $init_function(self.as_ptr()) != 0 {
+                        panic!("Error while initializing: {}", stringify!($init_function));
+                    }
+                }
+            }
+        }
     };
 
     // For types that also need Drop implementations
-    ($struct_name:ident, $ref_name:ident, $c_type:ty, drop($drop_fn:ident)) => {
-        define_foreign_type!($struct_name, $ref_name, $c_type);
+    ($struct_name:ident, $ref_name:ident, $c_type:ty, drop($drop_fn:ident), $init_function:ident) => {
+        define_foreign_type!($struct_name, $ref_name, $c_type, $init_function);
 
         impl Drop for $struct_name {
             fn drop(&mut self) {
@@ -92,9 +112,21 @@ macro_rules! define_foreign_type_with_copy {
     };
 }
 
-define_foreign_type!(WCRngObject, WCRngObjectRef, WC_RNG, drop(wc_FreeRng));
-define_foreign_type!(Curve25519KeyObject, Curve25519KeyObjectRef, curve25519_key);
-define_foreign_type!(ECCKeyObject, ECCKeyObjectRef, ecc_key);
+define_foreign_type!(
+    WCRngObject,
+    WCRngObjectRef,
+    WC_RNG,
+    drop(wc_FreeRng),
+    wc_InitRng
+);
+define_foreign_type!(
+    Curve25519KeyObject,
+    Curve25519KeyObjectRef,
+    curve25519_key,
+    wc_curve25519_init
+);
+define_foreign_type!(ECCKeyObject, ECCKeyObjectRef, ecc_key, wc_ecc_init);
+
 define_foreign_type_with_copy!(RsaKeyObject, RsaKeyObjectRef, RsaKey);
 define_foreign_type_with_copy!(HmacObject, HmacObjectRef, wolfcrypt_rs::Hmac);
 define_foreign_type_with_copy!(AesObject, AesObjectRef, Aes);

@@ -7,8 +7,7 @@ pub struct WCSha256;
 
 impl hash::Hash for WCSha256 {
     fn start(&self) -> Box<dyn hash::Context> {
-        unsafe {
-            let sha256_c_type: wc_Sha256 = mem::zeroed();
+            let sha256_c_type: wc_Sha256 = unsafe { mem::zeroed() };
             let hash: [u8; WC_SHA256_DIGEST_SIZE as usize] = [0; WC_SHA256_DIGEST_SIZE as usize];
 
             let mut hasher = WCHasher256 {
@@ -19,7 +18,6 @@ impl hash::Hash for WCSha256 {
             hasher.wchasher_init();
 
             Box::new(WCSha256Context(hasher))
-        }
     }
 
     fn hash(&self, data: &[u8]) -> hash::Output {
@@ -44,39 +42,33 @@ struct WCHasher256 {
 
 impl WCHasher256 {
     fn wchasher_init(&mut self) {
-        unsafe {
             // This function initializes SHA256. This is automatically called by wc_Sha256Hash.
-            let ret = wc_InitSha256(&mut self.sha256_c_type);
+            let ret = unsafe { wc_InitSha256(&mut self.sha256_c_type) };
             if ret != 0 {
                 panic!("wc_InitSha256 failed with ret: {}", ret);
             }
-        }
     }
 
     fn wchasher_update(&mut self, data: &[u8]) {
-        unsafe {
             let length: word32 = data.len() as word32;
 
             // Hash the provided byte array of length len.
             // Can be called continually.
-            let ret = wc_Sha256Update(&mut self.sha256_c_type, data.as_ptr(), length);
+            let ret = unsafe { wc_Sha256Update(&mut self.sha256_c_type, data.as_ptr(), length) };
             if ret != 0 {
                 panic!("wc_Sha256Update failed with ret: {}", ret);
             }
-        }
     }
 
     fn wchasher_final(&mut self) -> &[u8] {
-        unsafe {
             // Finalizes hashing of data. Result is placed into hash.
             // Resets state of the sha256 struct.
-            let ret = wc_Sha256Final(&mut self.sha256_c_type, self.hash.as_mut_ptr());
+            let ret = unsafe { wc_Sha256Final(&mut self.sha256_c_type, self.hash.as_mut_ptr()) };
             if ret != 0 {
                 panic!("wc_Sha256Final failed with ret: {}", ret);
             }
 
             &self.hash
-        }
     }
 }
 
@@ -120,7 +112,7 @@ mod tests {
 
     #[test]
     fn test_sha256() {
-        let wcsha256_struct= WCSha256;
+        let wcsha256_struct = WCSha256;
         let hash1 = wcsha256_struct.hash("hello".as_bytes());
         let hash2 = wcsha256_struct.hash("hello".as_bytes());
 

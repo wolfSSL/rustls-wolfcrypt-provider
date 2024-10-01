@@ -35,7 +35,10 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
                 panic!("failed when calling wc_ecc_init, ret = {}", ret);
             }
 
-            /* Import public key x/y */
+            /*
+             * Skipping first byte because rustls uses this format:
+             * https://www.rfc-editor.org/rfc/rfc8446#section-4.2.8.2.
+             * */
             ret = wc_ecc_import_unsigned(
                 ecc_object.as_ptr(),
                 public_key[1..33].as_ptr(), /* Public "x" Coordinate */
@@ -119,7 +122,10 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha256 {
                 panic!("failed when calling wc_ecc_init, ret = {}", ret);
             }
 
-            /* Import public key x/y */
+            /*
+             * Skipping first byte because rustls uses this format:
+             * https://www.rfc-editor.org/rfc/rfc8446#section-4.2.8.2.
+             * */
             ret = wc_ecc_import_unsigned(
                 ecc_object.as_ptr(),
                 public_key[1..49].as_ptr(), /* Public "x" Coordinate */
@@ -203,7 +209,10 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha384 {
                 panic!("failed when calling wc_ecc_init, ret = {}", ret);
             }
 
-            /* Import public key x/y */
+            /*
+             * Skipping first byte because rustls uses this format:
+             * https://www.rfc-editor.org/rfc/rfc8446#section-4.2.8.2.
+             * */
             ret = wc_ecc_import_unsigned(
                 ecc_object.as_ptr(),
                 public_key[1..33].as_ptr(), /* Public "x" Coordinate */
@@ -287,7 +296,10 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha384 {
                 panic!("failed when calling wc_ecc_init, ret = {}", ret);
             }
 
-            /* Import public key x/y */
+            /*
+             * Skipping first byte because rustls uses this format:
+             * https://www.rfc-editor.org/rfc/rfc8446#section-4.2.8.2.
+             * */
             ret = wc_ecc_import_unsigned(
                 ecc_object.as_ptr(),
                 public_key[1..49].as_ptr(), /* Public "x" Coordinate */

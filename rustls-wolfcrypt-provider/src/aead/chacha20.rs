@@ -70,7 +70,6 @@ impl MessageEncrypter for WCTls12Cipher {
         m: OutboundPlainMessage,
         seq: u64,
     ) -> Result<OutboundOpaqueMessage, rustls::Error> {
-        unsafe {
             let total_len = self.encrypted_payload_len(m.payload.len());
 
             // We load the payload into the PrefixedPayload struct,
@@ -85,14 +84,14 @@ impl MessageEncrypter for WCTls12Cipher {
             let nonce = Nonce::new(&self.iv, seq);
             let aad = make_tls12_aad(seq, m.typ, m.version, m.payload.len());
             let mut encrypted = vec![0u8; m.payload.len()];
-            let mut auth_tag: [u8; CHACHA20_POLY1305_AEAD_AUTHTAG_SIZE as usize] = mem::zeroed();
+            let mut auth_tag: [u8; CHACHA20_POLY1305_AEAD_AUTHTAG_SIZE as usize] = unsafe { mem::zeroed() };
             let payload_raw = payload.as_ref();
 
             //  This function encrypts an input message, inPlaintext,
             //  using the ChaCha20 stream cipher, into the output buffer, outCiphertext.
             //  It also performs Poly-1305 authentication (on the cipher text),
             //  and stores the generated authentication tag in the output buffer, outAuthTag.
-            let ret = wc_ChaCha20Poly1305_Encrypt(
+            let ret = unsafe { wc_ChaCha20Poly1305_Encrypt(
                 self.key.as_ptr(),
                 nonce.0.as_ptr(),
                 aad.as_ptr(),
@@ -101,7 +100,7 @@ impl MessageEncrypter for WCTls12Cipher {
                 m.payload.len() as word32,
                 encrypted.as_mut_ptr(),
                 auth_tag.as_mut_ptr(),
-            );
+            ) };
             if ret < 0 {
                 panic!("error while calling wc_ChaCha20Poly1305_Encrypt");
             }
@@ -116,7 +115,6 @@ impl MessageEncrypter for WCTls12Cipher {
             output.extend_from_slice(&auth_tag);
 
             Ok(OutboundOpaqueMessage::new(m.typ, m.version, output))
-        }
     }
 
     fn encrypted_payload_len(&self, payload_len: usize) -> usize {
@@ -130,7 +128,6 @@ impl MessageDecrypter for WCTls12Cipher {
         mut m: InboundOpaqueMessage<'a>,
         seq: u64,
     ) -> Result<InboundPlainMessage<'a>, rustls::Error> {
-        unsafe {
             let payload = &mut m.payload;
 
             // We substract the tag, so this len will only consider
@@ -147,7 +144,7 @@ impl MessageDecrypter for WCTls12Cipher {
             // to an authentication generated with the inAAD (arbitrary length additional authentication data).
             // Note: If the generated authentication tag does not match the supplied
             // authentication tag, the text is not decrypted.
-            let ret = wc_ChaCha20Poly1305_Decrypt(
+            let ret = unsafe { wc_ChaCha20Poly1305_Decrypt(
                 self.key.as_ptr(),
                 nonce.0.as_ptr(),
                 aad.as_ptr(),
@@ -156,7 +153,7 @@ impl MessageDecrypter for WCTls12Cipher {
                 message_len as word32,
                 auth_tag.as_ptr(),
                 payload[..message_len].as_mut_ptr(),
-            );
+            ) };
             if ret < 0 {
                 panic!("error while calling wc_ChaCha20Poly1305_Decrypt");
             }
@@ -169,7 +166,6 @@ impl MessageDecrypter for WCTls12Cipher {
                 // InboundPlainMessage type.
                 m.into_plain_message(),
             )
-        }
     }
 }
 
@@ -218,7 +214,6 @@ impl MessageEncrypter for WCTls13Cipher {
         m: OutboundPlainMessage,
         seq: u64,
     ) -> Result<OutboundOpaqueMessage, rustls::Error> {
-        unsafe {
             let total_len = self.encrypted_payload_len(m.payload.len());
             let mut payload = PrefixedPayload::with_capacity(total_len);
 
@@ -231,7 +226,7 @@ impl MessageEncrypter for WCTls13Cipher {
 
             let nonce = Nonce::new(&self.iv, seq);
             let aad = make_tls13_aad(total_len);
-            let mut auth_tag: [u8; CHACHA20_POLY1305_AEAD_AUTHTAG_SIZE as usize] = mem::zeroed();
+            let mut auth_tag: [u8; CHACHA20_POLY1305_AEAD_AUTHTAG_SIZE as usize] = unsafe { mem::zeroed() };
 
             // This function encrypts an input message, inPlaintext,
             // using the ChaCha20 stream cipher, into the output buffer, outCiphertext.
@@ -239,7 +234,7 @@ impl MessageEncrypter for WCTls13Cipher {
             // and stores the generated authentication tag in the output buffer, outAuthTag.
             // We need to also need to include for the encoding type, apparently, hence the + 1
             // otherwise the rustls returns EoF.
-            let ret = wc_ChaCha20Poly1305_Encrypt(
+            let ret = unsafe { wc_ChaCha20Poly1305_Encrypt(
                 self.key.as_ptr(),
                 nonce.0.as_ptr(),
                 aad.as_ptr(),
@@ -248,7 +243,7 @@ impl MessageEncrypter for WCTls13Cipher {
                 (m.payload.len() + 1) as word32,
                 payload.as_mut()[..m.payload.len() + 1].as_mut_ptr(),
                 auth_tag.as_mut_ptr(),
-            );
+            ) };
             if ret < 0 {
                 panic!("error while calling wc_ChaCha20Poly1305_Encrypt");
             }
@@ -262,7 +257,6 @@ impl MessageEncrypter for WCTls13Cipher {
                 ProtocolVersion::TLSv1_2,
                 payload,
             ))
-        }
     }
 
     fn encrypted_payload_len(&self, payload_len: usize) -> usize {
@@ -276,7 +270,6 @@ impl MessageDecrypter for WCTls13Cipher {
         mut m: InboundOpaqueMessage<'a>,
         seq: u64,
     ) -> Result<InboundPlainMessage<'a>, rustls::Error> {
-        unsafe {
             let payload = &mut m.payload;
             let nonce = Nonce::new(&self.iv, seq);
             let aad = make_tls13_aad(payload.len());
@@ -290,7 +283,7 @@ impl MessageDecrypter for WCTls13Cipher {
             // to an authentication generated with the inAAD (arbitrary length additional authentication data).
             // Note: If the generated authentication tag does not match the supplied
             // authentication tag, the text is not decrypted.
-            let ret = wc_ChaCha20Poly1305_Decrypt(
+            let ret = unsafe { wc_ChaCha20Poly1305_Decrypt(
                 self.key.as_ptr(),
                 nonce.0.as_ptr(),
                 aad.as_ptr(),
@@ -301,7 +294,7 @@ impl MessageDecrypter for WCTls13Cipher {
                 message_len as word32,
                 auth_tag.as_ptr(),
                 payload[..message_len].as_mut_ptr(),
-            );
+            ) };
             if ret < 0 {
                 panic!("error while calling wc_ChaCha20Poly1305_Decrypt");
             }
@@ -310,7 +303,6 @@ impl MessageDecrypter for WCTls13Cipher {
             payload.truncate(message_len);
 
             m.into_tls13_unpadded_message()
-        }
     }
 }
 
@@ -321,7 +313,6 @@ mod tests {
 
     #[test]
     fn test_chacha() {
-        unsafe {
             let mut key: [u8; 32] = [
                 0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d,
                 0x8e, 0x8f, 0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9a, 0x9b,
@@ -361,13 +352,13 @@ mod tests {
                 0x1a, 0xe1, 0x0b, 0x59, 0x4f, 0x09, 0xe2, 0x6a, 0x7e, 0x90, 0x2e, 0xcb, 0xd0, 0x60,
                 0x06, 0x91,
             ];
-            let mut generated_plain_text: [u8; 114] = mem::zeroed();
-            let mut generated_cipher_text: [u8; 114] = mem::zeroed();
+            let mut generated_plain_text: [u8; 114] = unsafe { mem::zeroed() };
+            let mut generated_cipher_text: [u8; 114] = unsafe { mem::zeroed() };
             let mut generated_auth_tag: [u8; CHACHA20_POLY1305_AEAD_AUTHTAG_SIZE as usize] =
-                mem::zeroed();
+                unsafe { mem::zeroed() };
             let mut ret;
 
-            ret = wc_ChaCha20Poly1305_Encrypt(
+            ret = unsafe { wc_ChaCha20Poly1305_Encrypt(
                 key.as_mut_ptr(),
                 iv.as_mut_ptr(),
                 aad.as_mut_ptr(),
@@ -376,7 +367,7 @@ mod tests {
                 plain_text.len() as word32,
                 generated_cipher_text.as_mut_ptr(),
                 generated_auth_tag.as_mut_ptr(),
-            );
+            ) };
             if ret != 0 {
                 panic!(
                     "failed while calling wc_ChaCha20Poly1305_Encrypt, with ret value: {}",
@@ -387,7 +378,7 @@ mod tests {
             assert_eq!(generated_cipher_text, cipher);
             assert_eq!(generated_auth_tag, auth_tag);
 
-            ret = wc_ChaCha20Poly1305_Decrypt(
+            ret = unsafe { wc_ChaCha20Poly1305_Decrypt(
                 key.as_mut_ptr(),
                 iv.as_mut_ptr(),
                 aad.as_mut_ptr(),
@@ -396,7 +387,7 @@ mod tests {
                 cipher.len() as word32,
                 auth_tag.as_mut_ptr(),
                 generated_plain_text.as_mut_ptr(),
-            );
+            ) };
             if ret != 0 {
                 panic!(
                     "failed while calling wc_Chacha20Poly1305_Decrypt, with ret value: {}",
@@ -405,6 +396,5 @@ mod tests {
             }
 
             assert_eq!(generated_plain_text, plain_text);
-        }
     }
 }
