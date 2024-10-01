@@ -7,17 +7,17 @@ pub struct WCSha256;
 
 impl hash::Hash for WCSha256 {
     fn start(&self) -> Box<dyn hash::Context> {
-            let sha256_c_type: wc_Sha256 = unsafe { mem::zeroed() };
-            let hash: [u8; WC_SHA256_DIGEST_SIZE as usize] = [0; WC_SHA256_DIGEST_SIZE as usize];
+        let sha256_c_type: wc_Sha256 = unsafe { mem::zeroed() };
+        let hash: [u8; WC_SHA256_DIGEST_SIZE as usize] = [0; WC_SHA256_DIGEST_SIZE as usize];
 
-            let mut hasher = WCHasher256 {
-                sha256_c_type,
-                hash,
-            };
+        let mut hasher = WCHasher256 {
+            sha256_c_type,
+            hash,
+        };
 
-            hasher.wchasher_init();
+        hasher.wchasher_init();
 
-            Box::new(WCSha256Context(hasher))
+        Box::new(WCSha256Context(hasher))
     }
 
     fn hash(&self, data: &[u8]) -> hash::Output {
@@ -42,33 +42,33 @@ struct WCHasher256 {
 
 impl WCHasher256 {
     fn wchasher_init(&mut self) {
-            // This function initializes SHA256. This is automatically called by wc_Sha256Hash.
-            let ret = unsafe { wc_InitSha256(&mut self.sha256_c_type) };
-            if ret != 0 {
-                panic!("wc_InitSha256 failed with ret: {}", ret);
-            }
+        // This function initializes SHA256. This is automatically called by wc_Sha256Hash.
+        let ret = unsafe { wc_InitSha256(&mut self.sha256_c_type) };
+        if ret != 0 {
+            panic!("wc_InitSha256 failed with ret: {}", ret);
+        }
     }
 
     fn wchasher_update(&mut self, data: &[u8]) {
-            let length: word32 = data.len() as word32;
+        let length: word32 = data.len() as word32;
 
-            // Hash the provided byte array of length len.
-            // Can be called continually.
-            let ret = unsafe { wc_Sha256Update(&mut self.sha256_c_type, data.as_ptr(), length) };
-            if ret != 0 {
-                panic!("wc_Sha256Update failed with ret: {}", ret);
-            }
+        // Hash the provided byte array of length len.
+        // Can be called continually.
+        let ret = unsafe { wc_Sha256Update(&mut self.sha256_c_type, data.as_ptr(), length) };
+        if ret != 0 {
+            panic!("wc_Sha256Update failed with ret: {}", ret);
+        }
     }
 
     fn wchasher_final(&mut self) -> &[u8] {
-            // Finalizes hashing of data. Result is placed into hash.
-            // Resets state of the sha256 struct.
-            let ret = unsafe { wc_Sha256Final(&mut self.sha256_c_type, self.hash.as_mut_ptr()) };
-            if ret != 0 {
-                panic!("wc_Sha256Final failed with ret: {}", ret);
-            }
+        // Finalizes hashing of data. Result is placed into hash.
+        // Resets state of the sha256 struct.
+        let ret = unsafe { wc_Sha256Final(&mut self.sha256_c_type, self.hash.as_mut_ptr()) };
+        if ret != 0 {
+            panic!("wc_Sha256Final failed with ret: {}", ret);
+        }
 
-            &self.hash
+        &self.hash
     }
 }
 

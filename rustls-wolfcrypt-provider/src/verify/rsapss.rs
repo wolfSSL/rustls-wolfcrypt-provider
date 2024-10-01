@@ -26,39 +26,41 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
         message: &[u8],
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
-        unsafe {
-            let mut ret;
-            let mut digest: [u8; 32] = [0; 32];
-            let mut out: [u8; 256] = [0; 256];
-            let mut signature: Vec<u8> = signature.to_vec();
+        let mut ret;
+        let mut digest: [u8; 32] = [0; 32];
+        let mut out: [u8; 256] = [0; 256];
+        let mut signature: Vec<u8> = signature.to_vec();
 
-            let mut rsa_key_c_type = wc_decode_spki_spk(public_key)?;
-            let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_c_type);
+        let mut rsa_key_c_type = wc_decode_spki_spk(public_key)?;
+        let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut rsa_key_c_type) };
 
-            // This function returns the size of the digest (output) for a hash_type.
-            // The returns size is used to make sure the output buffer
-            // provided to wc_Hash is large enough.
-            let digest_sz = wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA256);
+        // This function returns the size of the digest (output) for a hash_type.
+        // The returns size is used to make sure the output buffer
+        // provided to wc_Hash is large enough.
+        let digest_sz = unsafe { wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA256) };
 
-            // This function performs a hash on the provided data buffer and
-            // returns it in the hash buffer provided.
-            // In this case we hash with Sha256 (RSA_PSS_SHA256).
-            // We hash the message since it's not hashed.
-            ret = wc_Hash(
+        // This function performs a hash on the provided data buffer and
+        // returns it in the hash buffer provided.
+        // In this case we hash with Sha256 (RSA_PSS_SHA256).
+        // We hash the message since it's not hashed.
+        ret = unsafe {
+            wc_Hash(
                 wc_HashType_WC_HASH_TYPE_SHA256,
                 message.as_ptr(),
                 message.len() as word32,
                 digest.as_mut_ptr(),
                 digest_sz as word32,
-            );
-            if ret != 0 {
-                panic!("error while calling wc_hash, ret = {}", ret);
-            }
+            )
+        };
+        if ret != 0 {
+            panic!("error while calling wc_hash, ret = {}", ret);
+        }
 
-            // Verify the message signed with RSA-PSS.
-            // In this case 'message' has been, supposedly,
-            // been signed by 'signature'.
-            ret = wc_RsaPSS_VerifyCheck(
+        // Verify the message signed with RSA-PSS.
+        // In this case 'message' has been, supposedly,
+        // been signed by 'signature'.
+        ret = unsafe {
+            wc_RsaPSS_VerifyCheck(
                 signature.as_mut_ptr(),
                 signature.len() as word32,
                 out.as_mut_ptr(),
@@ -68,14 +70,14 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
                 wc_HashType_WC_HASH_TYPE_SHA256,
                 WC_MGF1SHA256.try_into().unwrap(),
                 rsa_key_object.as_ptr(),
-            );
+            )
+        };
 
-            if ret >= 0 {
-                Ok(())
-            } else {
-                log::error!("value of ret: {}", ret);
-                Err(InvalidSignature)
-            }
+        if ret >= 0 {
+            Ok(())
+        } else {
+            log::error!("value of ret: {}", ret);
+            Err(InvalidSignature)
         }
     }
 }
@@ -98,39 +100,41 @@ impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
         message: &[u8],
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
-        unsafe {
-            let mut ret;
-            let mut digest: [u8; 48] = [0; 48];
-            let mut out: [u8; 256] = [0; 256];
-            let mut signature: Vec<u8> = signature.to_vec();
+        let mut ret;
+        let mut digest: [u8; 48] = [0; 48];
+        let mut out: [u8; 256] = [0; 256];
+        let mut signature: Vec<u8> = signature.to_vec();
 
-            let mut rsa_key_c_type = wc_decode_spki_spk(public_key)?;
-            let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_c_type);
+        let mut rsa_key_c_type = wc_decode_spki_spk(public_key)?;
+        let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut rsa_key_c_type) };
 
-            // This function returns the size of the digest (output) for a hash_type.
-            // The returns size is used to make sure the output buffer
-            // provided to wc_Hash is large enough.
-            let digest_sz = wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA384);
+        // This function returns the size of the digest (output) for a hash_type.
+        // The returns size is used to make sure the output buffer
+        // provided to wc_Hash is large enough.
+        let digest_sz = unsafe { wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA384) };
 
-            // This function performs a hash on the provided data buffer and
-            // returns it in the hash buffer provided.
-            // In this case we hash with Sha384 (RSA_PSS_SHA384).
-            // We hash the message since it's not hashed.
-            ret = wc_Hash(
+        // This function performs a hash on the provided data buffer and
+        // returns it in the hash buffer provided.
+        // In this case we hash with Sha384 (RSA_PSS_SHA384).
+        // We hash the message since it's not hashed.
+        ret = unsafe {
+            wc_Hash(
                 wc_HashType_WC_HASH_TYPE_SHA384,
                 message.as_ptr(),
                 message.len() as word32,
                 digest.as_mut_ptr(),
                 digest_sz as word32,
-            );
-            if ret != 0 {
-                panic!("error while calling wc_hash, ret = {}", ret);
-            }
+            )
+        };
+        if ret != 0 {
+            panic!("error while calling wc_hash, ret = {}", ret);
+        }
 
-            // Verify the message signed with RSA-PSS.
-            // In this case 'message' has been, supposedly,
-            // been signed by 'signature'.
-            ret = wc_RsaPSS_VerifyCheck(
+        // Verify the message signed with RSA-PSS.
+        // In this case 'message' has been, supposedly,
+        // been signed by 'signature'.
+        ret = unsafe {
+            wc_RsaPSS_VerifyCheck(
                 signature.as_mut_ptr(),
                 signature.len() as word32,
                 out.as_mut_ptr(),
@@ -140,14 +144,14 @@ impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
                 wc_HashType_WC_HASH_TYPE_SHA384,
                 WC_MGF1SHA384.try_into().unwrap(),
                 rsa_key_object.as_ptr(),
-            );
+            )
+        };
 
-            if ret >= 0 {
-                Ok(())
-            } else {
-                log::error!("value of ret: {}", ret);
-                Err(InvalidSignature)
-            }
+        if ret >= 0 {
+            Ok(())
+        } else {
+            log::error!("value of ret: {}", ret);
+            Err(InvalidSignature)
         }
     }
 }

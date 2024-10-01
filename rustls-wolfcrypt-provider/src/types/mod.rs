@@ -53,15 +53,13 @@ macro_rules! define_foreign_type {
 
         impl Drop for $struct_name {
             fn drop(&mut self) {
-                unsafe {
-                    let ret = $drop_fn(self.as_ptr());
+                    let ret = unsafe { $drop_fn(self.as_ptr()) };
                     if ret != 0 {
                         panic!(
                             "Error while freeing resource in Drop for {}",
                             stringify!($struct_name)
                         );
                     }
-                }
             }
         }
     };

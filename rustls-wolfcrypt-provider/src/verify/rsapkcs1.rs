@@ -26,13 +26,13 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
         message: &[u8],
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
-        unsafe {
-            let mut rsa_key_c_type = wc_decode_spki_spk(public_key)?;
-            let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_c_type);
+        let mut rsa_key_c_type = wc_decode_spki_spk(public_key)?;
+        let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut rsa_key_c_type) };
 
-            // Also performs the hashing (SHA256 in this case),
-            // see: https://www.wolfssl.com/documentation/manuals/wolfssl/group__Signature.html#function-wc_signatureverify
-            let ret = wc_SignatureVerify(
+        // Also performs the hashing (SHA256 in this case),
+        // see: https://www.wolfssl.com/documentation/manuals/wolfssl/group__Signature.html#function-wc_signatureverify
+        let ret = unsafe {
+            wc_SignatureVerify(
                 wc_HashType_WC_HASH_TYPE_SHA256,
                 wc_SignatureType_WC_SIGNATURE_TYPE_RSA_W_ENC,
                 message.as_ptr(),
@@ -41,14 +41,14 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
                 signature.len() as word32,
                 rsa_key_object.as_ptr() as *const c_void,
                 mem::size_of_val(&rsa_key_c_type).try_into().unwrap(),
-            );
+            )
+        };
 
-            if ret == 0 {
-                Ok(())
-            } else {
-                log::error!("ret value: {}", ret);
-                Err(InvalidSignature)
-            }
+        if ret == 0 {
+            Ok(())
+        } else {
+            log::error!("ret value: {}", ret);
+            Err(InvalidSignature)
         }
     }
 }
@@ -71,13 +71,13 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
         message: &[u8],
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
-        unsafe {
-            let mut rsa_key_c_type = wc_decode_spki_spk(public_key)?;
-            let rsa_key_object = RsaKeyObject::from_ptr(&mut rsa_key_c_type);
+        let mut rsa_key_c_type = wc_decode_spki_spk(public_key)?;
+        let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut rsa_key_c_type) };
 
-            // Also performs the hashing (SHA384 in this case),
-            // see: https://www.wolfssl.com/documentation/manuals/wolfssl/group__Signature.html#function-wc_signatureverify
-            let ret = wc_SignatureVerify(
+        // Also performs the hashing (SHA384 in this case),
+        // see: https://www.wolfssl.com/documentation/manuals/wolfssl/group__Signature.html#function-wc_signatureverify
+        let ret = unsafe {
+            wc_SignatureVerify(
                 wc_HashType_WC_HASH_TYPE_SHA384,
                 wc_SignatureType_WC_SIGNATURE_TYPE_RSA_W_ENC,
                 message.as_ptr(),
@@ -86,14 +86,14 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
                 signature.len() as word32,
                 rsa_key_object.as_ptr() as *const c_void,
                 mem::size_of_val(&rsa_key_c_type).try_into().unwrap(),
-            );
+            )
+        };
 
-            if ret == 0 {
-                Ok(())
-            } else {
-                log::error!("ret value: {}", ret);
-                Err(InvalidSignature)
-            }
+        if ret == 0 {
+            Ok(())
+        } else {
+            log::error!("ret value: {}", ret);
+            Err(InvalidSignature)
         }
     }
 }
