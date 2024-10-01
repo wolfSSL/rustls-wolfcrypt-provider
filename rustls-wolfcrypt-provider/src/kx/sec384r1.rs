@@ -17,159 +17,160 @@ pub struct ECCPubKey {
 
 impl KeyExchangeSecP384r1 {
     pub fn use_secp384r1() -> Self {
-        unsafe {
-            let mut key: ecc_key = mem::zeroed();
-            let key_object = ECCKeyObject::from_ptr(&mut key);
-            let mut rng: WC_RNG = mem::zeroed();
-            let mut ret;
-            let mut pub_key_raw = ECCPubKey {
-                qx: [0; 48].to_vec(),
-                qx_len: 48,
-                qy: [0; 48].to_vec(),
-                qy_len: 48,
-            };
-            let mut priv_key_raw: [u8; 48] = [0; 48];
-            let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
+        let mut key: ecc_key = unsafe { mem::zeroed() };
+        let key_object = ECCKeyObject::new(&mut key);
+        let mut rng: WC_RNG = unsafe { mem::zeroed() };
+        let rng_object: WCRngObject = WCRngObject::new(&mut rng);
+        let mut ret;
+        let mut pub_key_raw = ECCPubKey {
+            qx: [0; 48].to_vec(),
+            qx_len: 48,
+            qy: [0; 48].to_vec(),
+            qy_len: 48,
+        };
+        let mut priv_key_raw: [u8; 48] = [0; 48];
+        let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
 
-            ret = wc_ecc_init(key_object.as_ptr());
-            if ret != 0 {
-                panic!("failed while calling wc_ecc_init, ret = {}", ret);
-            }
+        key_object.as_ptr();
 
-            ret = wc_InitRng(&mut rng);
-            if ret != 0 {
-                panic!("failed while calling wc_InitRng, ret = {}", ret);
-            }
+        rng_object.init();
 
-            let key_size = wc_ecc_get_curve_size_from_id(ecc_curve_id_ECC_SECP384R1);
+        let key_size = unsafe { wc_ecc_get_curve_size_from_id(ecc_curve_id_ECC_SECP384R1) };
 
-            ret = wc_ecc_make_key_ex(
-                &mut rng,
+        ret = unsafe {
+            wc_ecc_make_key_ex(
+                rng_object.as_ptr(),
                 key_size,
                 key_object.as_ptr(),
                 ecc_curve_id_ECC_SECP384R1,
-            );
-            if ret != 0 {
-                panic!("failed while calling wc_ecc_make_key, ret = {}", ret);
-            }
+            )
+        };
+        if ret != 0 {
+            panic!("failed while calling wc_ecc_make_key, ret = {}", ret);
+        }
 
-            ret = wc_ecc_export_private_only(
+        ret = unsafe {
+            wc_ecc_export_private_only(
                 key_object.as_ptr(),
                 priv_key_raw.as_mut_ptr(),
                 &mut priv_key_raw_len,
+            )
+        };
+        if ret != 0 {
+            panic!(
+                "failed while calling wc_ecc_export_private_only, ret = {}",
+                ret
             );
-            if ret != 0 {
-                panic!(
-                    "failed while calling wc_ecc_export_private_only, ret = {}",
-                    ret
-                );
-            }
+        }
 
-            ret = wc_ecc_export_public_raw(
+        ret = unsafe {
+            wc_ecc_export_public_raw(
                 key_object.as_ptr(),
                 pub_key_raw.qx.as_mut_ptr(),
                 &mut pub_key_raw.qx_len,
                 pub_key_raw.qy.as_mut_ptr(),
                 &mut pub_key_raw.qy_len,
+            )
+        };
+        if ret != 0 {
+            panic!(
+                "failed while calling wc_ecc_export_public_raw, ret = {}",
+                ret
             );
-            if ret != 0 {
-                panic!(
-                    "failed while calling wc_ecc_export_public_raw, ret = {}",
-                    ret
-                );
-            }
+        }
 
-            let mut pub_key_bytes = Vec::new();
+        let mut pub_key_bytes = Vec::new();
 
-            pub_key_bytes.push(0x04);
-            pub_key_bytes.extend(pub_key_raw.qx.clone());
-            pub_key_bytes.extend(pub_key_raw.qy.clone());
-            pub_key_bytes.as_slice();
+        pub_key_bytes.push(0x04);
+        pub_key_bytes.extend(pub_key_raw.qx.clone());
+        pub_key_bytes.extend(pub_key_raw.qy.clone());
+        pub_key_bytes.as_slice();
 
-            KeyExchangeSecP384r1 {
-                priv_key_bytes: priv_key_raw.to_vec(),
-                pub_key_bytes: pub_key_bytes.to_vec(),
-            }
+        KeyExchangeSecP384r1 {
+            priv_key_bytes: priv_key_raw.to_vec(),
+            pub_key_bytes: pub_key_bytes.to_vec(),
         }
     }
 
     pub fn derive_shared_secret(&self, peer_pub_key: Vec<u8>) -> Vec<u8> {
-        unsafe {
-            let mut priv_key: ecc_key = mem::zeroed();
-            let mut pub_key: ecc_key = mem::zeroed();
-            let mut ret;
-            let mut out: [u8; 48] = [0; 48];
-            let mut out_len: word32 = out.len() as word32;
-            let mut rng: WC_RNG = mem::zeroed();
+        let mut priv_key: ecc_key = unsafe { mem::zeroed() };
+        let priv_key_object: ECCKeyObject = ECCKeyObject::new(&mut priv_key);
+        let mut pub_key: ecc_key = unsafe { mem::zeroed() };
+        let pub_key_object: ECCKeyObject = ECCKeyObject::new(&mut pub_key);
+        let mut ret;
+        let mut out: [u8; 48] = [0; 48];
+        let mut out_len: word32 = out.len() as word32;
+        let mut rng: WC_RNG = unsafe { mem::zeroed() };
+        let rng_object: WCRngObject = WCRngObject::new(&mut rng);
 
-            ret = wc_ecc_init(&mut priv_key);
-            if ret != 0 {
-                panic!("failed while calling wc_ecc_init, ret = {}", ret);
-            }
+        priv_key_object.init();
+        pub_key_object.init();
 
-            ret = wc_ecc_init(&mut pub_key);
-            if ret != 0 {
-                panic!("failed while calling wc_ecc_init, ret = {}", ret);
-            }
-
-            ret = wc_ecc_import_private_key_ex(
+        ret = unsafe {
+            wc_ecc_import_private_key_ex(
                 self.priv_key_bytes.as_ptr(),
                 self.priv_key_bytes.len() as word32,
                 std::ptr::null_mut(),
                 0,
-                &mut priv_key,
+                priv_key_object.as_ptr(),
                 ecc_curve_id_ECC_SECP384R1,
+            )
+        };
+        if ret != 0 {
+            panic!(
+                "failed while calling wc_ecc_import_private_key_ex, with ret value: {}",
+                ret
             );
-            if ret != 0 {
-                panic!(
-                    "failed while calling wc_ecc_import_private_key_ex, with ret value: {}",
-                    ret
-                );
-            }
+        }
 
-            /*
-             * Skipping first byte because rustls uses this format:
-             * https://www.rfc-editor.org/rfc/rfc8446#section-4.2.8.2.
-             * */
-            ret = wc_ecc_import_unsigned(
-                &mut pub_key,
+        /*
+         * Skipping first byte because rustls uses this format:
+         * https://www.rfc-editor.org/rfc/rfc8446#section-4.2.8.2.
+         * */
+        ret = unsafe {
+            wc_ecc_import_unsigned(
+                pub_key_object.as_ptr(),
                 peer_pub_key[1..49].as_ptr(),
                 peer_pub_key[49..].as_ptr(),
                 std::ptr::null_mut(),
                 ecc_curve_id_ECC_SECP384R1,
+            )
+        };
+        if ret != 0 {
+            panic!(
+                "failed while calling wc_ecc_import_unsigned, with ret value: {}",
+                ret
             );
-            if ret != 0 {
-                panic!(
-                    "failed while calling wc_ecc_import_unsigned, with ret value: {}",
-                    ret
-                );
-            }
-
-            ret = wc_InitRng(&mut rng);
-            if ret != 0 {
-                panic!("failed while calling wc_InitRng, ret = {}", ret);
-            }
-
-            ret = wc_ecc_set_rng(&mut pub_key, &mut rng);
-            if ret != 0 {
-                panic!("failed while calling wc_ecc_set_rng, ret = {}", ret);
-            }
-
-            ret = wc_ecc_set_rng(&mut priv_key, &mut rng);
-            if ret != 0 {
-                panic!("failed while calling wc_ecc_set_rng, ret = {}", ret);
-            }
-
-            ret = wc_ecc_shared_secret(&mut priv_key, &mut pub_key, out.as_mut_ptr(), &mut out_len);
-            if ret != 0 {
-                panic!(
-                    "failed while calling wc_ecc_shared_secret, with ret value: {}",
-                    ret
-                );
-            }
-
-            out.to_vec()
         }
+
+        rng_object.init();
+
+        ret = unsafe { wc_ecc_set_rng(pub_key_object.as_ptr(), rng_object.as_ptr()) };
+        if ret != 0 {
+            panic!("failed while calling wc_ecc_set_rng, ret = {}", ret);
+        }
+
+        ret = unsafe { wc_ecc_set_rng(priv_key_object.as_ptr(), rng_object.as_ptr()) };
+        if ret != 0 {
+            panic!("failed while calling wc_ecc_set_rng, ret = {}", ret);
+        }
+
+        ret = unsafe {
+            wc_ecc_shared_secret(
+                priv_key_object.as_ptr(),
+                pub_key_object.as_ptr(),
+                out.as_mut_ptr(),
+                &mut out_len,
+            )
+        };
+        if ret != 0 {
+            panic!(
+                "failed while calling wc_ecc_shared_secret, with ret value: {}",
+                ret
+            );
+        }
+
+        out.to_vec()
     }
 }
 

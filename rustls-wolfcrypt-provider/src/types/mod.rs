@@ -126,6 +126,7 @@ define_foreign_type!(
     wc_curve25519_init
 );
 define_foreign_type!(ECCKeyObject, ECCKeyObjectRef, ecc_key, wc_ecc_init);
+
 define_foreign_type_with_copy!(RsaKeyObject, RsaKeyObjectRef, RsaKey);
 define_foreign_type_with_copy!(HmacObject, HmacObjectRef, wolfcrypt_rs::Hmac);
 define_foreign_type_with_copy!(AesObject, AesObjectRef, Aes);

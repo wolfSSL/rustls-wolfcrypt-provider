@@ -21,7 +21,7 @@ impl KeyExchangeX25519 {
         let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
         let endian: u32 = EC25519_LITTLE_ENDIAN;
 
-        // We initialize the key object.
+        // We initialize the curve25519 key object.
         key_object.init();
 
         // We initialize the rng object.
@@ -80,7 +80,7 @@ impl KeyExchangeX25519 {
             );
         }
 
-        // We initialize the key object before we import the public key in it.
+        // We initialize the curve25519 key object before we import the public key in it.
         pub_key_provided_object.init();
 
         // This function imports a public key from the given input buffer
@@ -100,7 +100,7 @@ impl KeyExchangeX25519 {
             );
         }
 
-        // We initialize the key object before we import the private key in it.
+        // We initialize the curve25519 key object before we import the private key in it.
         private_key_object.init();
 
         // This function imports a private key from the given input buffer
@@ -109,7 +109,7 @@ impl KeyExchangeX25519 {
             wc_curve25519_import_private_ex(
                 self.priv_key_bytes.as_ptr(),
                 32,
-                &mut private_key,
+                private_key_object.as_ptr(),
                 endian.try_into().unwrap(),
             )
         };
@@ -124,7 +124,7 @@ impl KeyExchangeX25519 {
         // a received public key. Stores the generated secret in the buffer out.
         ret = unsafe {
             wc_curve25519_shared_secret_ex(
-                &mut private_key,
+                private_key_object.as_ptr(),
                 &mut pub_key_provided,
                 out.as_mut_ptr(),
                 &mut out_len,
