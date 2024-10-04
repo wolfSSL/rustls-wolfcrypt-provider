@@ -7,7 +7,7 @@ pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) {
     let mut rng_c_type: WC_RNG = unsafe { mem::zeroed() };
     let rng_object = WCRngObject::new(&mut rng_c_type);
     let buff_length: word32 = buff.len() as word32;
-    let ret;
+    
 
     // Gets the seed (from OS) and key cipher for rng.
     // rng->drbg (deterministic random bit generator) allocated
@@ -17,7 +17,7 @@ pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) {
 
     // Copies a sz bytes of pseudorandom data to output.
     // Will reseed rng if needed (blocking).
-    ret = unsafe { wc_RNG_GenerateBlock(rng_object.as_ptr(), buff.as_mut_ptr(), buff_length) };
+    let ret = unsafe { wc_RNG_GenerateBlock(rng_object.as_ptr(), buff.as_mut_ptr(), buff_length) };
     if ret != 0 {
         panic!("Error while generating block!");
     }
