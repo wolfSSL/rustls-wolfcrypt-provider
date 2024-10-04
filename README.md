@@ -6,7 +6,7 @@ Code that lets you use [wolfcrypt](https://github.com/wolfSSL/wolfssl/tree/maste
 # Status
 **This is very much in an alpha stage, particularly because the Rustls API is not yet stable.**
 
-**This code currently works with Rustls = 0.23.13.**
+**This code currently works with Rustls = 0.23.14.**
 
 # Repo Structure
 - `rustls-wolfcrypt-provider`: crate containing the code that lets you use rustls with wolfcrypt as crypto provider;
