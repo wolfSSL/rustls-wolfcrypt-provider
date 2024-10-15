@@ -1,7 +1,7 @@
-use crate::types::*;
 use foreign_types::ForeignType;
 use std::mem;
 use wolfcrypt_rs::*;
+use crate::types::types::*;
 
 pub struct KeyExchangeSecP256r1 {
     pub priv_key_bytes: Vec<u8>,

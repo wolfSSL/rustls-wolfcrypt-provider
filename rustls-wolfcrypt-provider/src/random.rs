@@ -1,7 +1,7 @@
-use crate::types::*;
 use core::mem;
 use foreign_types::ForeignType;
 use wolfcrypt_rs::*;
+use crate::types::types::*;
 
 pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) {
     let mut rng_c_type: WC_RNG = unsafe { mem::zeroed() };

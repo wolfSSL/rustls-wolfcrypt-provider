@@ -29,8 +29,9 @@ pub mod hmac {
     pub mod sha384hmac;
 }
 use crate::hmac::{sha256hmac, sha384hmac};
-
-pub mod types;
+mod types {
+    pub mod types;
+}
 
 /*
  * Crypto provider struct that we populate with our own crypto backend (wolfcrypt).

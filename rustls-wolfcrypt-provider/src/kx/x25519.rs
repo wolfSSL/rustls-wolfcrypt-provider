@@ -1,7 +1,7 @@
-use crate::types::*;
 use foreign_types::ForeignType;
 use std::mem;
 use wolfcrypt_rs::*;
+use crate::types::types::*;
 
 pub struct KeyExchangeX25519 {
     pub pub_key_bytes: Vec<u8>,
