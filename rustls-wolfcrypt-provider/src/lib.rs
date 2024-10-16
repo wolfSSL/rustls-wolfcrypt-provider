@@ -8,6 +8,7 @@ use rustls::pki_types::PrivateKeyDer;
 mod kx;
 mod random;
 mod verify;
+mod error;
 pub mod aead {
     pub mod aes128gcm;
     pub mod aes256gcm;
@@ -63,8 +64,11 @@ struct Provider;
 
 impl rustls::crypto::SecureRandom for Provider {
     fn fill(&self, bytes: &mut [u8]) -> Result<(), rustls::crypto::GetRandomFailed> {
-        random::wolfcrypt_random_buffer_generator(bytes);
-        Ok(())
+        if let Err(error::WCError::Failure) = random::wolfcrypt_random_buffer_generator(bytes) {
+            Err(rustls::crypto::GetRandomFailed)
+        } else {
+            Ok(())
+        }
     }
 }
 

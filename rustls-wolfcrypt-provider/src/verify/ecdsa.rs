@@ -3,7 +3,7 @@ use rustls::pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerifica
 use std::mem;
 use webpki::alg_id;
 use wolfcrypt_rs::*;
-use crate::types::types::*;
+use crate::{error::{check_if_one, check_if_zero, WCError}, types::types::*};
 
 #[derive(Debug)]
 pub struct EcdsaNistp256Sha256;
@@ -31,9 +31,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
             let mut stat: i32 = 0;
 
             ret = wc_ecc_init(ecc_object.as_ptr());
-            if ret != 0 {
-                panic!("failed when calling wc_ecc_init, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
             /*
              * Skipping first byte because rustls uses this format:
@@ -46,9 +44,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
                 std::ptr::null_mut(),       /* Private "d" (optional) */
                 ecc_curve_id_ECC_SECP256R1, /* ECC Curve Id */
             );
-            if ret != 0 {
-                panic!("failed when calling wc_ecc_import_unsigned, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
             // This function returns the size of the digest (output) for a hash_type.
             // The returns size is used to make sure the output buffer
@@ -66,9 +62,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
                 digest.as_mut_ptr(),
                 digest_sz as word32,
             );
-            if ret != 0 {
-                panic!("error while calling wc_hash, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
             ret = wc_ecc_verify_hash(
                 signature.as_ptr(),
@@ -78,15 +72,12 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
                 &mut stat,
                 ecc_object.as_ptr(),
             );
-            if ret != 0 {
-                panic!("error while calling wc_ecc_verify_hash, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
-            if stat == 1 {
-                Ok(())
-            } else {
-                log::error!("stat value in EcdsaNistp256Sha256: {}", ret);
+            if let Err(WCError::Failure) = check_if_one(ret) {
                 Err(InvalidSignature)
+            } else {
+                Ok(())
             }
         }
     }
@@ -118,9 +109,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha256 {
             let mut stat: i32 = 0;
 
             ret = wc_ecc_init(ecc_object.as_ptr());
-            if ret != 0 {
-                panic!("failed when calling wc_ecc_init, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
             /*
              * Skipping first byte because rustls uses this format:
@@ -133,9 +122,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha256 {
                 std::ptr::null_mut(),       /* Private "d" (optional) */
                 ecc_curve_id_ECC_SECP384R1, /* ECC Curve Id */
             );
-            if ret != 0 {
-                panic!("failed when calling wc_ecc_import_unsigned, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
             // This function returns the size of the digest (output) for a hash_type.
             // The returns size is used to make sure the output buffer
@@ -153,9 +140,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha256 {
                 digest.as_mut_ptr(),
                 digest_sz as word32,
             );
-            if ret != 0 {
-                panic!("error while calling wc_hash, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
             ret = wc_ecc_verify_hash(
                 signature.as_ptr(),
@@ -165,15 +150,12 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha256 {
                 &mut stat,
                 ecc_object.as_ptr(),
             );
-            if ret != 0 {
-                panic!("error while calling wc_ecc_verify_hash, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
-            if stat == 1 {
-                Ok(())
-            } else {
-                log::error!("stat value in EcdsaNistp384Sha256: {}", ret);
+            if let Err(WCError::Failure) = check_if_one(ret) {
                 Err(InvalidSignature)
+            } else {
+                Ok(())
             }
         }
     }
@@ -205,9 +187,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha384 {
             let mut stat: i32 = 0;
 
             ret = wc_ecc_init(ecc_object.as_ptr());
-            if ret != 0 {
-                panic!("failed when calling wc_ecc_init, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
             /*
              * Skipping first byte because rustls uses this format:
@@ -220,9 +200,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha384 {
                 std::ptr::null_mut(),       /* Private "d" (optional) */
                 ecc_curve_id_ECC_SECP256R1, /* ECC Curve Id */
             );
-            if ret != 0 {
-                panic!("failed when calling wc_ecc_import_unsigned, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
             // This function returns the size of the digest (output) for a hash_type.
             // The returns size is used to make sure the output buffer
@@ -240,9 +218,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha384 {
                 digest.as_mut_ptr(),
                 digest_sz as word32,
             );
-            if ret != 0 {
-                panic!("error while calling wc_hash, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
             ret = wc_ecc_verify_hash(
                 signature.as_ptr(),
@@ -252,15 +228,12 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha384 {
                 &mut stat,
                 ecc_object.as_ptr(),
             );
-            if ret != 0 {
-                panic!("error while calling wc_ecc_verify_hash, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
-            if stat == 1 {
-                Ok(())
-            } else {
-                log::error!("stat value in EcdsaNistp256Sha384: {}", ret);
+            if let Err(WCError::Failure) = check_if_one(ret) {
                 Err(InvalidSignature)
+            } else {
+                Ok(())
             }
         }
     }
@@ -292,9 +265,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha384 {
             let mut stat: i32 = 0;
 
             ret = wc_ecc_init(ecc_object.as_ptr());
-            if ret != 0 {
-                panic!("failed when calling wc_ecc_init, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
             /*
              * Skipping first byte because rustls uses this format:
@@ -307,9 +278,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha384 {
                 std::ptr::null_mut(),       /* Private "d" (optional) */
                 ecc_curve_id_ECC_SECP384R1, /* ECC Curve Id */
             );
-            if ret != 0 {
-                panic!("failed when calling wc_ecc_import_unsigned, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
             // This function returns the size of the digest (output) for a hash_type.
             // The returns size is used to make sure the output buffer
@@ -327,9 +296,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha384 {
                 digest.as_mut_ptr(),
                 digest_sz as word32,
             );
-            if ret != 0 {
-                panic!("error while calling wc_hash, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
             ret = wc_ecc_verify_hash(
                 signature.as_ptr(),
@@ -339,15 +306,12 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha384 {
                 &mut stat,
                 ecc_object.as_ptr(),
             );
-            if ret != 0 {
-                panic!("error while calling wc_ecc_verify_hash, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
-            if stat == 1 {
-                Ok(())
-            } else {
-                log::error!("stat value in EcdsaNistp384Sha384: {}", ret);
+            if let Err(WCError::Failure) = check_if_one(ret) {
                 Err(InvalidSignature)
+            } else {
+                Ok(())
             }
         }
     }
@@ -380,9 +344,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp521Sha512 {
             let mut stat: i32 = 0;
 
             ret = wc_ecc_init(ecc_object.as_ptr());
-            if ret != 0 {
-                panic!("failed when calling wc_ecc_init, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
             /* Import public key x/y */
             ret = wc_ecc_import_unsigned(
@@ -392,9 +354,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp521Sha512 {
                 std::ptr::null_mut(),       /* Private "d" (optional) */
                 ecc_curve_id_ECC_SECP521R1, /* ECC Curve Id */
             );
-            if ret != 0 {
-                panic!("failed when calling wc_ecc_import_unsigned, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
             // This function returns the size of the digest (output) for a hash_type.
             // The returns size is used to make sure the output buffer
@@ -412,9 +372,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp521Sha512 {
                 digest.as_mut_ptr(),
                 digest_sz as word32,
             );
-            if ret != 0 {
-                panic!("error while calling wc_hash, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
             ret = wc_ecc_verify_hash(
                 signature.as_ptr(),
@@ -424,15 +382,12 @@ impl SignatureVerificationAlgorithm for EcdsaNistp521Sha512 {
                 &mut stat,
                 ecc_object.as_ptr(),
             );
-            if ret != 0 {
-                panic!("error while calling wc_ecc_verify_hash, ret = {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
-            if stat == 1 {
-                Ok(())
-            } else {
-                log::error!("stat value in EcdsaNistp521Sha512: {}", ret);
+            if let Err(WCError::Failure) = check_if_one(stat) {
                 Err(InvalidSignature)
+            } else {
+                Ok(())
             }
         }
     }

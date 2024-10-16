@@ -2,8 +2,9 @@ use core::mem;
 use foreign_types::ForeignType;
 use wolfcrypt_rs::*;
 use crate::types::types::*;
+use crate::error::*;
 
-pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) {
+pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) -> WCResult {
     let mut rng_c_type: WC_RNG = unsafe { mem::zeroed() };
     let rng_object = WCRngObject::new(&mut rng_c_type);
     let buff_length: word32 = buff.len() as word32;
@@ -18,9 +19,7 @@ pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) {
     // Copies a sz bytes of pseudorandom data to output.
     // Will reseed rng if needed (blocking).
     let ret = unsafe { wc_RNG_GenerateBlock(rng_object.as_ptr(), buff.as_mut_ptr(), buff_length) };
-    if ret != 0 {
-        panic!("Error while generating block!");
-    }
+    check_if_zero(ret)
 }
 
 #[cfg(test)]
@@ -32,8 +31,8 @@ mod tests {
         let mut buff_1: [u8; 10] = [0; 10];
         let mut buff_2: [u8; 10] = [0; 10];
 
-        wolfcrypt_random_buffer_generator(&mut buff_1);
-        wolfcrypt_random_buffer_generator(&mut buff_2);
+        wolfcrypt_random_buffer_generator(&mut buff_1).unwrap();
+        wolfcrypt_random_buffer_generator(&mut buff_2).unwrap();
 
         assert_ne!(buff_1, buff_2);
     }

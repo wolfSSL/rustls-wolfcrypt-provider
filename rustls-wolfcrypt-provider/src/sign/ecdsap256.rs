@@ -8,6 +8,7 @@ use rustls::{SignatureAlgorithm, SignatureScheme};
 use std::mem;
 use wolfcrypt_rs::*;
 use crate::types::types::*;
+use crate::error::*;
 
 #[derive(Clone, Debug)]
 pub struct EcdsaSigningKeyP256 {
@@ -44,12 +45,8 @@ impl TryFrom<PrivateKeyDer<'_>> for EcdsaSigningKeyP256 {
                 ret = unsafe {
                     wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
                 };
-                if ret < 0 {
-                    panic!(
-                        "error while calling wc_GetPkcs8TraditionalOffset, ret: {}",
-                        ret
-                    );
-                }
+                check_if_zero(ret).unwrap();
+             
 
                 // This function reads in an ECC private key from the input buffer, input,
                 // parses the private key, and uses it to generate an ecc_key object,
@@ -62,9 +59,7 @@ impl TryFrom<PrivateKeyDer<'_>> for EcdsaSigningKeyP256 {
                         pkcs8_sz,
                     )
                 };
-                if ret != 0 {
-                    panic!("error while calling wc_EccPrivateKeyDecode, ret: {}", ret);
-                }
+                check_if_zero(ret).unwrap();
 
                 Ok(Self {
                     key: Arc::new(ecc_key_object),
@@ -123,9 +118,7 @@ impl Signer for EcdsaSigningKeyP256 {
                 ecc_key_object.as_ptr(),
             )
         };
-        if ret != 0 {
-            panic!("error while calling wc_ecc_sign_hash");
-        }
+        check_if_zero(ret).unwrap();
 
         let sig_vec = sig.to_vec();
 
@@ -156,24 +149,16 @@ mod tests {
             let mut ret;
 
             ret = wc_Sha256Hash(message.as_ptr(), message_length, digest.as_mut_ptr());
-            if ret != 0 {
-                panic!("failed because of wc_Sha256Hash, ret value: {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
             ret = wc_InitRng(&mut rng);
-            if ret != 0 {
-                panic!("failed because of wc_InitRng, ret value: {}", ret);
-            }
+            check_if_zero(ret).unwrap();
 
             ret = wc_ecc_init(ecc_key_object.as_ptr());
-            if ret != 0 {
-                panic!("error while calling wc_ecc_init");
-            }
+            check_if_zero(ret).unwrap();
 
             ret = wc_ecc_make_key(&mut rng, 32, ecc_key_object.as_ptr());
-            if ret != 0 {
-                panic!("error while calling wc_ecc_init");
-            }
+            check_if_zero(ret).unwrap();
 
             ret = wc_ecc_sign_hash(
                 digest.as_mut_ptr(),
@@ -183,9 +168,7 @@ mod tests {
                 &mut rng,
                 ecc_key_object.as_ptr(),
             );
-            if ret != 0 {
-                panic!("error while calling wc_ecc_sign_hash");
-            }
+            check_if_zero(ret).unwrap();
 
             let mut is_valid_sig: i32 = 0;
             ret = wc_ecc_verify_hash(
@@ -196,9 +179,7 @@ mod tests {
                 &mut is_valid_sig,
                 ecc_key_object.as_ptr(),
             );
-            if ret != 0 {
-                panic!("error while calling wc_ecc_verify_hash");
-            }
+            check_if_zero(ret).unwrap();
 
             wc_FreeRng(&mut rng);
 
