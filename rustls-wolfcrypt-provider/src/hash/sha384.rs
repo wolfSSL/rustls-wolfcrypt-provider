@@ -3,6 +3,8 @@ use rustls::crypto::hash;
 use std::mem;
 use wolfcrypt_rs::*;
 
+use crate::error::check_if_zero;
+
 pub struct WCSha384;
 
 impl hash::Hash for WCSha384 {
@@ -44,9 +46,7 @@ impl WCHasher384 {
     fn wchasher_init(&mut self) {
         // This function initializes SHA384. This is automatically called by wc_Sha384Hash.
         let ret = unsafe { wc_InitSha384(&mut self.sha384_c_type) };
-        if ret != 0 {
-            panic!("wc_InitSha384 failed with ret: {}", ret);
-        }
+        check_if_zero(ret).unwrap();
     }
 
     fn wchasher_update(&mut self, data: &[u8]) {
@@ -55,18 +55,14 @@ impl WCHasher384 {
         // Hash the provided byte array of length len.
         // Can be called continually.
         let ret = unsafe { wc_Sha384Update(&mut self.sha384_c_type, data.as_ptr(), length) };
-        if ret != 0 {
-            panic!("wc_Sha384Update failed with ret: {}", ret);
-        }
+        check_if_zero(ret).unwrap();
     }
 
     fn wchasher_final(&mut self) -> &[u8] {
         // Finalizes hashing of data. Result is placed into hash.
         // Resets state of the sha384 struct.
         let ret = unsafe { wc_Sha384Final(&mut self.sha384_c_type, self.hash.as_mut_ptr()) };
-        if ret != 0 {
-            panic!("wc_Sha384Final failed with ret: {}", ret);
-        }
+        check_if_zero(ret).unwrap();
 
         &self.hash
     }

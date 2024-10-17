@@ -100,9 +100,7 @@ impl Signer for EcdsaSigningKeyP256 {
 
         // We hash the message, since it's not, using Sha256 (ECDSA_NISTP256_SHA256)
         ret = unsafe { wc_Sha256Hash(message.as_ptr(), message_length, digest.as_mut_ptr()) };
-        if ret != 0 {
-            panic!("failed because of wc_Sha256Hash, ret value: {}", ret);
-        }
+        check_if_zero(ret).unwrap();
 
         rng_object.init();
 

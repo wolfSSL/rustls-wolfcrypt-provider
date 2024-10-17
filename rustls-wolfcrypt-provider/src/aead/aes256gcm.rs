@@ -10,6 +10,7 @@ use rustls::{ConnectionTrafficSecrets, ContentType, ProtocolVersion};
 use std::mem;
 use std::vec;
 use wolfcrypt_rs::*;
+use crate::error::check_if_zero;
 use crate::types::types::*;
 
 const GCM_NONCE_LENGTH: usize = 12;
@@ -113,9 +114,7 @@ impl MessageEncrypter for WCTls12Encrypter {
 
         // Initialize Aes structure.
         ret = unsafe { wc_AesInit(aes_object.as_ptr(), std::ptr::null_mut(), INVALID_DEVID) };
-        if ret < 0 {
-            panic!("error while calling wc_AesInit");
-        }
+        check_if_zero(ret).unwrap();
 
         // This function is used to set the key for AES GCM (Galois/Counter Mode).
         // It initializes an AES object with the given key.
@@ -126,9 +125,7 @@ impl MessageEncrypter for WCTls12Encrypter {
                 self.key.len() as word32,
             )
         };
-        if ret < 0 {
-            panic!("error while calling wc_AesGcmSetKey");
-        }
+        check_if_zero(ret).unwrap();
 
         // This function encrypts the input message, held in the buffer in,
         // and stores the resulting cipher text in the output buffer out.
@@ -153,9 +150,7 @@ impl MessageEncrypter for WCTls12Encrypter {
                 aad.len() as word32,
             )
         };
-        if ret < 0 {
-            panic!("error while calling wc_AesGcmEncrypt, ret = {}", ret);
-        }
+        check_if_zero(ret).unwrap();
 
         payload.extend_from_slice(&auth_tag);
 
@@ -195,10 +190,8 @@ impl MessageDecrypter for WCTls12Decrypter {
         let mut ret;
 
         ret = unsafe { wc_AesInit(aes_object.as_ptr(), std::ptr::null_mut(), INVALID_DEVID) };
-        if ret < 0 {
-            panic!("error while calling wc_AesInit");
-        }
-
+        check_if_zero(ret).unwrap();
+     
         ret = unsafe {
             wc_AesGcmSetKey(
                 aes_object.as_ptr(),
@@ -206,10 +199,8 @@ impl MessageDecrypter for WCTls12Decrypter {
                 self.key.len() as word32,
             )
         };
-        if ret < 0 {
-            panic!("error while calling wc_AesGcmSetKey");
-        }
-
+        check_if_zero(ret).unwrap();
+     
         // Finally, we have everything to decrypt the message
         // from the payload.
         let payload_start = GCM_NONCE_LENGTH - 4;
@@ -231,9 +222,7 @@ impl MessageDecrypter for WCTls12Decrypter {
                 aad.len() as word32,
             )
         };
-        if ret < 0 {
-            panic!("error while calling wc_AesGcmDecrypt, ret = {}", ret);
-        }
+        check_if_zero(ret).unwrap();
 
         payload.copy_within(payload_start..(payload_len - GCM_TAG_LENGTH), 0);
         payload.truncate(payload_len - ((payload_start) + GCM_TAG_LENGTH));
@@ -301,9 +290,7 @@ impl MessageEncrypter for WCTls13Cipher {
 
         // Initialize Aes structure.
         ret = unsafe { wc_AesInit(aes_object.as_ptr(), std::ptr::null_mut(), INVALID_DEVID) };
-        if ret < 0 {
-            panic!("error while calling wc_AesInit");
-        }
+        check_if_zero(ret).unwrap();
 
         // This function is used to set the key for AES GCM (Galois/Counter Mode).
         // It initializes an AES object with the given key.
@@ -314,9 +301,7 @@ impl MessageEncrypter for WCTls13Cipher {
                 self.key.len() as word32,
             )
         };
-        if ret < 0 {
-            panic!("error while calling wc_AesGcmSetKey");
-        }
+        check_if_zero(ret).unwrap();
 
         // This function encrypts the input message, held in the buffer in,
         // and stores the resulting cipher text in the output buffer out.
@@ -339,9 +324,7 @@ impl MessageEncrypter for WCTls13Cipher {
                 aad.len() as word32,
             )
         };
-        if ret < 0 {
-            panic!("error while calling wc_AesGcmEncrypt, ret = {}", ret);
-        }
+        check_if_zero(ret).unwrap();
 
         // Finally, we add the authentication tag at the end of it
         // after the process of encryption is done.
@@ -377,9 +360,7 @@ impl MessageDecrypter for WCTls13Cipher {
         let mut ret;
 
         ret = unsafe { wc_AesInit(aes_object.as_ptr(), std::ptr::null_mut(), INVALID_DEVID) };
-        if ret < 0 {
-            panic!("error while calling wc_AesInit");
-        }
+        check_if_zero(ret).unwrap();
 
         ret = unsafe {
             wc_AesGcmSetKey(
@@ -388,9 +369,7 @@ impl MessageDecrypter for WCTls13Cipher {
                 self.key.len() as word32,
             )
         };
-        if ret < 0 {
-            panic!("error while calling wc_AesGcmSetKey");
-        }
+        check_if_zero(ret).unwrap();
 
         // Finally, we have everything to decrypt the message
         // from the payload.
@@ -408,9 +387,7 @@ impl MessageDecrypter for WCTls13Cipher {
                 aad.len() as word32,
             )
         };
-        if ret < 0 {
-            panic!("error while calling wc_AesGcmDecrypt, ret = {}", ret);
-        }
+        check_if_zero(ret).unwrap();
 
         payload.truncate(message_len);
 
@@ -470,16 +447,12 @@ mod tests {
 
             // Initialize Aes structure.
             ret = wc_AesInit(aes_object.as_ptr(), std::ptr::null_mut(), INVALID_DEVID);
-            if ret < 0 {
-                panic!("error while calling wc_AesInit");
-            }
+            check_if_zero(ret).unwrap();
 
             // This function is used to set the key for AES GCM (Galois/Counter Mode).
             // It initializes an AES object with the given key.
             ret = wc_AesGcmSetKey(aes_object.as_ptr(), key.as_ptr(), key.len() as word32);
-            if ret < 0 {
-                panic!("error while calling wc_AesGcmSetKey");
-            }
+            check_if_zero(ret).unwrap();
 
             ret = wc_AesGcmEncrypt(
                 aes_object.as_ptr(),
@@ -493,9 +466,7 @@ mod tests {
                 aad.as_ptr(),
                 aad.len() as word32,
             );
-            if ret < 0 {
-                panic!("error while claling wc_AesGcmEncrypt");
-            }
+            check_if_zero(ret).unwrap();
 
             assert_eq!(result_encrypted, cipher);
             assert_eq!(result_tag, tag);
@@ -512,9 +483,7 @@ mod tests {
                 aad.as_ptr(),
                 aad.len() as word32,
             );
-            if ret < 0 {
-                panic!("error while claling wc_AesGcmEncrypt");
-            }
+            check_if_zero(ret).unwrap();
 
             assert_eq!(result_decrypted, plain);
         }

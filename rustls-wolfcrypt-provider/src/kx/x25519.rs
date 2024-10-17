@@ -1,7 +1,7 @@
 use foreign_types::ForeignType;
 use std::mem;
 use wolfcrypt_rs::*;
-use crate::types::types::*;
+use crate::{error::check_if_zero, types::types::*};
 
 pub struct KeyExchangeX25519 {
     pub pub_key_bytes: Vec<u8>,
@@ -30,9 +30,7 @@ impl KeyExchangeX25519 {
         // This function generates a Curve25519 key using the given random number generator, rng,
         // of the size given (keysize), and stores it in the given curve25519_key structure.
         ret = unsafe { wc_curve25519_make_key(&mut rng, 32, key_object.as_ptr()) };
-        if ret < 0 {
-            panic!("wc_curve25519_make_key");
-        }
+        check_if_zero(ret).unwrap();
 
         // Export curve25519 key pair. Big or little endian.
         ret = unsafe {
@@ -45,12 +43,7 @@ impl KeyExchangeX25519 {
                 endian.try_into().unwrap(),
             )
         };
-        if ret < 0 {
-            panic!(
-                "panic while calling wc_curve25519_export_key_raw_ex, ret = {}",
-                ret
-            );
-        }
+        check_if_zero(ret).unwrap();
 
         KeyExchangeX25519 {
             pub_key_bytes: pub_key_raw.to_vec(),
@@ -73,12 +66,7 @@ impl KeyExchangeX25519 {
         ret = unsafe {
             wc_curve25519_check_public(peer_pub_key.as_ptr(), 32, endian.try_into().unwrap())
         };
-        if ret < 0 {
-            panic!(
-                "panic while calling wc_curve25519_check_public, ret = {}",
-                ret
-            );
-        }
+        check_if_zero(ret).unwrap();
 
         // We initialize the curve25519 key object before we import the public key in it.
         pub_key_provided_object.init();
@@ -93,12 +81,7 @@ impl KeyExchangeX25519 {
                 endian.try_into().unwrap(),
             )
         };
-        if ret < 0 {
-            panic!(
-                "panic while calling wc_curve25519_import_public_ex, ret = {}",
-                ret
-            );
-        }
+        check_if_zero(ret).unwrap();
 
         // We initialize the curve25519 key object before we import the private key in it.
         private_key_object.init();
@@ -113,12 +96,7 @@ impl KeyExchangeX25519 {
                 endian.try_into().unwrap(),
             )
         };
-        if ret != 0 {
-            panic!(
-                "panic while calling wc_curve25519_import_private, ret = {}",
-                ret
-            );
-        }
+        check_if_zero(ret).unwrap();
 
         // This function computes a shared secret key given a secret private key and
         // a received public key. Stores the generated secret in the buffer out.
@@ -131,12 +109,7 @@ impl KeyExchangeX25519 {
                 endian.try_into().unwrap(),
             )
         };
-        if ret < 0 {
-            panic!(
-                "panic while calling wc_curve25519_shared_secret_ex, ret = {}",
-                ret
-            );
-        }
+        check_if_zero(ret).unwrap();
 
         out.to_vec()
     }

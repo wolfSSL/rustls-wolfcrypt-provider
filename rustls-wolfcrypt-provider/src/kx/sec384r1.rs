@@ -2,6 +2,7 @@ use foreign_types::ForeignType;
 use std::mem;
 use wolfcrypt_rs::*;
 use crate::types::types::*;
+use crate::error::*;
 
 pub struct KeyExchangeSecP384r1 {
     pub priv_key_bytes: Vec<u8>,
@@ -45,9 +46,7 @@ impl KeyExchangeSecP384r1 {
                 ecc_curve_id_ECC_SECP384R1,
             )
         };
-        if ret != 0 {
-            panic!("failed while calling wc_ecc_make_key, ret = {}", ret);
-        }
+        check_if_zero(ret).unwrap();
 
         ret = unsafe {
             wc_ecc_export_private_only(
@@ -56,12 +55,8 @@ impl KeyExchangeSecP384r1 {
                 &mut priv_key_raw_len,
             )
         };
-        if ret != 0 {
-            panic!(
-                "failed while calling wc_ecc_export_private_only, ret = {}",
-                ret
-            );
-        }
+        check_if_zero(ret).unwrap();
+        
 
         ret = unsafe {
             wc_ecc_export_public_raw(
@@ -72,12 +67,7 @@ impl KeyExchangeSecP384r1 {
                 &mut pub_key_raw.qy_len,
             )
         };
-        if ret != 0 {
-            panic!(
-                "failed while calling wc_ecc_export_public_raw, ret = {}",
-                ret
-            );
-        }
+        check_if_zero(ret).unwrap();
 
         let mut pub_key_bytes = Vec::new();
 
@@ -116,12 +106,7 @@ impl KeyExchangeSecP384r1 {
                 ecc_curve_id_ECC_SECP384R1,
             )
         };
-        if ret != 0 {
-            panic!(
-                "failed while calling wc_ecc_import_private_key_ex, with ret value: {}",
-                ret
-            );
-        }
+        check_if_zero(ret).unwrap();
 
         /*
          * Skipping first byte because rustls uses this format:
@@ -136,24 +121,15 @@ impl KeyExchangeSecP384r1 {
                 ecc_curve_id_ECC_SECP384R1,
             )
         };
-        if ret != 0 {
-            panic!(
-                "failed while calling wc_ecc_import_unsigned, with ret value: {}",
-                ret
-            );
-        }
+        check_if_zero(ret).unwrap();
 
         rng_object.init();
 
         ret = unsafe { wc_ecc_set_rng(pub_key_object.as_ptr(), rng_object.as_ptr()) };
-        if ret != 0 {
-            panic!("failed while calling wc_ecc_set_rng, ret = {}", ret);
-        }
+        check_if_zero(ret).unwrap();
 
         ret = unsafe { wc_ecc_set_rng(priv_key_object.as_ptr(), rng_object.as_ptr()) };
-        if ret != 0 {
-            panic!("failed while calling wc_ecc_set_rng, ret = {}", ret);
-        }
+        check_if_zero(ret).unwrap();
 
         ret = unsafe {
             wc_ecc_shared_secret(
@@ -163,12 +139,7 @@ impl KeyExchangeSecP384r1 {
                 &mut out_len,
             )
         };
-        if ret != 0 {
-            panic!(
-                "failed while calling wc_ecc_shared_secret, with ret value: {}",
-                ret
-            );
-        }
+        check_if_zero(ret).unwrap();
 
         out.to_vec()
     }
