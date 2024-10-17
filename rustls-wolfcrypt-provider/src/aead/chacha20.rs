@@ -11,6 +11,8 @@ use std::mem;
 use std::vec;
 use wolfcrypt_rs::*;
 
+use crate::error::check_if_zero;
+
 const CHACHAPOLY1305_OVERHEAD: usize = 16;
 
 pub struct Chacha20Poly1305;
@@ -104,10 +106,8 @@ impl MessageEncrypter for WCTls12Cipher {
                 auth_tag.as_mut_ptr(),
             )
         };
-        if ret < 0 {
-            panic!("error while calling wc_ChaCha20Poly1305_Encrypt");
-        }
-
+        check_if_zero(ret).unwrap();
+       
         let mut output = PrefixedPayload::with_capacity(total_len);
 
         // Finally we copy the encrypted payload into a PrefixedPayload
@@ -159,9 +159,7 @@ impl MessageDecrypter for WCTls12Cipher {
                 payload[..message_len].as_mut_ptr(),
             )
         };
-        if ret < 0 {
-            panic!("error while calling wc_ChaCha20Poly1305_Decrypt");
-        }
+        check_if_zero(ret).unwrap();
 
         // We extract the final result...
         payload.truncate(message_len);
@@ -252,9 +250,7 @@ impl MessageEncrypter for WCTls13Cipher {
                 auth_tag.as_mut_ptr(),
             )
         };
-        if ret < 0 {
-            panic!("error while calling wc_ChaCha20Poly1305_Encrypt");
-        }
+        check_if_zero(ret).unwrap();
 
         // Finally, we add the authentication tag at the end of it
         // after the process of encryption is done.
@@ -305,9 +301,7 @@ impl MessageDecrypter for WCTls13Cipher {
                 payload[..message_len].as_mut_ptr(),
             )
         };
-        if ret < 0 {
-            panic!("error while calling wc_ChaCha20Poly1305_Decrypt");
-        }
+        check_if_zero(ret).unwrap();
 
         // We extract the final result...
         payload.truncate(message_len);
@@ -320,6 +314,8 @@ impl MessageDecrypter for WCTls13Cipher {
 mod tests {
     use std::mem;
     use wolfcrypt_rs::*;
+
+    use crate::error::check_if_zero;
 
     #[test]
     fn test_chacha() {
@@ -380,12 +376,7 @@ mod tests {
                 generated_auth_tag.as_mut_ptr(),
             )
         };
-        if ret != 0 {
-            panic!(
-                "failed while calling wc_ChaCha20Poly1305_Encrypt, with ret value: {}",
-                ret
-            );
-        }
+        check_if_zero(ret).unwrap();
 
         assert_eq!(generated_cipher_text, cipher);
         assert_eq!(generated_auth_tag, auth_tag);
@@ -402,12 +393,7 @@ mod tests {
                 generated_plain_text.as_mut_ptr(),
             )
         };
-        if ret != 0 {
-            panic!(
-                "failed while calling wc_Chacha20Poly1305_Decrypt, with ret value: {}",
-                ret
-            );
-        }
+        check_if_zero(ret).unwrap();
 
         assert_eq!(generated_plain_text, plain_text);
     }

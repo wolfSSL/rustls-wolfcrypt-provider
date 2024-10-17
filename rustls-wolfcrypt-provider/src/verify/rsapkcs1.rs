@@ -6,7 +6,9 @@ use std::ffi::c_void;
 use std::mem;
 use webpki::alg_id;
 use wolfcrypt_rs::*;
+use crate::error::check_if_zero;
 use crate::types::types::*;
+use crate::error::*;
 
 #[derive(Debug)]
 pub struct RsaPkcs1Sha256Verify;
@@ -43,12 +45,10 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
                 mem::size_of_val(&rsa_key_c_type).try_into().unwrap(),
             )
         };
-
-        if ret == 0 {
-            Ok(())
-        } else {
-            log::error!("ret value: {}", ret);
+        if let Err(WCError::Failure) = check_if_zero(ret) {
             Err(InvalidSignature)
+        } else {
+            Ok(())
         }
     }
 }
@@ -88,12 +88,10 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
                 mem::size_of_val(&rsa_key_c_type).try_into().unwrap(),
             )
         };
-
-        if ret == 0 {
-            Ok(())
-        } else {
-            log::error!("ret value: {}", ret);
+        if let Err(WCError::Failure) = check_if_zero(ret) {
             Err(InvalidSignature)
+        } else {
+            Ok(())
         }
     }
 }
@@ -113,9 +111,7 @@ fn wc_decode_spki_spk(spki_spk: &[u8]) -> Result<RsaKey, InvalidSignature> {
     // This function initializes a provided RsaKey struct. It also takes in a heap identifier,
     // for use with user defined memory overrides (see XMALLOC, XFREE, XREALLOC).
     ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), std::ptr::null_mut()) };
-    if ret != 0 {
-        panic!("error while calling wc_InitRsaKey, ret value: {}", ret);
-    }
+    check_if_zero(ret).unwrap();
 
     // This function decodes the raw elements of an RSA public key, taking in
     // the public modulus (n) and exponent (e). It stores these raw elements in the provided
@@ -130,10 +126,9 @@ fn wc_decode_spki_spk(spki_spk: &[u8]) -> Result<RsaKey, InvalidSignature> {
         )
     };
 
-    if ret == 0 {
-        Ok(rsa_key_c_type)
-    } else {
-        log::error!("ret value: {}", ret);
+    if let Err(WCError::Failure) = check_if_zero(ret) {
         Err(InvalidSignature)
+    } else {
+        Ok(rsa_key_c_type)
     }
 }

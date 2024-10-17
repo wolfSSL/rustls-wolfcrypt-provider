@@ -4,7 +4,7 @@ use foreign_types::ForeignType;
 use rustls::crypto;
 use std::vec::Vec;
 use wolfcrypt_rs::*;
-use crate::types::types::*;
+use crate::{error::check_if_zero, types::types::*};
 
 pub struct WCSha384Hmac;
 
@@ -60,9 +60,8 @@ impl WCHmac384Key {
                 self.key.len() as word32,
             )
         };
-        if ret != 0 {
-            panic!("error while calling wc_HmacSetKey, ret = {}", ret);
-        }
+        check_if_zero(ret).unwrap();
+     
 
         hmac_object
     }
@@ -75,9 +74,7 @@ impl WCHmac384Key {
         let ret =
             unsafe { wc_HmacUpdate(hmac_object.as_ptr(), input.as_ptr(), input.len() as word32) };
 
-        if ret != 0 {
-            panic!("wc_HmacUpdate failed with ret value: {}", ret);
-        }
+        check_if_zero(ret).unwrap();
     }
 
     fn hmac_final(&self, hmac_object: HmacObject) -> [u8; 48] {
@@ -86,9 +83,7 @@ impl WCHmac384Key {
         // This function computes the final hash of an Hmac object's message.
         let ret = unsafe { wc_HmacFinal(hmac_object.as_ptr(), digest.as_mut_ptr()) };
 
-        if ret != 0 {
-            panic!("wc_HmacFinal failed with ret value: {}", ret);
-        }
+        check_if_zero(ret).unwrap();
 
         digest
     }
