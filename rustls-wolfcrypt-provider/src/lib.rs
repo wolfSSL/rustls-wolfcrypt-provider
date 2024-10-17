@@ -15,7 +15,7 @@ pub mod aead {
     pub mod chacha20;
 }
 pub mod sign {
-    pub mod ecdsap256;
+    pub mod ecdsa;
 }
 use crate::aead::{aes128gcm, aes256gcm, chacha20};
 
@@ -77,10 +77,10 @@ impl rustls::crypto::KeyProvider for Provider {
         &self,
         key_der: PrivateKeyDer<'static>,
     ) -> Result<Arc<dyn rustls::sign::SigningKey>, rustls::Error> {
-        Ok(Arc::new(
-            sign::ecdsap256::EcdsaSigningKeyP256::try_from(key_der)
-                .map_err(|err| rustls::OtherError(Arc::new(err)))?,
-        ))
+        let p256= |_| sign::ecdsa::EcdsaSigningKeyP256::try_from(&key_der).map(|x| Arc::new(x) as _);
+        let p384 = |_| sign::ecdsa::EcdsaSigningKeyP384::try_from(&key_der).map(|x| Arc::new(x) as _);
+
+        p256(()).or_else(p384)
     }
 }
 
