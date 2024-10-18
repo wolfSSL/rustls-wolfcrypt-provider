@@ -1,10 +1,10 @@
+use crate::{error::check_if_zero, types::types::*};
 use alloc::boxed::Box;
 use core::mem;
 use foreign_types::ForeignType;
 use rustls::crypto;
 use std::vec::Vec;
 use wolfcrypt_rs::*;
-use crate::{error::check_if_zero, types::types::*};
 
 pub struct WCSha256Hmac;
 
@@ -61,7 +61,6 @@ impl WCHmac256Key {
             )
         };
         check_if_zero(ret).unwrap();
-        
 
         hmac_object
     }

@@ -1,3 +1,5 @@
+use crate::error::check_if_zero;
+use crate::types::types::*;
 use alloc::boxed::Box;
 use foreign_types::ForeignType;
 use rustls::crypto::cipher::{
@@ -10,8 +12,6 @@ use rustls::{ConnectionTrafficSecrets, ContentType, ProtocolVersion};
 use std::mem;
 use std::vec;
 use wolfcrypt_rs::*;
-use crate::error::check_if_zero;
-use crate::types::types::*;
 
 const GCM_NONCE_LENGTH: usize = 12;
 const GCM_TAG_LENGTH: usize = 16;
@@ -191,7 +191,7 @@ impl MessageDecrypter for WCTls12Decrypter {
 
         ret = unsafe { wc_AesInit(aes_object.as_ptr(), std::ptr::null_mut(), INVALID_DEVID) };
         check_if_zero(ret).unwrap();
-     
+
         ret = unsafe {
             wc_AesGcmSetKey(
                 aes_object.as_ptr(),
@@ -200,7 +200,7 @@ impl MessageDecrypter for WCTls12Decrypter {
             )
         };
         check_if_zero(ret).unwrap();
-     
+
         // Finally, we have everything to decrypt the message
         // from the payload.
         let payload_start = GCM_NONCE_LENGTH - 4;

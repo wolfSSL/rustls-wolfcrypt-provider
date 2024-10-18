@@ -5,10 +5,10 @@ use alloc::sync::Arc;
 use rustls::crypto::tls13::HkdfUsingHmac;
 use rustls::crypto::CryptoProvider;
 use rustls::pki_types::PrivateKeyDer;
+mod error;
 mod kx;
 mod random;
 mod verify;
-mod error;
 pub mod aead {
     pub mod aes128gcm;
     pub mod aes256gcm;
@@ -16,6 +16,7 @@ pub mod aead {
 }
 pub mod sign {
     pub mod ecdsa;
+    pub mod rsapss;
 }
 use crate::aead::{aes128gcm, aes256gcm, chacha20};
 
@@ -77,10 +78,20 @@ impl rustls::crypto::KeyProvider for Provider {
         &self,
         key_der: PrivateKeyDer<'static>,
     ) -> Result<Arc<dyn rustls::sign::SigningKey>, rustls::Error> {
-        let p256= |_| sign::ecdsa::EcdsaSigningKeyP256::try_from(&key_der).map(|x| Arc::new(x) as _);
-        let p384 = |_| sign::ecdsa::EcdsaSigningKeyP384::try_from(&key_der).map(|x| Arc::new(x) as _);
+        /*
+        Note: comment out for testing.
+        let p256 =
+            |_| sign::ecdsa::EcdsaSigningKeyP256Sign::try_from(&key_der).map(|x| Arc::new(x) as _);
+        let p384 =
+            |_| sign::ecdsa::EcdsaSigningKeyP384Sign::try_from(&key_der).map(|x| Arc::new(x) as _);
+        let p521 =
+            |_| sign::ecdsa::EcdsaSigningKeyP521Sign::try_from(&key_der).map(|x| Arc::new(x) as _);
 
-        p256(()).or_else(p384)
+        p256(()).or_else(p384).or_else(p521)*/
+        Ok(Arc::new(
+            sign::rsapss::RsaPssSha256Sign::try_from(&key_der)
+                .map_err(|err| rustls::OtherError(Arc::new(err)))?,
+        ))
     }
 }
 

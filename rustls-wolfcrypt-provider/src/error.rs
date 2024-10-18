@@ -22,7 +22,7 @@ pub fn check_if_zero(ret: i32) -> WCResult {
         Ok(())
     } else {
         Err(WCError::Failure)
-    } 
+    }
 }
 
 /// Checks if the FFI return value is `1` (indicating success).
@@ -39,7 +39,7 @@ pub fn check_if_one(stat: i32) -> WCResult {
         Ok(())
     } else {
         Err(WCError::Failure)
-    } 
+    }
 }
 
 /// Checks if the FFI return value is greater than `0`
@@ -56,5 +56,5 @@ pub fn check_if_greater_than_zero(ret: i32) -> WCResult {
         Ok(())
     } else {
         Err(WCError::Failure)
-    } 
+    }
 }

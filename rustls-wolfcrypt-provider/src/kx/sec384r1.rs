@@ -1,8 +1,8 @@
+use crate::error::*;
+use crate::types::types::*;
 use foreign_types::ForeignType;
 use std::mem;
 use wolfcrypt_rs::*;
-use crate::types::types::*;
-use crate::error::*;
 
 pub struct KeyExchangeSecP384r1 {
     pub priv_key_bytes: Vec<u8>,
@@ -56,7 +56,6 @@ impl KeyExchangeSecP384r1 {
             )
         };
         check_if_zero(ret).unwrap();
-        
 
         ret = unsafe {
             wc_ecc_export_public_raw(
