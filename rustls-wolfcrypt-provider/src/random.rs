@@ -1,14 +1,13 @@
+use crate::error::*;
+use crate::types::types::*;
 use core::mem;
 use foreign_types::ForeignType;
 use wolfcrypt_rs::*;
-use crate::types::types::*;
-use crate::error::*;
 
 pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) -> WCResult {
     let mut rng_c_type: WC_RNG = unsafe { mem::zeroed() };
     let rng_object = WCRngObject::new(&mut rng_c_type);
     let buff_length: word32 = buff.len() as word32;
-    
 
     // Gets the seed (from OS) and key cipher for rng.
     // rng->drbg (deterministic random bit generator) allocated

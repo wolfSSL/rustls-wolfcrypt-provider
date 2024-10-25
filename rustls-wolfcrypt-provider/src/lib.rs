@@ -5,17 +5,19 @@ use alloc::sync::Arc;
 use rustls::crypto::tls13::HkdfUsingHmac;
 use rustls::crypto::CryptoProvider;
 use rustls::pki_types::PrivateKeyDer;
+mod error;
 mod kx;
 mod random;
 mod verify;
-mod error;
 pub mod aead {
     pub mod aes128gcm;
     pub mod aes256gcm;
     pub mod chacha20;
 }
 pub mod sign {
-    pub mod ecdsap256;
+    pub mod ecdsa;
+    pub mod rsapkcs1;
+    pub mod rsapss;
 }
 use crate::aead::{aes128gcm, aes256gcm, chacha20};
 
@@ -77,10 +79,34 @@ impl rustls::crypto::KeyProvider for Provider {
         &self,
         key_der: PrivateKeyDer<'static>,
     ) -> Result<Arc<dyn rustls::sign::SigningKey>, rustls::Error> {
-        Ok(Arc::new(
-            sign::ecdsap256::EcdsaSigningKeyP256::try_from(key_der)
-                .map_err(|err| rustls::OtherError(Arc::new(err)))?,
-        ))
+        let p256_sha256 =
+            |_| sign::ecdsa::EcdsaSigningKeyP256Sign::try_from(&key_der).map(|x| Arc::new(x) as _);
+        let p384_sha384 =
+            |_| sign::ecdsa::EcdsaSigningKeyP384Sign::try_from(&key_der).map(|x| Arc::new(x) as _);
+        let p521_sha512 =
+            |_| sign::ecdsa::EcdsaSigningKeyP521Sign::try_from(&key_der).map(|x| Arc::new(x) as _);
+        let pss_sha256 =
+            |_| sign::rsapss::RsaPssSha256Sign::try_from(&key_der).map(|x| Arc::new(x) as Arc<_>);
+        let pss_sha384 =
+            |_| sign::rsapss::RsaPssSha384Sign::try_from(&key_der).map(|x| Arc::new(x) as Arc<_>);
+        let pss_sha512 =
+            |_| sign::rsapss::RsaPssSha512Sign::try_from(&key_der).map(|x| Arc::new(x) as Arc<_>);
+        let pkcs1_sha256 =
+            |_| sign::rsapkcs1::RsaPkcs1Sha256::try_from(&key_der).map(|x| Arc::new(x) as Arc<_>);
+        let pkcs1_sha384 =
+            |_| sign::rsapkcs1::RsaPkcs1Sha384::try_from(&key_der).map(|x| Arc::new(x) as Arc<_>);
+        let pkcs1_sha512 =
+            |_| sign::rsapkcs1::RsaPkcs1Sha512::try_from(&key_der).map(|x| Arc::new(x) as Arc<_>);
+
+        p256_sha256(())
+            .or_else(p384_sha384)
+            .or_else(p521_sha512)
+            .or_else(pss_sha256)
+            .or_else(pss_sha384)
+            .or_else(pss_sha512)
+            .or_else(pkcs1_sha256)
+            .or_else(pkcs1_sha384)
+            .or_else(pkcs1_sha512)
     }
 }
 
@@ -99,8 +125,10 @@ static ALL_CIPHER_SUITES: &[rustls::SupportedCipherSuite] = &[
 static ALL_RSA_SCHEMES: &[rustls::SignatureScheme] = &[
     rustls::SignatureScheme::RSA_PSS_SHA256,
     rustls::SignatureScheme::RSA_PSS_SHA384,
+    rustls::SignatureScheme::RSA_PSS_SHA512,
     rustls::SignatureScheme::RSA_PKCS1_SHA256,
     rustls::SignatureScheme::RSA_PKCS1_SHA384,
+    rustls::SignatureScheme::RSA_PKCS1_SHA512,
 ];
 
 static ALL_ECDSA_SCHEMES: &[rustls::SignatureScheme] = &[

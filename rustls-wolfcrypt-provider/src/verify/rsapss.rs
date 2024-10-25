@@ -1,3 +1,5 @@
+use crate::error::*;
+use crate::types::types::*;
 use der::Reader;
 use foreign_types::ForeignType;
 use rsa::BigUint;
@@ -6,8 +8,6 @@ use std::mem;
 use std::vec::Vec;
 use webpki::alg_id;
 use wolfcrypt_rs::*;
-use crate::types::types::*;
-use crate::error::*;
 
 #[derive(Debug)]
 pub struct RsaPssSha256Verify;
@@ -185,5 +185,5 @@ fn wc_decode_spki_spk(spki_spk: &[u8]) -> Result<RsaKey, InvalidSignature> {
         Err(InvalidSignature)
     } else {
         Ok(rsa_key_c_type)
-    }  
+    }
 }

@@ -1,3 +1,5 @@
+use crate::error::check_if_zero;
+use crate::types::types::*;
 use alloc::boxed::Box;
 use foreign_types::ForeignType;
 use rustls::crypto::cipher::{
@@ -10,8 +12,6 @@ use rustls::{ConnectionTrafficSecrets, ContentType, ProtocolVersion};
 use std::mem;
 use std::vec;
 use wolfcrypt_rs::*;
-use crate::error::check_if_zero;
-use crate::types::types::*;
 
 const GCM_NONCE_LENGTH: usize = 12;
 const GCM_TAG_LENGTH: usize = 16;

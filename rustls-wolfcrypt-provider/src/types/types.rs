@@ -1,7 +1,7 @@
+use crate::error::*;
 use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
 use std::ptr::NonNull;
 use wolfcrypt_rs::*;
-use crate::error::*;
 
 macro_rules! define_foreign_type {
     ($struct_name:ident, $ref_name:ident, $c_type:ty, $init_function:ident) => {
@@ -39,9 +39,7 @@ macro_rules! define_foreign_type {
 
             // Given an $init_function, it calls it with the object's ptr as argument.
             pub fn init(&self) {
-                unsafe {
-                    check_if_zero($init_function(self.as_ptr())).unwrap()
-                }
+                unsafe { check_if_zero($init_function(self.as_ptr())).unwrap() }
             }
         }
     };
@@ -52,13 +50,13 @@ macro_rules! define_foreign_type {
 
         impl Drop for $struct_name {
             fn drop(&mut self) {
-                    let ret = unsafe { $drop_fn(self.as_ptr()) };
-                    if ret != 0 {
-                        panic!(
-                            "Error while freeing resource in Drop for {}",
-                            stringify!($struct_name)
-                        );
-                    }
+                let ret = unsafe { $drop_fn(self.as_ptr()) };
+                if ret != 0 {
+                    panic!(
+                        "Error while freeing resource in Drop for {}",
+                        stringify!($struct_name)
+                    );
+                }
             }
         }
     };

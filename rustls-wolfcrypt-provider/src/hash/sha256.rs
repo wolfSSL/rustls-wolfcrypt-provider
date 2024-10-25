@@ -1,8 +1,8 @@
+use crate::error::check_if_zero;
 use alloc::boxed::Box;
 use rustls::crypto::hash;
 use std::mem;
 use wolfcrypt_rs::*;
-use crate::error::check_if_zero;
 
 pub struct WCSha256;
 

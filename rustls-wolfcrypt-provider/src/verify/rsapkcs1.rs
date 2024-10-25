@@ -1,3 +1,6 @@
+use crate::error::check_if_zero;
+use crate::error::*;
+use crate::types::types::*;
 use der::Reader;
 use foreign_types::ForeignType;
 use rsa::BigUint;
@@ -6,9 +9,6 @@ use std::ffi::c_void;
 use std::mem;
 use webpki::alg_id;
 use wolfcrypt_rs::*;
-use crate::error::check_if_zero;
-use crate::types::types::*;
-use crate::error::*;
 
 #[derive(Debug)]
 pub struct RsaPkcs1Sha256Verify;
@@ -33,6 +33,9 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
 
         // Also performs the hashing (SHA256 in this case),
         // see: https://www.wolfssl.com/documentation/manuals/wolfssl/group__Signature.html#function-wc_signatureverify
+        // We use the WC_SIGNATURE_TYPE_RSA_W_ENC, because rustls requires
+        // DER header. In wolfcrypt, we add it (underneath) we add it through
+        // wc_EncodeSignature.
         let ret = unsafe {
             wc_SignatureVerify(
                 wc_HashType_WC_HASH_TYPE_SHA256,

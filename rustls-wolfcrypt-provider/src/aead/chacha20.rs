@@ -107,7 +107,7 @@ impl MessageEncrypter for WCTls12Cipher {
             )
         };
         check_if_zero(ret).unwrap();
-       
+
         let mut output = PrefixedPayload::with_capacity(total_len);
 
         // Finally we copy the encrypted payload into a PrefixedPayload
