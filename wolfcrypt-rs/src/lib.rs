@@ -4,7 +4,7 @@ pub use bindings::*;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::mem;
+    use std::{ffi::c_int, mem};
 
     #[test]
     fn rsa_encrypt_decrypt() {
@@ -32,7 +32,7 @@ mod tests {
                 panic!("Error while setting rng to Rsa key! Ret value: {}", ret);
             }
 
-            ret = wc_MakeRsaKey(&mut rsa_key, 1024, 65537, &mut rng);
+            ret = wc_MakeRsaKey(&mut rsa_key, 2048 as c_int, WC_RSA_EXPONENT.into(), &mut rng);
             if ret != 0 {
                 panic!("Error while creating the Rsa Key! Ret value: {}", ret);
             }
