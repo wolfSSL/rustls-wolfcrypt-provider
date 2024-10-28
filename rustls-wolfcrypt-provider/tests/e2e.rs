@@ -26,10 +26,10 @@ const TLSV1_3: &str = "-v 4";
  * Starts background job for wolfssl server (localhost:4443).
  * */
 fn start_wolfssl_server(current_dir_string: String, tls_version: &str) -> Child {
-    if let Err(e) = env::set_current_dir("../wolfcrypt-rs/wolfssl-5.7.2-stable/") {
+    if let Err(e) = env::set_current_dir("../wolfcrypt-rs/wolfssl-5.7.4-stable/") {
         panic!("Error changing directory: {}", e);
     } else {
-        println!("Changed directory to wolfssl-5.7.2-stable.");
+        println!("Changed directory to wolfssl-5.7.4-stable.");
 
         Command::new("./examples/server/server")
             .arg("-d")

@@ -3,4 +3,4 @@
 /rustls-wolfcrypt-provider/target
 /.vscode
 /Cargo.lock
-/wolfcrypt-rs/wolfssl-5.7.2-stable/
+/wolfcrypt-rs/wolfssl-5.7.4-stable/
