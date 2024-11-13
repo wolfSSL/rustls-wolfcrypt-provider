@@ -25,4 +25,4 @@ make build
 echo "Running Rustls tests..."
 make test
 
-echo "Installation completed successfully!"
+echo "Build completed successfully!"
