@@ -1,6 +1,9 @@
 use crate::{error::check_if_zero, types::types::*};
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+use core::mem;
+use core::ptr;
 use foreign_types::ForeignType;
-use std::mem;
 use wolfcrypt_rs::*;
 
 pub struct KeyExchangeSecP521r1 {
@@ -101,7 +104,7 @@ impl KeyExchangeSecP521r1 {
             wc_ecc_import_private_key_ex(
                 self.priv_key_bytes.as_ptr(),
                 self.priv_key_bytes.len() as word32,
-                std::ptr::null_mut(),
+                ptr::null_mut(),
                 0,
                 priv_key_object.as_ptr(),
                 ecc_curve_id_ECC_SECP521R1,
@@ -118,7 +121,7 @@ impl KeyExchangeSecP521r1 {
                 pub_key_object.as_ptr(),
                 peer_pub_key[1..67].as_ptr(),
                 peer_pub_key[67..].as_ptr(),
-                std::ptr::null_mut(),
+                ptr::null_mut(),
                 ecc_curve_id_ECC_SECP521R1,
             )
         };

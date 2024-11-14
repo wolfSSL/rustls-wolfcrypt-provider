@@ -3,12 +3,13 @@ use crate::types::types::*;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use core::ffi::c_void;
+use core::mem;
+use core::ptr;
 use foreign_types::ForeignType;
 use rustls::pki_types::PrivateKeyDer;
 use rustls::sign::{Signer, SigningKey};
 use rustls::{SignatureAlgorithm, SignatureScheme};
-use std::ffi::c_void;
-use std::mem;
 use wolfcrypt_rs::*;
 
 #[derive(Clone, Debug)]
@@ -35,7 +36,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPkcs1Sha256 {
                 let pkcs1_sz: word32 = pkcs1.len() as word32;
                 let mut ret;
 
-                ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), std::ptr::null_mut()) };
+                ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
                 check_if_zero(ret).unwrap();
 
                 let mut idx: u32 = 0;
@@ -139,7 +140,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPkcs1Sha384 {
                 let pkcs1_sz: word32 = pkcs1.len() as word32;
                 let mut ret;
 
-                ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), std::ptr::null_mut()) };
+                ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
                 check_if_zero(ret).unwrap();
 
                 let mut idx: u32 = 0;
@@ -243,7 +244,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPkcs1Sha512 {
                 let pkcs1_sz: word32 = pkcs1.len() as word32;
                 let mut ret;
 
-                ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), std::ptr::null_mut()) };
+                ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
                 check_if_zero(ret).unwrap();
 
                 let mut idx: u32 = 0;

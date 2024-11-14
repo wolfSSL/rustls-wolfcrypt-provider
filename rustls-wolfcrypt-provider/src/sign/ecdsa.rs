@@ -3,11 +3,12 @@ use crate::types::types::*;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use core::mem;
 use foreign_types::ForeignType;
 use rustls::pki_types::PrivateKeyDer;
 use rustls::sign::{Signer, SigningKey};
 use rustls::{SignatureAlgorithm, SignatureScheme};
-use std::mem;
+
 use wolfcrypt_rs::*;
 
 #[derive(Clone, Debug)]

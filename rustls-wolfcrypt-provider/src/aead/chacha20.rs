@@ -1,5 +1,8 @@
 use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
 use chacha20poly1305::KeySizeUser;
+use core::mem;
 use rustls::crypto::cipher::{
     make_tls12_aad, make_tls13_aad, AeadKey, InboundOpaqueMessage, InboundPlainMessage, Iv,
     KeyBlockShape, MessageDecrypter, MessageEncrypter, Nonce, OutboundOpaqueMessage,
@@ -7,8 +10,6 @@ use rustls::crypto::cipher::{
     UnsupportedOperationError, NONCE_LEN,
 };
 use rustls::{ConnectionTrafficSecrets, ContentType, ProtocolVersion};
-use std::mem;
-use std::vec;
 use wolfcrypt_rs::*;
 
 use crate::error::check_if_zero;
@@ -312,10 +313,8 @@ impl MessageDecrypter for WCTls13Cipher {
 
 #[cfg(test)]
 mod tests {
-    use std::mem;
-    use wolfcrypt_rs::*;
 
-    use crate::error::check_if_zero;
+    use super::*;
 
     #[test]
     fn test_chacha() {

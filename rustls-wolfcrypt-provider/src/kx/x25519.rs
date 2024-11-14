@@ -1,6 +1,8 @@
 use crate::{error::check_if_zero, types::types::*};
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+use core::mem;
 use foreign_types::ForeignType;
-use std::mem;
 use wolfcrypt_rs::*;
 
 pub struct KeyExchangeX25519 {

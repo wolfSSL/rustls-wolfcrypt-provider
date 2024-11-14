@@ -3,5 +3,8 @@ name = "wolfcrypt-rs"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+std = []
+
 [build-dependencies]
 bindgen = "0.70.1"
