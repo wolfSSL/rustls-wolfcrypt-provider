@@ -6,7 +6,8 @@ Code that lets you use `wolfCrypt` as a crypto provider for `Rustls`.
 
 This is in an alpha stage, particularly because the Rustls API is not yet stable.  
 This code currently works with Rustls = 0.23.16.
-*`no_std` currently WIP.*
+
+**`no_std` currently WIP.**
 
 ## Repo Structure
 
