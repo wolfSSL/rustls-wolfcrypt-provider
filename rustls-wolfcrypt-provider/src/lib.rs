@@ -1,8 +1,4 @@
-#![cfg_attr(not(feature = "std"), no_std)]
-
-// Conditionally include `std` if the `std` feature is enabled
-#[cfg(feature = "std")]
-extern crate std;
+#![no_std]
 
 extern crate alloc;
 

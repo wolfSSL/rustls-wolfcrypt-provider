@@ -1,19 +1,13 @@
-.PHONY: fmt
-fmt: 
-	@cargo fmt --all --check
-
-.PHONY: clippy
-clippy: 
-	@cargo clippy
-
 .PHONY: test
 test: 
 	@cargo test
 
 .PHONY: build
 build:
-	@cargo build
+	@cargo build --release
+	@strip target/release/libwolfcrypt_rs.rlib 2>/dev/null || echo "Strip failed"
 
 .PHONY: clean
-build:
-	@cargo build
+clean:
+	@cargo clean
+	@rm -rf wolfssl-*
