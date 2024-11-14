@@ -1,11 +1,12 @@
 use crate::error::*;
 use crate::types::types::*;
+use alloc::vec::Vec;
+use core::mem;
+use core::ptr;
 use der::Reader;
 use foreign_types::ForeignType;
 use rsa::BigUint;
 use rustls::pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerificationAlgorithm};
-use std::mem;
-use std::vec::Vec;
 use webpki::alg_id;
 use wolfcrypt_rs::*;
 
@@ -165,7 +166,7 @@ fn wc_decode_spki_spk(spki_spk: &[u8]) -> Result<RsaKey, InvalidSignature> {
 
     // This function initializes a provided RsaKey struct. It also takes in a heap identifier,
     // for use with user defined memory overrides (see XMALLOC, XFREE, XREALLOC).
-    ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), std::ptr::null_mut()) };
+    ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
     check_if_zero(ret).unwrap();
 
     // This function decodes the raw elements of an RSA public key, taking in

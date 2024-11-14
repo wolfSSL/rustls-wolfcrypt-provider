@@ -1,6 +1,8 @@
 use crate::error::check_if_zero;
 use crate::types::types::*;
 use alloc::boxed::Box;
+use alloc::vec;
+use core::mem;
 use foreign_types::ForeignType;
 use rustls::crypto::cipher::{
     make_tls12_aad, make_tls13_aad, AeadKey, InboundOpaqueMessage, InboundPlainMessage, Iv,
@@ -9,8 +11,9 @@ use rustls::crypto::cipher::{
     UnsupportedOperationError,
 };
 use rustls::{ConnectionTrafficSecrets, ContentType, ProtocolVersion};
-use std::mem;
-use std::vec;
+
+use alloc::vec::Vec;
+use core::ptr;
 use wolfcrypt_rs::*;
 
 const GCM_NONCE_LENGTH: usize = 12;
@@ -113,7 +116,7 @@ impl MessageEncrypter for WCTls12Encrypter {
         let mut ret;
 
         // Initialize Aes structure.
-        ret = unsafe { wc_AesInit(aes_object.as_ptr(), std::ptr::null_mut(), INVALID_DEVID) };
+        ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
         check_if_zero(ret).unwrap();
 
         // This function is used to set the key for AES GCM (Galois/Counter Mode).
@@ -189,7 +192,7 @@ impl MessageDecrypter for WCTls12Decrypter {
         let aes_object = unsafe { AesObject::from_ptr(&mut aes_c_type) };
         let mut ret;
 
-        ret = unsafe { wc_AesInit(aes_object.as_ptr(), std::ptr::null_mut(), INVALID_DEVID) };
+        ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
         check_if_zero(ret).unwrap();
 
         ret = unsafe {
@@ -289,7 +292,7 @@ impl MessageEncrypter for WCTls13Cipher {
         let mut ret;
 
         // Initialize Aes structure.
-        ret = unsafe { wc_AesInit(aes_object.as_ptr(), std::ptr::null_mut(), INVALID_DEVID) };
+        ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
         check_if_zero(ret).unwrap();
 
         // This function is used to set the key for AES GCM (Galois/Counter Mode).
@@ -359,7 +362,7 @@ impl MessageDecrypter for WCTls13Cipher {
         let aes_object = unsafe { AesObject::from_ptr(&mut aes_c_type) };
         let mut ret;
 
-        ret = unsafe { wc_AesInit(aes_object.as_ptr(), std::ptr::null_mut(), INVALID_DEVID) };
+        ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
         check_if_zero(ret).unwrap();
 
         ret = unsafe {
@@ -446,7 +449,7 @@ mod tests {
             let mut ret;
 
             // Initialize Aes structure.
-            ret = wc_AesInit(aes_object.as_ptr(), std::ptr::null_mut(), INVALID_DEVID);
+            ret = wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID);
             check_if_zero(ret).unwrap();
 
             // This function is used to set the key for AES GCM (Galois/Counter Mode).

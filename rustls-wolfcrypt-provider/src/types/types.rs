@@ -1,6 +1,7 @@
 use crate::error::*;
+use core::ptr::NonNull;
 use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
-use std::ptr::NonNull;
+
 use wolfcrypt_rs::*;
 
 macro_rules! define_foreign_type {

@@ -4,7 +4,9 @@ pub use bindings::*;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{ffi::c_int, mem};
+    use core::mem;
+    use core::ffi::c_int;
+
 
     #[test]
     fn rsa_encrypt_decrypt() {

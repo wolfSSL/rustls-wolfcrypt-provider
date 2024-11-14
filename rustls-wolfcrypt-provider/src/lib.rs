@@ -1,7 +1,13 @@
-extern crate alloc;
+#![cfg_attr(not(feature = "std"), no_std)]
+
+// Conditionally include `std` if the `std` feature is enabled
+#[cfg(feature = "std")]
 extern crate std;
 
+extern crate alloc;
+
 use alloc::sync::Arc;
+use alloc::vec::Vec;
 use rustls::crypto::tls13::HkdfUsingHmac;
 use rustls::crypto::CryptoProvider;
 use rustls::pki_types::PrivateKeyDer;

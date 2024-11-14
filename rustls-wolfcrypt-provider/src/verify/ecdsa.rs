@@ -2,9 +2,10 @@ use crate::{
     error::{check_if_one, check_if_zero, WCError},
     types::types::*,
 };
+use core::mem;
+use core::ptr;
 use foreign_types::ForeignType;
 use rustls::pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerificationAlgorithm};
-use std::mem;
 use webpki::alg_id;
 use wolfcrypt_rs::*;
 
@@ -44,7 +45,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
                 ecc_object.as_ptr(),
                 public_key[1..33].as_ptr(), /* Public "x" Coordinate */
                 public_key[33..].as_ptr(),  /* Public "y" Coordinate */
-                std::ptr::null_mut(),       /* Private "d" (optional) */
+                ptr::null_mut(),            /* Private "d" (optional) */
                 ecc_curve_id_ECC_SECP256R1, /* ECC Curve Id */
             );
             check_if_zero(ret).unwrap();
@@ -122,7 +123,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha256 {
                 ecc_object.as_ptr(),
                 public_key[1..49].as_ptr(), /* Public "x" Coordinate */
                 public_key[49..].as_ptr(),  /* Public "y" Coordinate */
-                std::ptr::null_mut(),       /* Private "d" (optional) */
+                ptr::null_mut(),            /* Private "d" (optional) */
                 ecc_curve_id_ECC_SECP384R1, /* ECC Curve Id */
             );
             check_if_zero(ret).unwrap();
@@ -200,7 +201,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha384 {
                 ecc_object.as_ptr(),
                 public_key[1..33].as_ptr(), /* Public "x" Coordinate */
                 public_key[33..].as_ptr(),  /* Public "y" Coordinate */
-                std::ptr::null_mut(),       /* Private "d" (optional) */
+                ptr::null_mut(),            /* Private "d" (optional) */
                 ecc_curve_id_ECC_SECP256R1, /* ECC Curve Id */
             );
             check_if_zero(ret).unwrap();
@@ -278,7 +279,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha384 {
                 ecc_object.as_ptr(),
                 public_key[1..49].as_ptr(), /* Public "x" Coordinate */
                 public_key[49..].as_ptr(),  /* Public "y" Coordinate */
-                std::ptr::null_mut(),       /* Private "d" (optional) */
+                ptr::null_mut(),            /* Private "d" (optional) */
                 ecc_curve_id_ECC_SECP384R1, /* ECC Curve Id */
             );
             check_if_zero(ret).unwrap();
@@ -354,7 +355,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp521Sha512 {
                 ecc_object.as_ptr(),
                 public_key[1..67].as_ptr(), /* Public "x" Coordinate */
                 public_key[67..].as_ptr(),  /* Public "y" Coordinate */
-                std::ptr::null_mut(),       /* Private "d" (optional) */
+                ptr::null_mut(),            /* Private "d" (optional) */
                 ecc_curve_id_ECC_SECP521R1, /* ECC Curve Id */
             );
             check_if_zero(ret).unwrap();

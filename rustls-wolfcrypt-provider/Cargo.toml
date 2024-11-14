@@ -41,5 +41,5 @@ tokio = { version = "1.41", features = ["macros", "rt", "net", "io-util", "io-st
 webpki-roots = "0.26"
 
 [features]
-default = ["std"]
-std = ["hpke-rs/std", "hpke-rs-crypto/std", "pkcs8/std", "rustls/std"]
+default = []
+std = ["hpke-rs/std", "hpke-rs-crypto/std", "pkcs8/std", "rustls/std", "wolfcrypt-rs/std"]

@@ -1,6 +1,6 @@
 use alloc::boxed::Box;
+use core::mem;
 use rustls::crypto::hash;
-use std::mem;
 use wolfcrypt_rs::*;
 
 use crate::error::check_if_zero;
