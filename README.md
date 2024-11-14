@@ -1,7 +1,5 @@
 # rustls-wolfcrypt-provider
 
-Code that lets you use `wolfCrypt` as a crypto provider for `Rustls`.
-
 Code that lets you use `wolfCrypt` as a crypto provider for `Rustls`,
 built with `no_std` support as its foundation. The `std` library is pulled in
 only for testing and during the `build.rs` binding generation; the core crypto
