@@ -4,6 +4,8 @@ pub use bindings::*;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::mem;
+    use core::ffi::c_int;
 
 
     #[test]
