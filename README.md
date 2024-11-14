@@ -10,8 +10,6 @@ provider itself operates independently of `std`.
 This is in an alpha stage, particularly because the Rustls API is not yet stable.  
 This code currently works with Rustls = 0.23.16.
 
-**`no_std` currently WIP.**
-
 ## Repo Structure
 
 - **rustls-wolfcrypt-provider**: Crate containing the code that lets you use rustls with wolfcrypt as a crypto provider.
