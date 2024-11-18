@@ -13,6 +13,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: install dependencies
-      run: sudo apt-get install -y build-essential git clang make gcc cargo
+      run: sudo apt-get install -y build-essential git clang make gcc cargo build-essential autoconf libtool clang clang-tools zlib1g-dev libuv1-dev libpam0g-dev valgrind git linux-headers-generic gcc-multilib g++-multilib libpcap-dev bubblewrap gdb iputils-ping lldb bsdmainutils netcat-traditional binutils-arm-linux-gnueabi binutils-aarch64-linux-gnu
     - name: build
       run: ./build.sh
