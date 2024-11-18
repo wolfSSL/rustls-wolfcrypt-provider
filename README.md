@@ -1,7 +1,5 @@
 # rustls-wolfcrypt-provider
 
-Code that lets you use `wolfCrypt` as a crypto provider for `Rustls`.
-
 Code that lets you use `wolfCrypt` as a crypto provider for `Rustls`,
 built with `no_std` support as its foundation. The `std` library is pulled in
 only for testing and during the `build.rs` binding generation; the core crypto
@@ -11,8 +9,6 @@ provider itself operates independently of `std`.
 
 This is in an alpha stage, particularly because the Rustls API is not yet stable.  
 This code currently works with Rustls = 0.23.16.
-
-**`no_std` currently WIP.**
 
 ## Repo Structure
 
@@ -50,20 +46,20 @@ For more details about the supported curves, verification/signing methods, and a
    ```
    ./build.sh
    ```
-This script performs the following steps:
+   This script performs the following steps:
 
-* Builds `wolfSSL` and generates the necessary bindings.
-* Installs `wolfSSL` to `/opt/wolfssl-rs` (requires sudo).
-* Runs sanity tests for `wolfcrypt-rs` to ensure installation was successful.
-* Builds `rustls-wolfcrypt-provider` with `wolfCrypt` as the crypto provider.
-* Runs tests to confirm the setup for `Rustls` with `wolfCrypt`.
+   * Builds `wolfSSL` and generates the necessary bindings.
+   * Installs `wolfSSL` to `/opt/wolfssl-rs` (requires sudo).
+   * Runs sanity tests for `wolfcrypt-rs` to ensure installation was successful.
+   * Builds `rustls-wolfcrypt-provider` with `wolfCrypt` as the crypto provider.
+   * Runs tests to confirm the setup for `Rustls` with `wolfCrypt`.
 
 3. Verify Installation
-* To confirm that everything is installed correctly, run:
-   ```
-   make test
-   ```
-* You should see output indicating successful test completion.
+   * To confirm that everything is installed correctly, run:
+      ```
+      make test
+      ```
+   * You should see output indicating successful test completion.
 
 ### Example Usage
 For `Rustls` usage, consult the `examples` folder in this repository. Each example
