@@ -21,6 +21,7 @@ pub mod aead {
 }
 pub mod sign {
     pub mod ecdsa;
+    pub mod eddsa;
     pub mod rsapkcs1;
     pub mod rsapss;
 }
@@ -102,6 +103,8 @@ impl rustls::crypto::KeyProvider for Provider {
             |_| sign::rsapkcs1::RsaPkcs1Sha384::try_from(&key_der).map(|x| Arc::new(x) as Arc<_>);
         let pkcs1_sha512 =
             |_| sign::rsapkcs1::RsaPkcs1Sha512::try_from(&key_der).map(|x| Arc::new(x) as Arc<_>);
+        let eddsa=
+            |_| sign::eddsa::Ed25519SigningKeySign::try_from(&key_der).map(|x| Arc::new(x) as Arc<_>);
 
         p256_sha256(())
             .or_else(p384_sha384)
@@ -112,6 +115,7 @@ impl rustls::crypto::KeyProvider for Provider {
             .or_else(pkcs1_sha256)
             .or_else(pkcs1_sha384)
             .or_else(pkcs1_sha512)
+            .or_else(eddsa)
     }
 }
 
@@ -140,6 +144,7 @@ static ALL_ECDSA_SCHEMES: &[rustls::SignatureScheme] = &[
     rustls::SignatureScheme::ECDSA_NISTP256_SHA256,
     rustls::SignatureScheme::ECDSA_NISTP384_SHA384,
     rustls::SignatureScheme::ECDSA_NISTP521_SHA512,
+    rustls::SignatureScheme::ED25519
 ];
 
 pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =

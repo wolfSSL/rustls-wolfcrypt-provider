@@ -31,10 +31,10 @@ impl SignatureVerificationAlgorithm for EcdsaNistp256Sha256 {
             let mut ecc_c_type: ecc_key = mem::zeroed();
             let ecc_object = ECCKeyObject::from_ptr(&mut ecc_c_type);
             let mut digest: [u8; 32] = [0; 32];
-            let mut ret;
+            let mut ret = 0;
             let mut stat: i32 = 0;
 
-            ret = wc_ecc_init(ecc_object.as_ptr());
+            ecc_object.init();
             check_if_zero(ret).unwrap();
 
             /*

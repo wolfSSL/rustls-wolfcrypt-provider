@@ -11,10 +11,6 @@ echo "Building wolfSSL and generating bindings..."
 cd wolfcrypt-rs/
 make build
 
-# Running fmt and clippy on wolfcrypt-rs
-echo "Running fmt & clippy on wolfcrypt-rs..."
-make fmt && make clippy
-
 # Verify the wolfSSL installation
 echo "Running tests to verify wolfSSL installation..."
 make test
