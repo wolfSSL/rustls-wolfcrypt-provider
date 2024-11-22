@@ -123,6 +123,12 @@ define_foreign_type!(
     ed25519_key,
     wc_ed25519_init
 );
+define_foreign_type!(
+    ED448KeyObject,
+    ED448KeyObjectRef,
+    ed448_key,
+    wc_ed448_init
+);
 
 define_foreign_type_with_copy!(RsaKeyObject, RsaKeyObjectRef, RsaKey);
 define_foreign_type_with_copy!(HmacObject, HmacObjectRef, wolfcrypt_rs::Hmac);
