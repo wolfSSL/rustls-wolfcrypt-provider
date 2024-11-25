@@ -1,4 +1,8 @@
+use foreign_types::ForeignType;
 use rustls::version::{TLS12, TLS13};
+use rustls::SignatureScheme;
+use rustls_wolfcrypt_provider::error::*;
+use rustls_wolfcrypt_provider::types::types::*;
 use rustls_wolfcrypt_provider::{
     TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256, TLS12_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
     TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, TLS13_AES_128_GCM_SHA256,
@@ -10,10 +14,12 @@ use std::fs::File;
 use std::io::stdout;
 use std::io::BufReader;
 use std::io::{Read, Write};
+use std::mem;
 use std::net::TcpStream;
 use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use wolfcrypt_rs::*;
 
 /*
  * Version config used by the server to specify
@@ -49,6 +55,8 @@ fn start_wolfssl_server(current_dir_string: String, tls_version: &str) -> Child 
 
 #[cfg(test)]
 mod tests {
+    use rustls_pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer};
+
     use super::*;
 
     #[test]
@@ -359,5 +367,92 @@ mod tests {
                 stdout().write_all(b"\n").unwrap();
             }
         }
+    }
+
+    #[serial]
+    #[test]
+    fn eddsa_sign_and_verify() {
+        let wolfcrypt_default_provider = rustls_wolfcrypt_provider::provider();
+        let schemes = [SignatureScheme::ED25519, SignatureScheme::ED448];
+        let mut rng: WC_RNG = unsafe { mem::zeroed() };
+        let rng_object: WCRngObject = WCRngObject::new(&mut rng);
+        let mut ed25519_key_c_type: ed25519_key = unsafe { mem::zeroed() };
+        let ed25519_key_object = ED25519KeyObject::new(&mut ed25519_key_c_type);
+        let mut der_ed25519_key: [u8; 1024] = [0; 1024];
+        let mut raw_pub_key: [u8; 32] = [0; 32];
+        let mut raw_pub_key_len: word32 = raw_pub_key.len() as word32;
+        let mut ret;
+        let kPrivKey: [u8; 32] = [
+            0x88, 0x0d, 0xaa, 0xde, 0x32, 0xaa, 0x93, 0x32, 0x79, 0xe2, 0x4e, 0x45, 0xa9, 0x1f,
+            0x26, 0xd0, 0x9b, 0x69, 0xdd, 0x08, 0x33, 0xc7, 0x14, 0xc1, 0x57, 0x7f, 0x20, 0xbe,
+            0x67, 0x4f, 0xb9, 0xeb,
+        ];
+        let kPubKey: [u8; 32] = [
+            /* y */
+            0x37, 0x3e, 0xd5, 0x8d, 0x22, 0x1a, 0x05, 0x81, 0xbf, 0x24, 0x6e, 0xdc, 0x5a, 0x42,
+            0x08, 0x83, 0xff, 0xac, 0xfb, 0x28, 0xd0, 0x83, 0xb8, 0x2d, 0x1c, 0xb7, 0x04, 0xaf,
+            0xa8, 0x41, 0x79, 0x23,
+        ];
+
+        rng_object.init();
+        ed25519_key_object.init();
+
+        ret = unsafe { 
+            wc_ed25519_import_private_key(kPrivKey.as_ptr(), kPrivKey.len() as word32, kPubKey.as_ptr(), kPubKey.len() as word32, ed25519_key_object.as_ptr())
+        };
+        check_if_zero(ret).unwrap();
+
+        ret = unsafe {
+            wc_Ed25519PrivateKeyToDer(
+                ed25519_key_object.as_ptr(),
+                der_ed25519_key.as_mut_ptr(),
+                der_ed25519_key.len() as word32,
+            )
+        };
+        check_if_greater_than_zero(ret).unwrap();
+
+        let rustls_pkcs8_der = PrivatePkcs8KeyDer::from(der_ed25519_key.as_slice());
+        let rustls_private_key = PrivateKeyDer::from(rustls_pkcs8_der);
+
+        for scheme in schemes {
+            sign_and_verify(
+                &wolfcrypt_default_provider,
+                scheme,
+                rustls_private_key.clone_key(),
+                kPubKey.as_slice(),
+            );
+        }
+    }
+
+    fn sign_and_verify(
+        provider: &rustls::crypto::CryptoProvider,
+        scheme: SignatureScheme,
+        rustls_private_key: PrivateKeyDer<'static>,
+        pub_key: &[u8],
+    ) {
+        let data = "data to sign and verify".as_bytes();
+
+        // Signing...
+        let signing_key = provider
+            .key_provider
+            .load_private_key(rustls_private_key)
+            .unwrap();
+        let signer = signing_key
+            .choose_scheme(&[scheme])
+            .expect("signing provider supports this scheme");
+        let signature = signer.sign(data).unwrap();
+
+        // Verifying...
+        let algs = provider
+            .signature_verification_algorithms
+            .mapping
+            .iter()
+            .find(|(k, _v)| *k == scheme)
+            .map(|(_k, v)| *v)
+            .expect("verifying provider supports this scheme");
+        assert!(!algs.is_empty());
+        assert!(algs
+            .iter()
+            .any(|alg| { alg.verify_signature(pub_key, data, &signature).is_ok() }));
     }
 }
