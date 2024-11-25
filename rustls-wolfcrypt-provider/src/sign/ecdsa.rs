@@ -46,7 +46,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKeyP256Sign {
                 ret = unsafe {
                     wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
                 };
-                check_if_zero(ret).unwrap();
+                check_if_greater_than_zero(ret).unwrap();
 
                 // This function reads in an ECC private key from the input buffer, input,
                 // parses the private key, and uses it to generate an ecc_key object,
@@ -163,7 +163,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKeyP384Sign {
                 ret = unsafe {
                     wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
                 };
-                check_if_zero(ret).unwrap();
+                check_if_greater_than_zero(ret).unwrap();
 
                 // This function reads in an ECC private key from the input buffer, input,
                 // parses the private key, and uses it to generate an ecc_key object,
@@ -280,7 +280,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKeyP521Sign {
                 ret = unsafe {
                     wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
                 };
-                check_if_zero(ret).unwrap();
+                check_if_greater_than_zero(ret).unwrap();
 
                 // This function reads in an ECC private key from the input buffer, input,
                 // parses the private key, and uses it to generate an ecc_key object,
