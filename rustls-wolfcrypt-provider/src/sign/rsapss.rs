@@ -48,7 +48,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha256Sign {
                 ret = unsafe {
                     wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
                 };
-                check_if_zero(ret).unwrap();
+                check_if_greater_than_zero(ret).unwrap();
 
                 ret = unsafe {
                     wc_RsaPrivateKeyDecode(
@@ -155,7 +155,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha384Sign {
                 ret = unsafe {
                     wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
                 };
-                check_if_zero(ret).unwrap();
+                check_if_greater_than_zero(ret).unwrap();
 
                 ret = unsafe {
                     wc_RsaPrivateKeyDecode(
@@ -262,7 +262,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha512Sign {
                 ret = unsafe {
                     wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
                 };
-                check_if_zero(ret).unwrap();
+                check_if_greater_than_zero(ret).unwrap();
 
                 ret = unsafe {
                     wc_RsaPrivateKeyDecode(
