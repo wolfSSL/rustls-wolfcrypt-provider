@@ -87,37 +87,12 @@ impl SigningKey for Ed25519SigningKeySign {
 
 impl Signer for Ed25519SigningKeySign {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
-        let mut ret;
+        let ret;
         let message_length: word32 = message.len() as word32;
-        let mut sig: [u8; ED25519_SIG_SIZE as usize] = [0; ED25519_SIG_SIZE as usize];
-        let mut sig_sz: word32 = ED25519_SIG_SIZE as word32;
+        let mut sig: [u8; 1024] = [0; 1024];
+        let mut sig_sz: word32 = sig.len() as word32;
         let ed25519_key_arc = self.get_key();
         let ed25519_key_object = ed25519_key_arc.as_ref();
-        let mut raw_pub_key: [u8; ED25519_PUB_KEY_SIZE as usize] =
-            [0; ED25519_PUB_KEY_SIZE as usize];
-
-        ret = unsafe {
-            wc_ed25519_make_public(
-                ed25519_key_object.as_ptr(),
-                raw_pub_key.as_mut_ptr(),
-                raw_pub_key.len() as word32,
-            )
-        };
-        check_if_zero(ret).unwrap();
-
-        ret = unsafe {
-            wc_ed25519_import_public(
-                raw_pub_key.as_ptr(),
-                raw_pub_key.len() as word32,
-                ed25519_key_object.as_ptr(),
-            )
-        };
-        if ret != 0 {
-            panic!("{:?}, {}", raw_pub_key, ret);
-        }
-
-        ret = unsafe { wc_ed25519_check_key(ed25519_key_object.as_ptr()) };
-        check_if_zero(ret).unwrap();
 
         // This function signs a message digest
         // using an ecc_key object to guarantee authenticity.
@@ -130,9 +105,7 @@ impl Signer for Ed25519SigningKeySign {
                 ed25519_key_object.as_ptr(),
             )
         };
-        if ret != 0 {
-            panic!("ret: {}", ret);
-        }
+        check_if_zero(ret).unwrap();
 
         let sig_vec = sig.to_vec();
 
@@ -179,7 +152,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed448SigningKeySign {
                 ret = unsafe {
                     wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
                 };
-                check_if_zero(ret).unwrap();
+                check_if_greater_than_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 // This function reads in an ED448 private key from the input buffer, input,
                 // parses the private key, and uses it to generate an ed448_key object,
@@ -192,14 +165,14 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed448SigningKeySign {
                         pkcs8_sz,
                     )
                 };
-                check_if_zero(ret).unwrap();
+                check_if_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 Ok(Self {
                     key: Arc::new(ed448_key_object),
                     scheme: SignatureScheme::ED448,
                 })
             }
-            _ => panic!("unsupported private key format"),
+            _ => return Err(rustls::Error::General("Unsupported private key format".into())),
         }
     }
 }

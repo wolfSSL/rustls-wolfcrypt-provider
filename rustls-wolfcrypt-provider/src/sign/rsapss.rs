@@ -48,7 +48,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha256Sign {
                 ret = unsafe {
                     wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
                 };
-                check_if_zero(ret).unwrap();
+                check_if_greater_than_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 ret = unsafe {
                     wc_RsaPrivateKeyDecode(
@@ -58,7 +58,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha256Sign {
                         pkcs8_sz,
                     )
                 };
-                check_if_zero(ret).unwrap();
+                check_if_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 Ok(Self {
                     key: Arc::new(rsa_key_object),
@@ -155,7 +155,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha384Sign {
                 ret = unsafe {
                     wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
                 };
-                check_if_zero(ret).unwrap();
+                check_if_greater_than_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 ret = unsafe {
                     wc_RsaPrivateKeyDecode(
@@ -165,7 +165,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha384Sign {
                         pkcs8_sz,
                     )
                 };
-                check_if_zero(ret).unwrap();
+                check_if_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 Ok(Self {
                     key: Arc::new(rsa_key_object),
@@ -262,7 +262,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha512Sign {
                 ret = unsafe {
                     wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
                 };
-                check_if_zero(ret).unwrap();
+                check_if_greater_than_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 ret = unsafe {
                     wc_RsaPrivateKeyDecode(
@@ -272,7 +272,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha512Sign {
                         pkcs8_sz,
                     )
                 };
-                check_if_zero(ret).unwrap();
+                check_if_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 Ok(Self {
                     key: Arc::new(rsa_key_object),

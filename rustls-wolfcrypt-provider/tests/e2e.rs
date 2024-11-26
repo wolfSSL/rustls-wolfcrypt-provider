@@ -351,7 +351,7 @@ mod tests {
             writeln!(
                 &mut std::io::stderr(),
                 "Current ciphersuite: {:?}",
-                ciphersuite.suite()
+                ciphersuite.suite(),
             )
             .unwrap();
 
@@ -379,15 +379,13 @@ mod tests {
         let mut ed25519_key_c_type: ed25519_key = unsafe { mem::zeroed() };
         let ed25519_key_object = ED25519KeyObject::new(&mut ed25519_key_c_type);
         let mut der_ed25519_key: [u8; 1024] = [0; 1024];
-        let mut raw_pub_key: [u8; 32] = [0; 32];
-        let mut raw_pub_key_len: word32 = raw_pub_key.len() as word32;
         let mut ret;
-        let kPrivKey: [u8; 32] = [
+        let priv_key: [u8; 32] = [
             0x88, 0x0d, 0xaa, 0xde, 0x32, 0xaa, 0x93, 0x32, 0x79, 0xe2, 0x4e, 0x45, 0xa9, 0x1f,
             0x26, 0xd0, 0x9b, 0x69, 0xdd, 0x08, 0x33, 0xc7, 0x14, 0xc1, 0x57, 0x7f, 0x20, 0xbe,
             0x67, 0x4f, 0xb9, 0xeb,
         ];
-        let kPubKey: [u8; 32] = [
+        let pub_key: [u8; 32] = [
             /* y */
             0x37, 0x3e, 0xd5, 0x8d, 0x22, 0x1a, 0x05, 0x81, 0xbf, 0x24, 0x6e, 0xdc, 0x5a, 0x42,
             0x08, 0x83, 0xff, 0xac, 0xfb, 0x28, 0xd0, 0x83, 0xb8, 0x2d, 0x1c, 0xb7, 0x04, 0xaf,
@@ -398,7 +396,7 @@ mod tests {
         ed25519_key_object.init();
 
         ret = unsafe { 
-            wc_ed25519_import_private_key(kPrivKey.as_ptr(), kPrivKey.len() as word32, kPubKey.as_ptr(), kPubKey.len() as word32, ed25519_key_object.as_ptr())
+            wc_ed25519_import_private_key(priv_key.as_ptr(), priv_key.len() as word32, pub_key.as_ptr(), pub_key.len() as word32, ed25519_key_object.as_ptr())
         };
         check_if_zero(ret).unwrap();
 
@@ -419,7 +417,7 @@ mod tests {
                 &wolfcrypt_default_provider,
                 scheme,
                 rustls_private_key.clone_key(),
-                kPubKey.as_slice(),
+                pub_key.as_slice(),
             );
         }
     }
