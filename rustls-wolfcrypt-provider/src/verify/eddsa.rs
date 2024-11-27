@@ -50,12 +50,11 @@ impl SignatureVerificationAlgorithm for Ed25519 {
                 &mut stat,
                 ed25519_key_object.as_ptr(),
             );
-            check_if_one(stat).unwrap();
 
             if let Err(WCError::Failure) = check_if_one(ret) {
-                Err(InvalidSignature)
-            } else {
                 Ok(())
+            } else {
+                Err(InvalidSignature)
             }
         }
     }

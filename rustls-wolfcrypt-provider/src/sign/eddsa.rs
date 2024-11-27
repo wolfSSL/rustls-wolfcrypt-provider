@@ -13,14 +13,9 @@ use wolfcrypt_rs::*;
 
 #[derive(Clone, Debug)]
 pub struct Ed25519SigningKeySign {
-    key: Arc<ED25519KeyObject>,
+    priv_key: Arc<Vec<u8>>,
+    pub_key: Arc<Vec<u8>>,
     scheme: SignatureScheme,
-}
-
-impl Ed25519SigningKeySign {
-    pub fn get_key(&self) -> Arc<ED25519KeyObject> {
-        Arc::clone(&self.key)
-    }
 }
 
 impl TryFrom<&PrivateKeyDer<'_>> for Ed25519SigningKeySign {
@@ -31,6 +26,10 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed25519SigningKeySign {
             PrivateKeyDer::Pkcs8(der) => {
                 let mut ed25519_c_type: ed25519_key = unsafe { mem::zeroed() };
                 let ed25519_key_object = ED25519KeyObject::new(&mut ed25519_c_type);
+                let mut priv_key_raw: [u8; 32] = [0; 32];
+                let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
+                let mut pub_key_raw: [u8; 32] = [0; 32];
+                let pub_key_raw_len: word32 = pub_key_raw.len() as word32;
                 let pkcs8: &[u8] = der.secret_pkcs8_der();
                 let pkcs8_sz: word32 = pkcs8.len() as word32;
                 let mut ret;
@@ -40,14 +39,6 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed25519SigningKeySign {
                 ed25519_key_object.init();
 
                 let mut idx: u32 = 0;
-
-                // This function finds the beginning of the traditional
-                // private key inside a PKCS#8 unencrypted buffer.
-                ret = unsafe {
-                    wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
-                };
-                check_if_greater_than_zero(ret)
-                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 // This function reads in an ED25519 private key from the input buffer, input,
                 // parses the private key, and uses it to generate an ed25519_key object,
@@ -63,8 +54,30 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed25519SigningKeySign {
                 check_if_zero(ret)
                     .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
+                ret = unsafe {
+                    wc_ed25519_export_private_only(
+                        ed25519_key_object.as_ptr(),
+                        priv_key_raw.as_mut_ptr(),
+                        &mut priv_key_raw_len,
+                    )
+                };
+                if ret < 0 {
+                    panic!("ret: {}", ret);
+                }
+
+                ret = unsafe {
+                    wc_ed25519_make_public(
+                        ed25519_key_object.as_ptr(),
+                        pub_key_raw.as_mut_ptr(),
+                        pub_key_raw_len,
+                    )
+                };
+                check_if_zero(ret)
+                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
+
                 Ok(Self {
-                    key: Arc::new(ed25519_key_object),
+                    priv_key: Arc::new(priv_key_raw.to_vec()),
+                    pub_key: Arc::new(pub_key_raw.to_vec()),
                     scheme: SignatureScheme::ED25519,
                 })
             }
@@ -93,15 +106,28 @@ impl SigningKey for Ed25519SigningKeySign {
 
 impl Signer for Ed25519SigningKeySign {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
-        let ret;
+        let mut ret;
         let message_length: word32 = message.len() as word32;
         let mut sig: [u8; 1024] = [0; 1024];
         let mut sig_sz: word32 = sig.len() as word32;
-        let ed25519_key_arc = self.get_key();
-        let ed25519_key_object = ed25519_key_arc.as_ref();
+        let priv_key_raw = &self.priv_key;
+        let pub_key_raw = &self.pub_key;
+        let mut ed25519_c_type: ed25519_key = unsafe { mem::zeroed() };
+        let ed25519_key_object = ED25519KeyObject::new(&mut ed25519_c_type);
 
-        // This function signs a message digest
-        // using an ecc_key object to guarantee authenticity.
+        ed25519_key_object.init();
+
+        ret = unsafe {
+            wc_ed25519_import_private_key(
+                priv_key_raw.as_ptr(),
+                priv_key_raw.len() as word32,
+                pub_key_raw.as_ptr(),
+                pub_key_raw.len() as word32,
+                ed25519_key_object.as_ptr(),
+            )
+        };
+        check_if_zero(ret).unwrap();
+
         ret = unsafe {
             wc_ed25519_sign_msg(
                 message.as_ptr(),
@@ -111,123 +137,13 @@ impl Signer for Ed25519SigningKeySign {
                 ed25519_key_object.as_ptr(),
             )
         };
-        check_if_zero(ret).unwrap();
-
-        let sig_vec = sig.to_vec();
-
-        Ok(sig_vec)
-    }
-
-    fn scheme(&self) -> SignatureScheme {
-        self.scheme
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct Ed448SigningKeySign {
-    key: Arc<ED448KeyObject>,
-    scheme: SignatureScheme,
-}
-
-impl Ed448SigningKeySign {
-    pub fn get_key(&self) -> Arc<ED448KeyObject> {
-        Arc::clone(&self.key)
-    }
-}
-
-impl TryFrom<&PrivateKeyDer<'_>> for Ed448SigningKeySign {
-    type Error = rustls::Error;
-
-    fn try_from(value: &PrivateKeyDer<'_>) -> Result<Self, Self::Error> {
-        match value {
-            PrivateKeyDer::Pkcs8(der) => {
-                let mut ed448_c_type: ed448_key = unsafe { mem::zeroed() };
-                let ed448_key_object = ED448KeyObject::new(&mut ed448_c_type);
-                let pkcs8: &[u8] = der.secret_pkcs8_der();
-                let pkcs8_sz: word32 = pkcs8.len() as word32;
-                let mut ret;
-
-                // This function initiliazes an ed448_key object for
-                // using it to sign a message.
-                ed448_key_object.init();
-
-                let mut idx: u32 = 0;
-
-                // This function finds the beginning of the traditional
-                // private key inside a PKCS#8 unencrypted buffer.
-                ret = unsafe {
-                    wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
-                };
-                check_if_greater_than_zero(ret)
-                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
-
-                // This function reads in an ED448 private key from the input buffer, input,
-                // parses the private key, and uses it to generate an ed448_key object,
-                // which it stores in key.
-                ret = unsafe {
-                    wc_Ed448PrivateKeyDecode(
-                        pkcs8.as_ptr() as *mut u8,
-                        &mut idx,
-                        ed448_key_object.as_ptr(),
-                        pkcs8_sz,
-                    )
-                };
-                check_if_zero(ret)
-                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
-
-                Ok(Self {
-                    key: Arc::new(ed448_key_object),
-                    scheme: SignatureScheme::ED448,
-                })
-            }
-            _ => {
-                return Err(rustls::Error::General(
-                    "Unsupported private key format".into(),
-                ))
-            }
+        if ret < 0 {
+            panic!("{}", ret);
         }
-    }
-}
 
-impl SigningKey for Ed448SigningKeySign {
-    fn choose_scheme(&self, offered: &[SignatureScheme]) -> Option<Box<dyn Signer>> {
-        if offered.contains(&self.scheme) {
-            Some(Box::new(self.clone()))
-        } else {
-            None
-        }
-    }
+        let mut sig_vec = sig.to_vec();
 
-    fn algorithm(&self) -> SignatureAlgorithm {
-        SignatureAlgorithm::ED448
-    }
-}
-
-impl Signer for Ed448SigningKeySign {
-    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
-        let ret;
-        let message_length: word32 = message.len() as word32;
-        let mut sig: [u8; 64] = [0; 64];
-        let mut sig_sz: word32 = sig.len() as word32;
-        let ed448_key_arc = self.get_key();
-        let ed448_key_object = ed448_key_arc.as_ref();
-
-        // This function signs a message digest
-        // using an ecc_key object to guarantee authenticity.
-        ret = unsafe {
-            wc_ed448_sign_msg(
-                message.as_ptr(),
-                message_length,
-                sig.as_mut_ptr(),
-                &mut sig_sz,
-                ed448_key_object.as_ptr(),
-                core::ptr::null_mut(),
-                0,
-            )
-        };
-        check_if_zero(ret).unwrap();
-
-        let sig_vec = sig.to_vec();
+        sig_vec.truncate(sig_sz as usize);
 
         Ok(sig_vec)
     }

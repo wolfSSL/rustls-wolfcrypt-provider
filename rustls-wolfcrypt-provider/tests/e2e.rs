@@ -467,6 +467,74 @@ mod tests {
         }
     }
 
+    #[serial]
+    #[test]
+    fn eddsa_sign_and_verify() {
+        let wolfcrypt_default_provider = rustls_wolfcrypt_provider::provider();
+
+        // Initialize RNG and ECC key objects
+        let mut rng: WC_RNG = unsafe { mem::zeroed() };
+        let rng_object: WCRngObject = WCRngObject::new(&mut rng);
+        rng_object.init();
+
+        let mut key_c_type: ed25519_key = unsafe { mem::zeroed() };
+        let key_object = ED25519KeyObject::new(&mut key_c_type);
+        key_object.init();
+
+        let mut der_ed25519_key: Vec<u8> = vec![0; 200]; // Adjust size if needed
+        let mut pub_key_raw: [u8; 32] = [0; 32];
+        let mut pub_key_raw_len: word32 = pub_key_raw.len() as word32;
+        let mut priv_key_raw: [u8; 32] = [0; 32];
+        let mut priv_key_bytes_len: word32 = priv_key_raw.len() as word32;
+
+        let mut ret;
+
+        // Generate ECC key
+        ret = unsafe { wc_ed25519_make_key(rng_object.as_ptr(), 32, key_object.as_ptr()) };
+        check_if_zero(ret).unwrap();
+
+        // Export private key
+        ret = unsafe {
+            wc_ed25519_export_private_only(
+                key_object.as_ptr(),
+                priv_key_raw.as_mut_ptr(),
+                &mut priv_key_bytes_len,
+            )
+        };
+        check_if_zero(ret).unwrap();
+
+        // Export public key
+        ret = unsafe {
+            wc_ed25519_export_public(
+                key_object.as_ptr(),
+                pub_key_raw.as_mut_ptr(),
+                &mut pub_key_raw_len,
+            )
+        };
+        check_if_zero(ret).unwrap();
+
+        // Export private key in DER format
+        ret = unsafe {
+            wc_Ed25519PrivateKeyToDer(
+                key_object.as_ptr(),
+                der_ed25519_key.as_mut_ptr(),
+                der_ed25519_key.len() as word32,
+            )
+        };
+        check_if_greater_than_zero(ret).unwrap();
+
+        der_ed25519_key.resize(ret as usize, 0); // Trim to actual size
+        let rustls_pkcs8_der = PrivatePkcs8KeyDer::from(der_ed25519_key.as_slice());
+        let rustls_private_key = PrivateKeyDer::from(rustls_pkcs8_der);
+
+        sign_and_verify(
+            &wolfcrypt_default_provider,
+            SignatureScheme::ED25519,
+            rustls_private_key.clone_key(),
+            pub_key_raw.as_slice(),
+        );
+    }
+
     fn sign_and_verify(
         provider: &rustls::crypto::CryptoProvider,
         scheme: SignatureScheme,

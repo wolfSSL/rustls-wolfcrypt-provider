@@ -113,9 +113,6 @@ impl rustls::crypto::KeyProvider for Provider {
             Box::new(|key| {
                 sign::eddsa::Ed25519SigningKeySign::try_from(key).map(|x| Arc::new(x) as _)
             }),
-            Box::new(|key| {
-                sign::eddsa::Ed448SigningKeySign::try_from(key).map(|x| Arc::new(x) as _)
-            }),
         ];
 
         for algorithm in algorithms {
