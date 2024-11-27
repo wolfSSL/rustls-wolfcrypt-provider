@@ -46,7 +46,8 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed25519SigningKeySign {
                 ret = unsafe {
                     wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
                 };
-                check_if_greater_than_zero(ret).unwrap();
+                check_if_greater_than_zero(ret)
+                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 // This function reads in an ED25519 private key from the input buffer, input,
                 // parses the private key, and uses it to generate an ed25519_key object,
@@ -59,14 +60,19 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed25519SigningKeySign {
                         pkcs8_sz,
                     )
                 };
-                check_if_zero(ret).unwrap();
+                check_if_zero(ret)
+                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 Ok(Self {
                     key: Arc::new(ed25519_key_object),
                     scheme: SignatureScheme::ED25519,
                 })
             }
-            _ => panic!("unsupported private key format"),
+            _ => {
+                return Err(rustls::Error::General(
+                    "Unsupported private key format".into(),
+                ))
+            }
         }
     }
 }
@@ -152,7 +158,8 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed448SigningKeySign {
                 ret = unsafe {
                     wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
                 };
-                check_if_greater_than_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
+                check_if_greater_than_zero(ret)
+                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 // This function reads in an ED448 private key from the input buffer, input,
                 // parses the private key, and uses it to generate an ed448_key object,
@@ -165,14 +172,19 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed448SigningKeySign {
                         pkcs8_sz,
                     )
                 };
-                check_if_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
+                check_if_zero(ret)
+                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 Ok(Self {
                     key: Arc::new(ed448_key_object),
                     scheme: SignatureScheme::ED448,
                 })
             }
-            _ => return Err(rustls::Error::General("Unsupported private key format".into())),
+            _ => {
+                return Err(rustls::Error::General(
+                    "Unsupported private key format".into(),
+                ))
+            }
         }
     }
 }

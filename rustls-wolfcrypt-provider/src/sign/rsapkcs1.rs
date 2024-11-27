@@ -49,14 +49,19 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPkcs1Sha256 {
                         pkcs1_sz,
                     )
                 };
-                check_if_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
+                check_if_zero(ret)
+                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 Ok(Self {
                     key: Arc::new(rsa_key_object),
                     scheme: SignatureScheme::RSA_PKCS1_SHA256,
                 })
             }
-            _ => return Err(rustls::Error::General("Unsupported private key format".into())),
+            _ => {
+                return Err(rustls::Error::General(
+                    "Unsupported private key format".into(),
+                ))
+            }
         }
     }
 }
@@ -153,14 +158,19 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPkcs1Sha384 {
                         pkcs1_sz,
                     )
                 };
-                check_if_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
+                check_if_zero(ret)
+                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 Ok(Self {
                     key: Arc::new(rsa_key_object),
                     scheme: SignatureScheme::RSA_PKCS1_SHA384,
                 })
             }
-            _ => return Err(rustls::Error::General("Unsupported private key format".into())),
+            _ => {
+                return Err(rustls::Error::General(
+                    "Unsupported private key format".into(),
+                ))
+            }
         }
     }
 }
@@ -257,14 +267,19 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPkcs1Sha512 {
                         pkcs1_sz,
                     )
                 };
-                check_if_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
+                check_if_zero(ret)
+                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 Ok(Self {
                     key: Arc::new(rsa_key_object),
                     scheme: SignatureScheme::RSA_PKCS1_SHA512,
                 })
             }
-            _ => return Err(rustls::Error::General("Unsupported private key format".into())),
+            _ => {
+                return Err(rustls::Error::General(
+                    "Unsupported private key format".into(),
+                ))
+            }
         }
     }
 }

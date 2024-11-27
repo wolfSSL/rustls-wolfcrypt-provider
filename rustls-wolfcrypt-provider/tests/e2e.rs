@@ -62,8 +62,6 @@ mod tests {
     #[test]
     #[serial]
     fn test_tls12_against_server() {
-        env_logger::init();
-
         let current_dir = env::current_dir().unwrap();
         let current_dir_string = current_dir.to_string_lossy().into_owned();
 
@@ -369,55 +367,102 @@ mod tests {
         }
     }
 
+    pub struct ECCPubKey {
+        qx: Vec<u8>,
+        qx_len: word32,
+        qy: Vec<u8>,
+        qy_len: word32,
+    }
+
     #[serial]
     #[test]
-    fn eddsa_sign_and_verify() {
+    fn ecdsa_sign_and_verify() {
         let wolfcrypt_default_provider = rustls_wolfcrypt_provider::provider();
-        let schemes = [SignatureScheme::ED25519, SignatureScheme::ED448];
+
+        // Define schemes, curve IDs, and key sizes as tuples
+        let test_configs = [
+            (
+                SignatureScheme::ECDSA_NISTP256_SHA256,
+                ecc_curve_id_ECC_SECP256R1,
+                32, // P256 key size
+            ),
+            (
+                SignatureScheme::ECDSA_NISTP384_SHA384,
+                ecc_curve_id_ECC_SECP384R1,
+                48, // P384 key size
+            ),
+            (
+                SignatureScheme::ECDSA_NISTP521_SHA512,
+                ecc_curve_id_ECC_SECP521R1,
+                66, // P521 key size
+            ),
+        ];
+
+        // Initialize RNG and ECC key objects
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
         let rng_object: WCRngObject = WCRngObject::new(&mut rng);
-        let mut ed25519_key_c_type: ed25519_key = unsafe { mem::zeroed() };
-        let ed25519_key_object = ED25519KeyObject::new(&mut ed25519_key_c_type);
-        let mut der_ed25519_key: [u8; 1024] = [0; 1024];
-        let mut ret;
-        let priv_key: [u8; 32] = [
-            0x88, 0x0d, 0xaa, 0xde, 0x32, 0xaa, 0x93, 0x32, 0x79, 0xe2, 0x4e, 0x45, 0xa9, 0x1f,
-            0x26, 0xd0, 0x9b, 0x69, 0xdd, 0x08, 0x33, 0xc7, 0x14, 0xc1, 0x57, 0x7f, 0x20, 0xbe,
-            0x67, 0x4f, 0xb9, 0xeb,
-        ];
-        let pub_key: [u8; 32] = [
-            /* y */
-            0x37, 0x3e, 0xd5, 0x8d, 0x22, 0x1a, 0x05, 0x81, 0xbf, 0x24, 0x6e, 0xdc, 0x5a, 0x42,
-            0x08, 0x83, 0xff, 0xac, 0xfb, 0x28, 0xd0, 0x83, 0xb8, 0x2d, 0x1c, 0xb7, 0x04, 0xaf,
-            0xa8, 0x41, 0x79, 0x23,
-        ];
-
         rng_object.init();
-        ed25519_key_object.init();
 
-        ret = unsafe { 
-            wc_ed25519_import_private_key(priv_key.as_ptr(), priv_key.len() as word32, pub_key.as_ptr(), pub_key.len() as word32, ed25519_key_object.as_ptr())
-        };
-        check_if_zero(ret).unwrap();
+        for &(scheme, curve_id, key_size) in &test_configs {
+            let mut ecc_key_c_type: ecc_key = unsafe { mem::zeroed() };
+            let key_object = ECCKeyObject::new(&mut ecc_key_c_type);
+            key_object.init();
 
-        ret = unsafe {
-            wc_Ed25519PrivateKeyToDer(
-                ed25519_key_object.as_ptr(),
-                der_ed25519_key.as_mut_ptr(),
-                der_ed25519_key.len() as word32,
-            )
-        };
-        check_if_greater_than_zero(ret).unwrap();
+            let mut der_ecc_key: Vec<u8> = vec![0; 200]; // Adjust size if needed
+            let mut pub_key_raw = ECCPubKey {
+                qx: vec![0; key_size],
+                qx_len: key_size as u32,
+                qy: vec![0; key_size],
+                qy_len: key_size as u32,
+            };
 
-        let rustls_pkcs8_der = PrivatePkcs8KeyDer::from(der_ed25519_key.as_slice());
-        let rustls_private_key = PrivateKeyDer::from(rustls_pkcs8_der);
+            // Generate ECC key
+            let ret = unsafe {
+                wc_ecc_make_key_ex(
+                    rng_object.as_ptr(),
+                    key_size as i32,
+                    key_object.as_ptr(),
+                    curve_id,
+                )
+            };
+            check_if_zero(ret).unwrap();
 
-        for scheme in schemes {
+            // Export public key
+            let ret = unsafe {
+                wc_ecc_export_public_raw(
+                    key_object.as_ptr(),
+                    pub_key_raw.qx.as_mut_ptr(),
+                    &mut pub_key_raw.qx_len,
+                    pub_key_raw.qy.as_mut_ptr(),
+                    &mut pub_key_raw.qy_len,
+                )
+            };
+            check_if_zero(ret).unwrap();
+
+            let mut pub_key_bytes = Vec::new();
+            pub_key_bytes.push(0x04); // Uncompressed point indicator
+            pub_key_bytes.extend_from_slice(&pub_key_raw.qx.clone());
+            pub_key_bytes.extend_from_slice(&pub_key_raw.qy.clone());
+
+            // Export private key in DER format
+            let ret = unsafe {
+                wc_EccPrivateKeyToDer(
+                    key_object.as_ptr(),
+                    der_ecc_key.as_mut_ptr(),
+                    der_ecc_key.len() as word32,
+                )
+            };
+            check_if_greater_than_zero(ret).unwrap();
+
+            der_ecc_key.resize(ret as usize, 0); // Trim to actual size
+            let rustls_pkcs8_der = PrivatePkcs8KeyDer::from(der_ecc_key.as_slice());
+            let rustls_private_key = PrivateKeyDer::from(rustls_pkcs8_der);
+
             sign_and_verify(
                 &wolfcrypt_default_provider,
                 scheme,
                 rustls_private_key.clone_key(),
-                pub_key.as_slice(),
+                pub_key_bytes.as_slice(),
             );
         }
     }
@@ -435,6 +480,7 @@ mod tests {
             .key_provider
             .load_private_key(rustls_private_key)
             .unwrap();
+
         let signer = signing_key
             .choose_scheme(&[scheme])
             .expect("signing provider supports this scheme");

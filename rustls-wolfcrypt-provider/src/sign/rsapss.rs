@@ -30,8 +30,6 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha256Sign {
     fn try_from(value: &PrivateKeyDer<'_>) -> Result<Self, Self::Error> {
         match value {
             PrivateKeyDer::Pkcs8(der) => {
-                env_logger::init();
-                log::error!("HGA9U0OHGOUAHGOUA");
                 let mut rsa_key_c_type: RsaKey = unsafe { mem::zeroed() };
                 let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut rsa_key_c_type) };
                 let pkcs8: &[u8] = der.secret_pkcs8_der();
@@ -48,7 +46,8 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha256Sign {
                 ret = unsafe {
                     wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
                 };
-                check_if_greater_than_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
+                check_if_greater_than_zero(ret)
+                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 ret = unsafe {
                     wc_RsaPrivateKeyDecode(
@@ -58,14 +57,19 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha256Sign {
                         pkcs8_sz,
                     )
                 };
-                check_if_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
+                check_if_zero(ret)
+                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 Ok(Self {
                     key: Arc::new(rsa_key_object),
                     scheme: SignatureScheme::RSA_PSS_SHA256,
                 })
             }
-            _ => panic!("unsupported private key format"),
+            _ => {
+                return Err(rustls::Error::General(
+                    "Unsupported private key format".into(),
+                ))
+            }
         }
     }
 }
@@ -155,7 +159,8 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha384Sign {
                 ret = unsafe {
                     wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
                 };
-                check_if_greater_than_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
+                check_if_greater_than_zero(ret)
+                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 ret = unsafe {
                     wc_RsaPrivateKeyDecode(
@@ -165,7 +170,8 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha384Sign {
                         pkcs8_sz,
                     )
                 };
-                check_if_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
+                check_if_zero(ret)
+                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 Ok(Self {
                     key: Arc::new(rsa_key_object),
@@ -262,7 +268,8 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha512Sign {
                 ret = unsafe {
                     wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
                 };
-                check_if_greater_than_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
+                check_if_greater_than_zero(ret)
+                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 ret = unsafe {
                     wc_RsaPrivateKeyDecode(
@@ -272,7 +279,8 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha512Sign {
                         pkcs8_sz,
                     )
                 };
-                check_if_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
+                check_if_zero(ret)
+                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 Ok(Self {
                     key: Arc::new(rsa_key_object),

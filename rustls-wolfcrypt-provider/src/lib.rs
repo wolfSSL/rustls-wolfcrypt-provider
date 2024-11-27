@@ -95,17 +95,27 @@ impl rustls::crypto::KeyProvider for Provider {
                 ) -> Result<Arc<dyn rustls::sign::SigningKey>, rustls::Error>,
             >,
         > = vec![
-            Box::new(|key| sign::ecdsa::EcdsaSigningKeyP256Sign::try_from(key).map(|x| Arc::new(x) as _)),
-            Box::new(|key| sign::ecdsa::EcdsaSigningKeyP384Sign::try_from(key).map(|x| Arc::new(x) as _)),
-            Box::new(|key| sign::ecdsa::EcdsaSigningKeyP521Sign::try_from(key).map(|x| Arc::new(x) as _)),
+            Box::new(|key| {
+                sign::ecdsa::EcdsaSigningKeyP256Sha256Sign::try_from(key).map(|x| Arc::new(x) as _)
+            }),
+            Box::new(|key| {
+                sign::ecdsa::EcdsaSigningKeyP384Sha384Sign::try_from(key).map(|x| Arc::new(x) as _)
+            }),
+            Box::new(|key| {
+                sign::ecdsa::EcdsaSigningKeyP521Sha512Sign::try_from(key).map(|x| Arc::new(x) as _)
+            }),
             Box::new(|key| sign::rsapss::RsaPssSha256Sign::try_from(key).map(|x| Arc::new(x) as _)),
             Box::new(|key| sign::rsapss::RsaPssSha384Sign::try_from(key).map(|x| Arc::new(x) as _)),
             Box::new(|key| sign::rsapss::RsaPssSha512Sign::try_from(key).map(|x| Arc::new(x) as _)),
             Box::new(|key| sign::rsapkcs1::RsaPkcs1Sha256::try_from(key).map(|x| Arc::new(x) as _)),
             Box::new(|key| sign::rsapkcs1::RsaPkcs1Sha384::try_from(key).map(|x| Arc::new(x) as _)),
             Box::new(|key| sign::rsapkcs1::RsaPkcs1Sha512::try_from(key).map(|x| Arc::new(x) as _)),
-            Box::new(|key| sign::eddsa::Ed448SigningKeySign::try_from(key).map(|x| Arc::new(x) as _)),
-            Box::new(|key| sign::eddsa::Ed25519SigningKeySign::try_from(key).map(|x| Arc::new(x) as _)),
+            Box::new(|key| {
+                sign::eddsa::Ed25519SigningKeySign::try_from(key).map(|x| Arc::new(x) as _)
+            }),
+            Box::new(|key| {
+                sign::eddsa::Ed448SigningKeySign::try_from(key).map(|x| Arc::new(x) as _)
+            }),
         ];
 
         for algorithm in algorithms {
