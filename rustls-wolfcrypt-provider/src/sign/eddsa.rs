@@ -55,21 +55,20 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed25519SigningKeySign {
                     .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 ret = unsafe {
-                    wc_ed25519_export_private_only(
-                        ed25519_key_object.as_ptr(),
-                        priv_key_raw.as_mut_ptr(),
-                        &mut priv_key_raw_len,
-                    )
-                };
-                if ret < 0 {
-                    panic!("ret: {}", ret);
-                }
-
-                ret = unsafe {
                     wc_ed25519_make_public(
                         ed25519_key_object.as_ptr(),
                         pub_key_raw.as_mut_ptr(),
                         pub_key_raw_len,
+                    )
+                };
+                check_if_zero(ret)
+                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
+
+                ret = unsafe {
+                    wc_ed25519_export_private_only(
+                        ed25519_key_object.as_ptr(),
+                        priv_key_raw.as_mut_ptr(),
+                        &mut priv_key_raw_len,
                     )
                 };
                 check_if_zero(ret)

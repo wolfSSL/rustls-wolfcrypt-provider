@@ -21,6 +21,7 @@ pub static ALGORITHMS: WebPkiSupportedAlgorithms = WebPkiSupportedAlgorithms {
     mapping: &[
         (SignatureScheme::RSA_PSS_SHA256, &[RSA_PSS_SHA256]),
         (SignatureScheme::RSA_PSS_SHA384, &[RSA_PSS_SHA384]),
+        (SignatureScheme::RSA_PSS_SHA512, &[RSA_PSS_SHA512]),
         (SignatureScheme::RSA_PKCS1_SHA256, &[RSA_PKCS1_SHA256]),
         (SignatureScheme::RSA_PKCS1_SHA384, &[RSA_PKCS1_SHA384]),
         (SignatureScheme::ECDSA_NISTP256_SHA256, &[ECDSA_P256_SHA256]),
@@ -32,6 +33,7 @@ pub static ALGORITHMS: WebPkiSupportedAlgorithms = WebPkiSupportedAlgorithms {
 
 static RSA_PSS_SHA256: &dyn SignatureVerificationAlgorithm = &rsapss::RsaPssSha256Verify;
 static RSA_PSS_SHA384: &dyn SignatureVerificationAlgorithm = &rsapss::RsaPssSha384Verify;
+static RSA_PSS_SHA512: &dyn SignatureVerificationAlgorithm = &rsapss::RsaPssSha512Verify;
 static RSA_PKCS1_SHA256: &dyn SignatureVerificationAlgorithm = &rsapkcs1::RsaPkcs1Sha256Verify;
 static RSA_PKCS1_SHA384: &dyn SignatureVerificationAlgorithm = &rsapkcs1::RsaPkcs1Sha384Verify;
 static ECDSA_P256_SHA256: &dyn SignatureVerificationAlgorithm = &ecdsa::EcdsaNistp256Sha256;
