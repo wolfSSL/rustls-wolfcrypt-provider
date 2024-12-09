@@ -7,8 +7,8 @@ use foreign_types::ForeignType;
 use wolfcrypt_rs::*;
 
 pub struct KeyExchangeSecP521r1 {
-    pub priv_key_bytes: Vec<u8>,
-    pub pub_key_bytes: Vec<u8>,
+    priv_key_bytes: Vec<u8>,
+    pub_key_bytes: Vec<u8>,
 }
 
 pub struct ECCPubKey {
