@@ -55,7 +55,7 @@ fn start_wolfssl_server(current_dir_string: String, tls_version: &str) -> Child 
 
 #[cfg(test)]
 mod tests {
-    use rustls_pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer};
+    use rustls_pki_types::{PrivateKeyDer, PrivatePkcs1KeyDer, PrivatePkcs8KeyDer};
 
     use super::*;
 
@@ -537,9 +537,13 @@ mod tests {
 
     #[serial]
     #[test]
-    fn rsa_sign_and_verify() {
+    fn rsa_pss_sign_and_verify() {
         let wolfcrypt_default_provider = rustls_wolfcrypt_provider::provider();
-        let schemes = [SignatureScheme::RSA_PSS_SHA256, SignatureScheme::RSA_PSS_SHA384, SignatureScheme::RSA_PSS_SHA512];
+        let schemes = [
+            SignatureScheme::RSA_PSS_SHA256,
+            SignatureScheme::RSA_PSS_SHA384,
+            SignatureScheme::RSA_PSS_SHA512,
+        ];
 
         for scheme in schemes {
             let mut rsa_key_c_type: RsaKey = unsafe { mem::zeroed() };
@@ -579,6 +583,74 @@ mod tests {
             priv_key_der.resize(ret as usize, 0); // Trim to actual size
             let rustls_pkcs8_der = PrivatePkcs8KeyDer::from(priv_key_der.as_slice());
             let rustls_private_key = PrivateKeyDer::from(rustls_pkcs8_der);
+
+            ret = unsafe {
+                wc_RsaKeyToPublicDer(
+                    rsa_key_object.as_ptr(),
+                    pub_key_der.as_mut_ptr(),
+                    pub_key_der.len() as word32,
+                )
+            };
+            check_if_greater_than_zero(ret).unwrap();
+
+            pub_key_der.resize(ret as usize, 0); // Trim to actual size
+
+            sign_and_verify(
+                &wolfcrypt_default_provider,
+                scheme,
+                rustls_private_key.clone_key(),
+                pub_key_der.as_slice(),
+            );
+        }
+    }
+
+    #[serial]
+    #[test]
+    fn rsa_pkcs1_sign_and_verify() {
+        let wolfcrypt_default_provider = rustls_wolfcrypt_provider::provider();
+        let schemes = [
+            SignatureScheme::RSA_PKCS1_SHA256,
+            SignatureScheme::RSA_PKCS1_SHA384,
+        ];
+
+        for scheme in schemes {
+            let mut rsa_key_c_type: RsaKey = unsafe { mem::zeroed() };
+            let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut rsa_key_c_type) };
+            let mut ret;
+            let mut priv_key_der: Vec<u8> = vec![0; 2048]; // Adjust size if needed
+            let mut pub_key_der: Vec<u8> = vec![0; 2048]; // Adjust size if needed
+
+            ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), std::ptr::null_mut()) };
+            check_if_zero(ret).unwrap();
+
+            let mut rng_c_type: WC_RNG = unsafe { mem::zeroed() };
+            let rng_object = WCRngObject::new(&mut rng_c_type);
+            rng_object.init();
+
+            unsafe { wc_RsaSetRNG(rsa_key_object.as_ptr(), rng_object.as_ptr()) };
+
+            ret = unsafe {
+                wc_MakeRsaKey(
+                    rsa_key_object.as_ptr(),
+                    2048,
+                    WC_RSA_EXPONENT.into(),
+                    rng_object.as_ptr(),
+                )
+            };
+            check_if_zero(ret).unwrap();
+
+            ret = unsafe {
+                wc_RsaKeyToDer(
+                    rsa_key_object.as_ptr(),
+                    priv_key_der.as_mut_ptr(),
+                    priv_key_der.len() as word32,
+                )
+            };
+            check_if_greater_than_zero(ret).unwrap();
+
+            priv_key_der.resize(ret as usize, 0); // Trim to actual size
+            let rustls_pkcs1_der = PrivatePkcs1KeyDer::from(priv_key_der.as_slice());
+            let rustls_private_key = PrivateKeyDer::from(rustls_pkcs1_der);
 
             ret = unsafe {
                 wc_RsaKeyToPublicDer(

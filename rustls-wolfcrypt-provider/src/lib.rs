@@ -105,9 +105,12 @@ impl rustls::crypto::KeyProvider for Provider {
                 sign::ecdsa::EcdsaSigningKeyP521Sha512Sign::try_from(key).map(|x| Arc::new(x) as _)
             }),
             Box::new(|key| sign::rsapss::RsaPssPrivateKey::try_from(key).map(|x| Arc::new(x) as _)),
-            Box::new(|key| sign::rsapkcs1::RsaPkcs1Sha256::try_from(key).map(|x| Arc::new(x) as _)),
-            Box::new(|key| sign::rsapkcs1::RsaPkcs1Sha384::try_from(key).map(|x| Arc::new(x) as _)),
-            Box::new(|key| sign::rsapkcs1::RsaPkcs1Sha512::try_from(key).map(|x| Arc::new(x) as _)),
+            Box::new(|key| {
+                sign::rsapkcs1::RsaPkcs1PrivateKey::try_from(key).map(|x| Arc::new(x) as _)
+            }),
+            Box::new(|key| {
+                sign::rsapkcs1::RsaPkcs1PrivateKey::try_from(key).map(|x| Arc::new(x) as _)
+            }),
             Box::new(|key| {
                 sign::eddsa::Ed25519SigningKeySign::try_from(key).map(|x| Arc::new(x) as _)
             }),

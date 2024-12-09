@@ -176,7 +176,6 @@ impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
     }
 }
 
-
 #[derive(Debug)]
 pub struct RsaPssSha512Verify;
 

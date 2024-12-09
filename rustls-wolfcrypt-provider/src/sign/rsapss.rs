@@ -2,8 +2,8 @@ use crate::error::*;
 use crate::types::types::*;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
-use alloc::vec::Vec;
 use alloc::vec;
+use alloc::vec::Vec;
 use core::mem;
 use foreign_types::ForeignType;
 use rustls::pki_types::PrivateKeyDer;
@@ -61,7 +61,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssPrivateKey {
 
                 Ok(Self {
                     key: Arc::new(rsa_key_object),
-                    algo: SignatureAlgorithm::RSA
+                    algo: SignatureAlgorithm::RSA,
                 })
             }
             _ => {
@@ -78,7 +78,10 @@ impl SigningKey for RsaPssPrivateKey {
         // Iterate through all RSA schemes and check if any is in the offered list
         ALL_RSA_SCHEMES.iter().find_map(|&scheme| {
             if offered.contains(&scheme) {
-                Some(Box::new(RsaPssSigner{key: self.get_key(), scheme: scheme}) as Box<dyn Signer>)
+                Some(Box::new(RsaPssSigner {
+                    key: self.get_key(),
+                    scheme: scheme,
+                }) as Box<dyn Signer>)
             } else {
                 None
             }
@@ -113,16 +116,16 @@ impl Signer for RsaPssSigner {
         let digest_length: word32;
         let hash_type;
         let mgf_type;
-    
+
         // Define Rust-style aliases for binding constants
         const HASH_TYPE_SHA256: u32 = wc_HashType_WC_HASH_TYPE_SHA256;
         const HASH_TYPE_SHA384: u32 = wc_HashType_WC_HASH_TYPE_SHA384;
         const HASH_TYPE_SHA512: u32 = wc_HashType_WC_HASH_TYPE_SHA512;
-    
+
         const MGF1_SHA256: u32 = WC_MGF1SHA256;
         const MGF1_SHA384: u32 = WC_MGF1SHA384;
         const MGF1_SHA512: u32 = WC_MGF1SHA512;
-    
+
         // Determine the hashing algorithm, digest size, and MGF type based on the scheme
         match self.scheme {
             SignatureScheme::RSA_PSS_SHA256 => {
@@ -144,13 +147,15 @@ impl Signer for RsaPssSigner {
                 mgf_type = MGF1_SHA512;
             }
             _ => {
-                return Err(rustls::Error::General("Unsupported signature scheme".into()));
+                return Err(rustls::Error::General(
+                    "Unsupported signature scheme".into(),
+                ));
             }
         }
-    
+
         // Initialize RNG
         rng_object.init();
-    
+
         // Hash the message using the selected hashing algorithm
         let ret = unsafe {
             match hash_type {
@@ -173,7 +178,7 @@ impl Signer for RsaPssSigner {
             }
         };
         check_if_zero(ret).unwrap();
-    
+
         // Sign the digest using the appropriate scheme
         let ret = unsafe {
             wc_RsaPSS_Sign(
@@ -189,13 +194,13 @@ impl Signer for RsaPssSigner {
         };
         check_if_greater_than_zero(ret)
             .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
-    
+
         let sz = ret;
-    
+
         // Convert the signature to a Vec and truncate to the actual size
         let mut sig_vec = sig.to_vec();
         sig_vec.truncate(sz as usize);
-    
+
         Ok(sig_vec)
     }
 
