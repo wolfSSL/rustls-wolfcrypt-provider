@@ -611,6 +611,7 @@ mod tests {
         let schemes = [
             SignatureScheme::RSA_PKCS1_SHA256,
             SignatureScheme::RSA_PKCS1_SHA384,
+            SignatureScheme::RSA_PKCS1_SHA512,
         ];
 
         for scheme in schemes {

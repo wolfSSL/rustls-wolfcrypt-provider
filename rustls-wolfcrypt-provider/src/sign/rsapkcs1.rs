@@ -15,6 +15,7 @@ use wolfcrypt_rs::*;
 const ALL_RSA_SCHEMES: &[SignatureScheme] = &[
     SignatureScheme::RSA_PKCS1_SHA256,
     SignatureScheme::RSA_PKCS1_SHA384,
+    SignatureScheme::RSA_PKCS1_SHA512,
 ];
 
 #[derive(Clone, Debug)]
@@ -116,6 +117,7 @@ impl Signer for RsaPkcs1Signer {
         // Define Rust-style aliases for binding constants
         const HASH_TYPE_SHA256: u32 = wc_HashType_WC_HASH_TYPE_SHA256;
         const HASH_TYPE_SHA384: u32 = wc_HashType_WC_HASH_TYPE_SHA384;
+        const HASH_TYPE_SHA512: u32 = wc_HashType_WC_HASH_TYPE_SHA512;
 
         // Determine the hashing algorithm, digest size, and MGF type based on the scheme
         match self.scheme {
@@ -124,6 +126,9 @@ impl Signer for RsaPkcs1Signer {
             }
             SignatureScheme::RSA_PKCS1_SHA384 => {
                 hash_type = HASH_TYPE_SHA384;
+            }
+            SignatureScheme::RSA_PKCS1_SHA512 => {
+                hash_type = HASH_TYPE_SHA512;
             }
             _ => {
                 return Err(rustls::Error::General(
