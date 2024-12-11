@@ -53,6 +53,8 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
         // Verify the message signed with RSA-PSS.
         // In this case 'message' has been, supposedly,
         // been signed by 'signature'.
+        // Also takes care of the hashing:
+        // https://www.wolfssl.com/documentation/manuals/wolfssl/group__Signature.html#function-wc_signatureverify.
         ret = unsafe {
             wc_SignatureVerify(
                 wc_HashType_WC_HASH_TYPE_SHA256,
@@ -118,6 +120,8 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
         // Verify the message signed with RSA-PSS.
         // In this case 'message' has been, supposedly,
         // been signed by 'signature'.
+        // Also takes care of the hashing:
+        // https://www.wolfssl.com/documentation/manuals/wolfssl/group__Signature.html#function-wc_signatureverify.
         ret = unsafe {
             wc_SignatureVerify(
                 wc_HashType_WC_HASH_TYPE_SHA384,
@@ -181,6 +185,8 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha512Verify {
         // Verify the message signed with RSA-PSS.
         // In this case 'message' has been, supposedly,
         // been signed by 'signature'.
+        // Also takes care of the hashing:
+        // https://www.wolfssl.com/documentation/manuals/wolfssl/group__Signature.html#function-wc_signatureverify.
         ret = unsafe {
             wc_SignatureVerify(
                 wc_HashType_WC_HASH_TYPE_SHA512,

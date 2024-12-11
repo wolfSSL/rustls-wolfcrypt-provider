@@ -137,7 +137,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp384Sha384 {
 
             // This function performs a hash on the provided data buffer and
             // returns it in the hash buffer provided.
-            // In this case we hash with Sha256.
+            // In this case we hash with Sha384.
             // We hash the message since it's not hashed.
             ret = wc_Hash(
                 wc_HashType_WC_HASH_TYPE_SHA384,
@@ -217,7 +217,7 @@ impl SignatureVerificationAlgorithm for EcdsaNistp521Sha512 {
 
             // This function performs a hash on the provided data buffer and
             // returns it in the hash buffer provided.
-            // In this case we hash with Sha256.
+            // In this case we hash with Sha512.
             // We hash the message since it's not hashed.
             ret = wc_Hash(
                 wc_HashType_WC_HASH_TYPE_SHA512,

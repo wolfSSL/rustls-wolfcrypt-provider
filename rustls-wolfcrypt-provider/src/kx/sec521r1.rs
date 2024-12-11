@@ -1,5 +1,6 @@
 use crate::{error::check_if_zero, types::types::*};
 use alloc::boxed::Box;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::mem;
 use core::ptr;
@@ -31,8 +32,6 @@ impl KeyExchangeSecP521r1 {
             qy: [0; 66].to_vec(),
             qy_len: 66,
         };
-        let mut priv_key_raw: [u8; 66] = [0; 66];
-        let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
 
         // We initiliaze the key pair.
         key_object.init();
@@ -51,6 +50,9 @@ impl KeyExchangeSecP521r1 {
             )
         };
         check_if_zero(ret).unwrap();
+
+        let mut priv_key_raw: Vec<u8> = vec![0; key_size as usize];
+        let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
 
         ret = unsafe {
             wc_ecc_export_private_only(
@@ -91,8 +93,6 @@ impl KeyExchangeSecP521r1 {
         let mut pub_key: ecc_key = unsafe { mem::zeroed() };
         let pub_key_object: ECCKeyObject = ECCKeyObject::new(&mut pub_key);
         let mut ret;
-        let mut out: [u8; 66] = [0; 66];
-        let mut out_len: word32 = out.len() as word32;
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
         let rng_object: WCRngObject = WCRngObject::new(&mut rng);
 
@@ -134,6 +134,11 @@ impl KeyExchangeSecP521r1 {
 
         ret = unsafe { wc_ecc_set_rng(priv_key_object.as_ptr(), rng_object.as_ptr()) };
         check_if_zero(ret).unwrap();
+
+        let key_size = unsafe { wc_ecc_get_curve_size_from_id(ecc_curve_id_ECC_SECP521R1) };
+
+        let mut out: Vec<u8> = vec![0; key_size as usize];
+        let mut out_len: word32 = out.len() as word32;
 
         ret = unsafe {
             wc_ecc_shared_secret(

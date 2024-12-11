@@ -76,8 +76,9 @@ impl WCHmac384Key {
         check_if_zero(ret).unwrap();
     }
 
-    fn hmac_final(&self, hmac_object: HmacObject) -> [u8; 48] {
-        let mut digest: [u8; 48] = [0; 48];
+    fn hmac_final(&self, hmac_object: HmacObject) -> [u8; WC_SHA384_DIGEST_SIZE as usize] {
+        let mut digest: [u8; WC_SHA384_DIGEST_SIZE as usize] =
+            [0; WC_SHA3_384_DIGEST_SIZE as usize];
 
         // This function computes the final hash of an Hmac object's message.
         let ret = unsafe { wc_HmacFinal(hmac_object.as_ptr(), digest.as_mut_ptr()) };

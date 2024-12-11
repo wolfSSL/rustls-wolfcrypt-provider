@@ -26,7 +26,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
         message: &[u8],
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
-        let mut digest: [u8; 32] = [0; 32];
+        let mut digest: [u8; WC_SHA256_DIGEST_SIZE as usize] = [0; WC_SHA256_DIGEST_SIZE as usize];
         let mut out: [u8; 256] = [0; 256];
         let mut signature: Vec<u8> = signature.to_vec();
         let mut rsa_key_c_type: RsaKey = unsafe { mem::zeroed() };
@@ -110,7 +110,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
         message: &[u8],
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
-        let mut digest: [u8; 48] = [0; 48];
+        let mut digest: [u8; WC_SHA384_DIGEST_SIZE as usize] = [0; WC_SHA384_DIGEST_SIZE as usize];
         let mut out: [u8; 256] = [0; 256];
         let mut signature: Vec<u8> = signature.to_vec();
         let mut rsa_key_c_type: RsaKey = unsafe { mem::zeroed() };
@@ -127,7 +127,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
 
         // This function performs a hash on the provided data buffer and
         // returns it in the hash buffer provided.
-        // In this case we hash with Sha256 (RSA_PSS_SHA256).
+        // In this case we hash with Sha384 (RSA_PSS_SHA384).
         // We hash the message since it's not hashed.
         ret = unsafe {
             wc_Hash(
@@ -194,7 +194,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha512Verify {
         message: &[u8],
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
-        let mut digest: [u8; 64] = [0; 64];
+        let mut digest: [u8; WC_SHA512_DIGEST_SIZE as usize] = [0; WC_SHA512_DIGEST_SIZE as usize];
         let mut out: [u8; 256] = [0; 256];
         let mut signature: Vec<u8> = signature.to_vec();
         let mut rsa_key_c_type: RsaKey = unsafe { mem::zeroed() };
@@ -211,7 +211,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha512Verify {
 
         // This function performs a hash on the provided data buffer and
         // returns it in the hash buffer provided.
-        // In this case we hash with Sha256 (RSA_PSS_SHA256).
+        // In this case we hash with Sha512 (RSA_PSS_SHA512).
         // We hash the message since it's not hashed.
         ret = unsafe {
             wc_Hash(

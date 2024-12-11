@@ -11,14 +11,16 @@ use rustls::{SignatureAlgorithm, SignatureScheme};
 
 use wolfcrypt_rs::*;
 
+const ALL_EDDSA_SCHEMES: &[SignatureScheme] = &[SignatureScheme::ED25519, SignatureScheme::ED448];
+
 #[derive(Clone, Debug)]
-pub struct Ed25519SigningKeySign {
+pub struct Ed25519PrivateKey {
     priv_key: Arc<Vec<u8>>,
     pub_key: Arc<Vec<u8>>,
-    scheme: SignatureScheme,
+    algo: SignatureAlgorithm,
 }
 
-impl TryFrom<&PrivateKeyDer<'_>> for Ed25519SigningKeySign {
+impl TryFrom<&PrivateKeyDer<'_>> for Ed25519PrivateKey {
     type Error = rustls::Error;
 
     fn try_from(value: &PrivateKeyDer<'_>) -> Result<Self, Self::Error> {
@@ -77,7 +79,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed25519SigningKeySign {
                 Ok(Self {
                     priv_key: Arc::new(priv_key_raw.to_vec()),
                     pub_key: Arc::new(pub_key_raw.to_vec()),
-                    scheme: SignatureScheme::ED25519,
+                    algo: SignatureAlgorithm::ED25519,
                 })
             }
             _ => {
@@ -89,21 +91,35 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed25519SigningKeySign {
     }
 }
 
-impl SigningKey for Ed25519SigningKeySign {
+impl SigningKey for Ed25519PrivateKey {
     fn choose_scheme(&self, offered: &[SignatureScheme]) -> Option<Box<dyn Signer>> {
-        if offered.contains(&self.scheme) {
-            Some(Box::new(self.clone()))
-        } else {
-            None
-        }
+        // Iterate through all ECDSA schemes and check if any is in the offered list
+        ALL_EDDSA_SCHEMES.iter().find_map(|&scheme| {
+            if offered.contains(&scheme) {
+                Some(Box::new(Ed25519Signer {
+                    priv_key: self.priv_key.clone(),
+                    pub_key: self.pub_key.clone(),
+                    scheme: scheme,
+                }) as Box<dyn Signer>)
+            } else {
+                None
+            }
+        })
     }
 
     fn algorithm(&self) -> SignatureAlgorithm {
-        SignatureAlgorithm::ED25519
+        self.algo
     }
 }
 
-impl Signer for Ed25519SigningKeySign {
+#[derive(Clone, Debug)]
+pub struct Ed25519Signer {
+    priv_key: Arc<Vec<u8>>,
+    pub_key: Arc<Vec<u8>>,
+    scheme: SignatureScheme,
+}
+
+impl Signer for Ed25519Signer {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
         let mut ret;
         let message_length: word32 = message.len() as word32;
