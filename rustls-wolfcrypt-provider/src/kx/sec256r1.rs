@@ -1,5 +1,6 @@
 use crate::{error::check_if_zero, types::types::*};
 use alloc::boxed::Box;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::mem;
 use core::ptr;
@@ -7,8 +8,8 @@ use foreign_types::ForeignType;
 use wolfcrypt_rs::*;
 
 pub struct KeyExchangeSecP256r1 {
-    pub priv_key_bytes: Vec<u8>,
-    pub pub_key_bytes: Vec<u8>,
+    priv_key_bytes: Vec<u8>,
+    pub_key_bytes: Vec<u8>,
 }
 
 pub struct ECCPubKey {
@@ -31,8 +32,6 @@ impl KeyExchangeSecP256r1 {
             qy: [0; 32].to_vec(),
             qy_len: 32,
         };
-        let mut priv_key_raw: [u8; 32] = [0; 32];
-        let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
 
         // We initiliaze the ecc key object.
         key_object.init();
@@ -41,6 +40,9 @@ impl KeyExchangeSecP256r1 {
         rng_object.init();
 
         let key_size = unsafe { wc_ecc_get_curve_size_from_id(ecc_curve_id_ECC_SECP256R1) };
+
+        let mut priv_key_raw: Vec<u8> = vec![0; key_size as usize];
+        let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
 
         ret = unsafe {
             wc_ecc_make_key_ex(
@@ -91,8 +93,6 @@ impl KeyExchangeSecP256r1 {
         let mut pub_key: ecc_key = unsafe { mem::zeroed() };
         let pub_key_object = ECCKeyObject::new(&mut pub_key);
         let mut ret;
-        let mut out: [u8; 32] = [0; 32];
-        let mut out_len: word32 = out.len() as word32;
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
         let rng_object = WCRngObject::new(&mut rng);
 
@@ -137,6 +137,11 @@ impl KeyExchangeSecP256r1 {
 
         ret = unsafe { wc_ecc_set_rng(priv_key_object.as_ptr(), rng_object.as_ptr()) };
         check_if_zero(ret).unwrap();
+
+        let key_size = unsafe { wc_ecc_get_curve_size_from_id(ecc_curve_id_ECC_SECP256R1) };
+
+        let mut out: Vec<u8> = vec![0; key_size as usize];
+        let mut out_len: word32 = out.len() as word32;
 
         ret = unsafe {
             wc_ecc_shared_secret(
