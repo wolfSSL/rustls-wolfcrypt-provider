@@ -16,6 +16,7 @@ pub mod error;
 mod kx;
 mod random;
 mod verify;
+mod prf;
 pub mod aead {
     pub mod aes128gcm;
     pub mod aes256gcm;
