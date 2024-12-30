@@ -25,6 +25,28 @@ impl WCShaHmac {
             WCShaHmac::Sha384 => WC_SHA384.try_into().unwrap(),
         }
     }
+
+    pub fn new(hash_type: wc_HashType) -> Self {
+        match hash_type {
+            WC_SHA256 => WCShaHmac::Sha256,
+            WC_SHA384 => WCShaHmac::Sha384,
+            _ => panic!("Unsupported hash type"),
+        }
+    }
+
+    pub fn hash_type(&self) -> wc_HashType {
+        match self {
+            WCShaHmac::Sha256 => WC_SHA256,
+            WCShaHmac::Sha384 => WC_SHA384,
+        }
+    }
+
+    pub fn hash_len(&self) -> usize {
+        match self {
+            WCShaHmac::Sha256 => WC_SHA256_DIGEST_SIZE as usize,
+            WCShaHmac::Sha384 => WC_SHA384_DIGEST_SIZE as usize,
+        }
+    }
 }
 
 impl crypto::hmac::Hmac for WCShaHmac {

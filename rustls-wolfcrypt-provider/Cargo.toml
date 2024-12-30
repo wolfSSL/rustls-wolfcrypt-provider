@@ -23,6 +23,7 @@ wolfcrypt-rs = { path = "../wolfcrypt-rs" }
 rustls-pemfile = { version = "2.2.0", default-features = false }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"]} 
 wycheproof = "0.6.0"
+hex-literal = "0.4.1"
 
 [dev-dependencies]
 rcgen = { version = "0.13" }

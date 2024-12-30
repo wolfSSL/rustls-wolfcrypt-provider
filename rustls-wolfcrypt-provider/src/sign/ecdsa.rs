@@ -385,7 +385,7 @@ impl Signer for EcdsaSigningKeyP521Sha512Sign {
         let mut priv_key: ecc_key = unsafe { mem::zeroed() };
         let priv_key_object = ECCKeyObject::new(&mut priv_key);
 
-        // We hash the message, since it's not, using Sha384 (ECDSA_NISTP384_SHA384)
+        // We hash the message, since it's not, using Sha512 (ECDSA_NISTP521_SHA512)
         ret = unsafe { wc_Sha512Hash(message.as_ptr(), message_length, digest.as_mut_ptr()) };
         check_if_zero(ret).unwrap();
 

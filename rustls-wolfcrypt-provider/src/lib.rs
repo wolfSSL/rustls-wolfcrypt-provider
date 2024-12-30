@@ -9,7 +9,6 @@ use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
-use rustls::crypto::tls13::HkdfUsingHmac;
 use rustls::crypto::CryptoProvider;
 use rustls::pki_types::PrivateKeyDer;
 pub mod error;
@@ -17,7 +16,9 @@ mod kx;
 mod random;
 mod verify;
 mod prf;
+mod hkdf;
 use crate::prf::WCPrfUsingHmac;
+use crate::hkdf::WCHkdfUsingHmac;
 pub mod aead {
     pub mod aes128gcm;
     pub mod aes256gcm;
@@ -166,7 +167,7 @@ pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
             hash_provider: &sha256::WCSha256,
             confidentiality_limit: u64::MAX,
         },
-        hkdf_provider: &HkdfUsingHmac(&WCShaHmac::Sha256),
+        hkdf_provider: &WCHkdfUsingHmac(WCShaHmac::Sha256),
         aead_alg: &chacha20::Chacha20Poly1305,
         quic: None,
     });
@@ -178,7 +179,7 @@ pub static TLS13_AES_128_GCM_SHA256: rustls::SupportedCipherSuite =
             hash_provider: &sha256::WCSha256,
             confidentiality_limit: 1 << 23,
         },
-        hkdf_provider: &HkdfUsingHmac(&WCShaHmac::Sha256),
+        hkdf_provider: &WCHkdfUsingHmac(WCShaHmac::Sha256),
         aead_alg: &aes128gcm::Aes128Gcm,
         quic: None,
     });
@@ -190,7 +191,7 @@ pub static TLS13_AES_256_GCM_SHA384: rustls::SupportedCipherSuite =
             hash_provider: &sha384::WCSha384,
             confidentiality_limit: 1 << 23,
         },
-        hkdf_provider: &HkdfUsingHmac(&WCShaHmac::Sha384),
+        hkdf_provider: &WCHkdfUsingHmac(WCShaHmac::Sha384),
         aead_alg: &aes256gcm::Aes256Gcm,
         quic: None,
     });
