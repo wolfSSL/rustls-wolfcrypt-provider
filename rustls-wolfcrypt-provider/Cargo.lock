@@ -291,6 +291,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "data-encoding"
+version = "2.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8566979429cf69b49a5c740c60791108e86440e8be149bbea4fe54d2c32d6e2"
+
+[[package]]
 name = "der"
 version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -493,6 +499,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
+name = "hex-literal"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6fe2267d4ed49bc07b63801559be28c718ea06c4738b7a03c94df7386d2cde46"
+
+[[package]]
 name = "hmac"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -536,6 +548,12 @@ checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
 dependencies = [
  "either",
 ]
+
+[[package]]
+name = "itoa"
+version = "1.0.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d75a2a4b1b190afb6f5425f10f6a8f959d2ea0b9c2b1d79553551850539e4674"
 
 [[package]]
 name = "jobserver"
@@ -1041,6 +1059,7 @@ dependencies = [
  "env_logger",
  "foreign-types",
  "hex",
+ "hex-literal",
  "hmac",
  "log",
  "pkcs8",
@@ -1057,7 +1076,14 @@ dependencies = [
  "tokio",
  "webpki-roots",
  "wolfcrypt-rs",
+ "wycheproof",
 ]
+
+[[package]]
+name = "ryu"
+version = "1.0.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3cb5ba0dc43242ce17de99c180e96db90b235b8a9fdc9543c96d2209116bd9f"
 
 [[package]]
 name = "scc"
@@ -1112,6 +1138,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "serde_json"
+version = "1.0.134"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d00f4175c42ee48b15416f6193a959ba3a0d67fc699a0db9ad12df9f83991c7d"
+dependencies = [
+ "itoa",
+ "memchr",
+ "ryu",
+ "serde",
 ]
 
 [[package]]
@@ -1398,6 +1436,17 @@ name = "wolfcrypt-rs"
 version = "0.1.0"
 dependencies = [
  "bindgen 0.70.1",
+]
+
+[[package]]
+name = "wycheproof"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "efb3be19abfb206c6adcbdf2007b09b0e8ca1f6530db40c03b42ce8ed4719894"
+dependencies = [
+ "data-encoding",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
