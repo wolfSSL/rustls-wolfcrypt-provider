@@ -35,6 +35,7 @@ For more details about the supported curves, verification/signing methods, and a
 ## Usage
 
 ### Initial Setup and Installation
+*Rustc 1.77+ is required.*
 
 1. Clone the repository:
    ```
@@ -42,24 +43,22 @@ For more details about the supported curves, verification/signing methods, and a
    cd rustls-wolfcrypt-provider/
    ```
 
-2. Run the build script to set up `wolfSSL` and `Rustls`:
+2. Build the wolfcrypt-rs crate to correctly generate the bindings and make sure
+   the build was successful by running the sanity check(s):
    ```
-   ./build.sh
+   cd wolfcrypt-rs/
+   make build
+   make test
    ```
-   This script performs the following steps:
 
-   * Builds `wolfSSL` and generates the necessary bindings.
-   * Installs `wolfSSL` to `/opt/wolfssl-rs` (requires sudo).
-   * Runs sanity tests for `wolfcrypt-rs` to ensure installation was successful.
-   * Builds `rustls-wolfcrypt-provider` with `wolfCrypt` as the crypto provider.
-   * Runs tests to confirm the setup for `Rustls` with `wolfCrypt`.
-
-3. Verify Installation
-   * To confirm that everything is installed correctly, run:
-      ```
-      make test
-      ```
-   * You should see output indicating successful test completion.
+   Then change the current directory to the rustls-wolfcrypt-provider, build 
+   the crate, followed by running the test to make sure everything is running
+   smoothly:
+   ```
+   cd ../rustls-wolfcrypt-provider/
+   make build
+   make test
+   ```
 
 ### Example Usage
 For `Rustls` usage, consult the `examples` folder in this repository. Each example

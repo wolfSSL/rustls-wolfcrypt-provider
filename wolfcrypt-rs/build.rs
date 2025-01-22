@@ -99,8 +99,7 @@ fn setup_wolfssl() {
                             println!("make completed successfully.");
 
                             // Step 8: Execute sudo make install
-                            let output = Command::new("sudo")
-                                .arg("make")
+                            let output = Command::new("make")
                                 .arg("install")
                                 .output()
                                 .expect("Failed to execute sudo make install");
