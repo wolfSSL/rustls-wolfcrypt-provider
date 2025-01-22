@@ -123,7 +123,7 @@ impl Signer for Ed25519Signer {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
         let mut ret;
         let message_length: word32 = message.len() as word32;
-        let mut sig: [u8; 1024] = [0; 1024];
+        let mut sig: [u8; ED25519_SIG_SIZE as usize] = [0; ED25519_SIG_SIZE as usize];
         let mut sig_sz: word32 = sig.len() as word32;
         let priv_key_raw = &self.priv_key;
         let pub_key_raw = &self.pub_key;
