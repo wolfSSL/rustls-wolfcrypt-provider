@@ -38,7 +38,7 @@ For more details about the supported curves, verification/signing methods, and a
 
 1. Clone the repository:
    ```
-   git clone --depth=1 git@github.com:gasbytes/rustls-wolfcrypt-provider.git
+   git clone --depth=1 git@github.com:wolfssl/rustls-wolfcrypt-provider.git
    cd rustls-wolfcrypt-provider/
    ```
 
