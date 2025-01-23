@@ -34,7 +34,7 @@ impl KeyExchangeSecP384r1 {
             qy_len: 48,
         };
 
-        key_object.as_ptr();
+        key_object.init();
 
         rng_object.init();
 

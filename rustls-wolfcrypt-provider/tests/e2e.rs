@@ -546,11 +546,14 @@ mod tests {
     fn rsa_pss_sign_and_verify() {
         use rayon::prelude::*;
 
-        let num_cpus = num_cpus::get();
-        rayon::ThreadPoolBuilder::new()
-            .num_threads(num_cpus)
-            .build_global()
-            .unwrap();
+        #[cfg(target_os = "macos")]
+        {
+            let num_cpus = num_cpus::get();
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(num_cpus)
+                .build_global()
+                .unwrap();
+        }
 
         let wolfcrypt_default_provider = rustls_wolfcrypt_provider::provider();
         let schemes = [
@@ -566,13 +569,24 @@ mod tests {
             })
         .collect();
 
-        test_cases.par_iter().for_each(|&(scheme, key_size)| {
-            generate_and_test_key(&wolfcrypt_default_provider, scheme, key_size)
+        #[cfg(target_os = "macos")]
+        {
+            test_cases.par_iter().for_each(|&(scheme, key_size)| {
+                generate_and_test_pss_key(&wolfcrypt_default_provider, scheme, key_size)
                 .expect(&format!("Failed for scheme {:?} with key size {}", scheme, key_size));
             });
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            test_cases.iter().for_each(|&(scheme, key_size)| {
+                generate_and_test_pss_key(&wolfcrypt_default_provider, scheme, key_size)
+                .expect(&format!("Failed for scheme {:?} with key size {}", scheme, key_size));
+            });
+        }
     }
 
-    fn generate_and_test_key(
+    fn generate_and_test_pss_key(
         provider: &CryptoProvider,
         scheme: SignatureScheme,
         key_size: usize,

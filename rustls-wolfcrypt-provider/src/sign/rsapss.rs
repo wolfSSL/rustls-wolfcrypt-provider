@@ -39,11 +39,12 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssPrivateKey {
     fn try_from(value: &PrivateKeyDer<'_>) -> Result<Self, Self::Error> {
         match value {
             PrivateKeyDer::Pkcs8(der) => {
-                let mut rsa_key_c_type: RsaKey = unsafe { mem::zeroed() };
-                let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut rsa_key_c_type) };
                 let pkcs8: &[u8] = der.secret_pkcs8_der();
                 let pkcs8_sz: word32 = pkcs8.len() as word32;
                 let mut ret;
+		let rsa_key_box = Box::new(unsafe { mem::zeroed::<RsaKey>() });
+		let rsa_key_ptr = Box::into_raw(rsa_key_box);
+		let rsa_key_object = unsafe { RsaKeyObject::from_ptr(rsa_key_ptr) };
 
                 ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
                 check_if_zero(ret).unwrap();
