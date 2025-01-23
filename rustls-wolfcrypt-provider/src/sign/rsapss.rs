@@ -31,6 +31,8 @@ impl RsaPssPrivateKey {
     }
 }
 
+const RSA_PSS_SIG_SIZE: u32 = 512;
+
 impl TryFrom<&PrivateKeyDer<'_>> for RsaPssPrivateKey {
     type Error = rustls::Error;
 
@@ -109,7 +111,7 @@ impl Signer for RsaPssSigner {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
         let rng_object: WCRngObject = WCRngObject::new(&mut rng);
-        let mut sig: [u8; 265] = [0; 265];
+        let mut sig: [u8; RSA_PSS_SIG_SIZE as usize] = [0; RSA_PSS_SIG_SIZE as usize];
         let rsa_key_arc = self.get_key();
         let rsa_key_object = rsa_key_arc.as_ref();
         let mut digest: Vec<u8>;

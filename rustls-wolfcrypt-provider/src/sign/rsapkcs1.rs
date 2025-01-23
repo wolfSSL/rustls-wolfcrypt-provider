@@ -30,6 +30,8 @@ impl RsaPkcs1PrivateKey {
     }
 }
 
+const RSA_PKCS1_SIG_SIZE: u32 = 512;
+
 impl TryFrom<&PrivateKeyDer<'_>> for RsaPkcs1PrivateKey {
     type Error = rustls::Error;
 
@@ -108,7 +110,7 @@ impl Signer for RsaPkcs1Signer {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
         let rng_object: WCRngObject = WCRngObject::new(&mut rng);
-        let mut sig: [u8; 265] = [0; 265];
+        let mut sig: [u8; RSA_PKCS1_SIG_SIZE as usize] = [0; RSA_PKCS1_SIG_SIZE as usize];
         let mut sig_len: word32 = sig.len() as word32;
         let rsa_key_arc = self.get_key();
         let rsa_key_object = rsa_key_arc.as_ref();
@@ -157,9 +159,8 @@ impl Signer for RsaPkcs1Signer {
                 rng_object.as_ptr(),
             )
         };
-        if ret < 0 {
-            panic!("{}", ret);
-        }
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
         let sz = unsafe {
             wc_SignatureGetSize(

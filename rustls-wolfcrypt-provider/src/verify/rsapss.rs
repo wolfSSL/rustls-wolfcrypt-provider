@@ -11,6 +11,8 @@ use wolfcrypt_rs::*;
 #[derive(Debug)]
 pub struct RsaPssSha256Verify;
 
+const RSA_PSS_SIG_SIZE: u32 = 512;
+
 impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
     fn public_key_alg_id(&self) -> AlgorithmIdentifier {
         alg_id::RSA_ENCRYPTION
@@ -27,7 +29,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
         let mut digest: [u8; WC_SHA256_DIGEST_SIZE as usize] = [0; WC_SHA256_DIGEST_SIZE as usize];
-        let mut out: [u8; 256] = [0; 256];
+        let mut out: [u8; RSA_PSS_SIG_SIZE as usize] = [0; RSA_PSS_SIG_SIZE as usize];
         let mut signature: Vec<u8> = signature.to_vec();
         let mut rsa_key_c_type: RsaKey = unsafe { mem::zeroed() };
         let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut rsa_key_c_type) };
@@ -111,7 +113,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
         let mut digest: [u8; WC_SHA384_DIGEST_SIZE as usize] = [0; WC_SHA384_DIGEST_SIZE as usize];
-        let mut out: [u8; 256] = [0; 256];
+        let mut out: [u8; RSA_PSS_SIG_SIZE as usize] = [0; RSA_PSS_SIG_SIZE as usize];
         let mut signature: Vec<u8> = signature.to_vec();
         let mut rsa_key_c_type: RsaKey = unsafe { mem::zeroed() };
         let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut rsa_key_c_type) };
@@ -195,7 +197,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha512Verify {
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
         let mut digest: [u8; WC_SHA512_DIGEST_SIZE as usize] = [0; WC_SHA512_DIGEST_SIZE as usize];
-        let mut out: [u8; 256] = [0; 256];
+        let mut out: [u8; RSA_PSS_SIG_SIZE as usize] = [0; RSA_PSS_SIG_SIZE as usize];
         let mut signature: Vec<u8> = signature.to_vec();
         let mut rsa_key_c_type: RsaKey = unsafe { mem::zeroed() };
         let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut rsa_key_c_type) };
