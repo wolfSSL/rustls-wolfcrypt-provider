@@ -35,7 +35,7 @@ impl KeyExchangeSecP384r1 {
         let mut priv_key_raw: [u8; 48] = [0; 48];
         let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
 
-        key_object.as_ptr();
+        key_object.init();
 
         rng_object.init();
 
