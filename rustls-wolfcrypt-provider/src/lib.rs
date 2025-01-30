@@ -5,11 +5,13 @@ extern crate std;
 
 extern crate alloc;
 
+use alloc::boxed::Box;
 use alloc::sync::Arc;
+use alloc::vec;
 use alloc::vec::Vec;
 use rustls::crypto::CryptoProvider;
 use rustls::pki_types::PrivateKeyDer;
-mod error;
+pub mod error;
 mod kx;
 mod random;
 mod verify;
@@ -24,6 +26,7 @@ pub mod aead {
 }
 pub mod sign {
     pub mod ecdsa;
+    pub mod eddsa;
     pub mod rsapkcs1;
     pub mod rsapss;
 }
@@ -88,34 +91,44 @@ impl rustls::crypto::KeyProvider for Provider {
         &self,
         key_der: PrivateKeyDer<'static>,
     ) -> Result<Arc<dyn rustls::sign::SigningKey>, rustls::Error> {
-        let p256_sha256 =
-            |_| sign::ecdsa::EcdsaSigningKeyP256Sign::try_from(&key_der).map(|x| Arc::new(x) as _);
-        let p384_sha384 =
-            |_| sign::ecdsa::EcdsaSigningKeyP384Sign::try_from(&key_der).map(|x| Arc::new(x) as _);
-        let p521_sha512 =
-            |_| sign::ecdsa::EcdsaSigningKeyP521Sign::try_from(&key_der).map(|x| Arc::new(x) as _);
-        let pss_sha256 =
-            |_| sign::rsapss::RsaPssSha256Sign::try_from(&key_der).map(|x| Arc::new(x) as Arc<_>);
-        let pss_sha384 =
-            |_| sign::rsapss::RsaPssSha384Sign::try_from(&key_der).map(|x| Arc::new(x) as Arc<_>);
-        let pss_sha512 =
-            |_| sign::rsapss::RsaPssSha512Sign::try_from(&key_der).map(|x| Arc::new(x) as Arc<_>);
-        let pkcs1_sha256 =
-            |_| sign::rsapkcs1::RsaPkcs1Sha256::try_from(&key_der).map(|x| Arc::new(x) as Arc<_>);
-        let pkcs1_sha384 =
-            |_| sign::rsapkcs1::RsaPkcs1Sha384::try_from(&key_der).map(|x| Arc::new(x) as Arc<_>);
-        let pkcs1_sha512 =
-            |_| sign::rsapkcs1::RsaPkcs1Sha512::try_from(&key_der).map(|x| Arc::new(x) as Arc<_>);
+        // Define supported algorithms as closures
+        let algorithms: Vec<
+            Box<
+                dyn Fn(
+                    &PrivateKeyDer<'static>,
+                ) -> Result<Arc<dyn rustls::sign::SigningKey>, rustls::Error>,
+            >,
+        > = vec![
+            Box::new(|key| {
+                sign::ecdsa::EcdsaSigningKeyP256Sha256Sign::try_from(key).map(|x| Arc::new(x) as _)
+            }),
+            Box::new(|key| {
+                sign::ecdsa::EcdsaSigningKeyP384Sha384Sign::try_from(key).map(|x| Arc::new(x) as _)
+            }),
+            Box::new(|key| {
+                sign::ecdsa::EcdsaSigningKeyP521Sha512Sign::try_from(key).map(|x| Arc::new(x) as _)
+            }),
+            Box::new(|key| sign::rsapss::RsaPssPrivateKey::try_from(key).map(|x| Arc::new(x) as _)),
+            Box::new(|key| {
+                sign::rsapkcs1::RsaPkcs1PrivateKey::try_from(key).map(|x| Arc::new(x) as _)
+            }),
+            Box::new(|key| {
+                sign::rsapkcs1::RsaPkcs1PrivateKey::try_from(key).map(|x| Arc::new(x) as _)
+            }),
+            Box::new(|key| sign::eddsa::Ed25519PrivateKey::try_from(key).map(|x| Arc::new(x) as _)),
+        ];
 
-        p256_sha256(())
-            .or_else(p384_sha384)
-            .or_else(p521_sha512)
-            .or_else(pss_sha256)
-            .or_else(pss_sha384)
-            .or_else(pss_sha512)
-            .or_else(pkcs1_sha256)
-            .or_else(pkcs1_sha384)
-            .or_else(pkcs1_sha512)
+        for algorithm in algorithms {
+            match algorithm(&key_der) {
+                Ok(signing_key) => return Ok(signing_key), // Return the key if the algorithm succeeds
+                Err(_) => continue, // Ignore the error and move to the next algorithm
+            }
+        }
+
+        // If no algorithm succeeded, return an error
+        Err(rustls::Error::General(
+            "Unsupported private key format".into(),
+        ))
     }
 }
 
@@ -144,6 +157,7 @@ static ALL_ECDSA_SCHEMES: &[rustls::SignatureScheme] = &[
     rustls::SignatureScheme::ECDSA_NISTP256_SHA256,
     rustls::SignatureScheme::ECDSA_NISTP384_SHA384,
     rustls::SignatureScheme::ECDSA_NISTP521_SHA512,
+    rustls::SignatureScheme::ED25519,
 ];
 
 pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =

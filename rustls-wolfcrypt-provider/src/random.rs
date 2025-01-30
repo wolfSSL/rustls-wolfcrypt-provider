@@ -18,6 +18,7 @@ pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) -> WCResult {
     // Copies a sz bytes of pseudorandom data to output.
     // Will reseed rng if needed (blocking).
     let ret = unsafe { wc_RNG_GenerateBlock(rng_object.as_ptr(), buff.as_mut_ptr(), buff_length) };
+
     check_if_zero(ret)
 }
 

@@ -6,8 +6,8 @@ use foreign_types::ForeignType;
 use wolfcrypt_rs::*;
 
 pub struct KeyExchangeX25519 {
-    pub pub_key_bytes: Vec<u8>,
-    pub priv_key_bytes: Vec<u8>,
+    pub_key_bytes: Vec<u8>,
+    priv_key_bytes: Vec<u8>,
 }
 
 impl KeyExchangeX25519 {

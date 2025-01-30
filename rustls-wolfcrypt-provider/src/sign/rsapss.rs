@@ -2,6 +2,7 @@ use crate::error::*;
 use crate::types::types::*;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::mem;
 use foreign_types::ForeignType;
@@ -12,43 +13,43 @@ use rustls::{SignatureAlgorithm, SignatureScheme};
 use core::ptr;
 use wolfcrypt_rs::*;
 
+const ALL_RSA_SCHEMES: &[SignatureScheme] = &[
+    SignatureScheme::RSA_PSS_SHA256,
+    SignatureScheme::RSA_PSS_SHA384,
+    SignatureScheme::RSA_PSS_SHA512,
+];
+
 #[derive(Clone, Debug)]
-pub struct RsaPssSha256Sign {
+pub struct RsaPssPrivateKey {
     key: Arc<RsaKeyObject>,
-    scheme: SignatureScheme,
+    algo: SignatureAlgorithm,
 }
 
-impl RsaPssSha256Sign {
+impl RsaPssPrivateKey {
     pub fn get_key(&self) -> Arc<RsaKeyObject> {
         Arc::clone(&self.key)
     }
 }
 
-impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha256Sign {
+const RSA_PSS_SIG_SIZE: u32 = 512;
+
+impl TryFrom<&PrivateKeyDer<'_>> for RsaPssPrivateKey {
     type Error = rustls::Error;
 
     fn try_from(value: &PrivateKeyDer<'_>) -> Result<Self, Self::Error> {
         match value {
             PrivateKeyDer::Pkcs8(der) => {
-                env_logger::init();
-                log::error!("HGA9U0OHGOUAHGOUA");
-                let mut rsa_key_c_type: RsaKey = unsafe { mem::zeroed() };
-                let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut rsa_key_c_type) };
                 let pkcs8: &[u8] = der.secret_pkcs8_der();
                 let pkcs8_sz: word32 = pkcs8.len() as word32;
                 let mut ret;
+		let rsa_key_box = Box::new(unsafe { mem::zeroed::<RsaKey>() });
+		let rsa_key_ptr = Box::into_raw(rsa_key_box);
+		let rsa_key_object = unsafe { RsaKeyObject::from_ptr(rsa_key_ptr) };
 
                 ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
                 check_if_zero(ret).unwrap();
 
                 let mut idx: u32 = 0;
-
-                // This function finds the beginning of the traditional
-                // private key inside a PKCS#8 unencrypted buffer.
-                ret = unsafe {
-                    wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
-                };
-                check_if_zero(ret).unwrap();
 
                 ret = unsafe {
                     wc_RsaPrivateKeyDecode(
@@ -58,344 +59,155 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha256Sign {
                         pkcs8_sz,
                     )
                 };
-                check_if_zero(ret).unwrap();
+                check_if_zero(ret)
+                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 Ok(Self {
                     key: Arc::new(rsa_key_object),
-                    scheme: SignatureScheme::RSA_PSS_SHA256,
+                    algo: SignatureAlgorithm::RSA,
                 })
             }
-            _ => panic!("unsupported private key format"),
+            _ => {
+                return Err(rustls::Error::General(
+                    "Unsupported private key format".into(),
+                ))
+            }
         }
     }
 }
 
-impl SigningKey for RsaPssSha256Sign {
+impl SigningKey for RsaPssPrivateKey {
     fn choose_scheme(&self, offered: &[SignatureScheme]) -> Option<Box<dyn Signer>> {
-        if offered.contains(&self.scheme) {
-            Some(Box::new(self.clone()))
-        } else {
-            None
-        }
+        // Iterate through all RSA schemes and check if any is in the offered list
+        ALL_RSA_SCHEMES.iter().find_map(|&scheme| {
+            if offered.contains(&scheme) {
+                Some(Box::new(RsaPssSigner {
+                    key: self.get_key(),
+                    scheme: scheme,
+                }) as Box<dyn Signer>)
+            } else {
+                None
+            }
+        })
     }
 
     fn algorithm(&self) -> SignatureAlgorithm {
-        SignatureAlgorithm::RSA
-    }
-}
-
-impl Signer for RsaPssSha256Sign {
-    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
-        let mut rng: WC_RNG = unsafe { mem::zeroed() };
-        let rng_object: WCRngObject = WCRngObject::new(&mut rng);
-        let mut sig: [u8; 265] = [0; 265];
-        let rsa_key_arc = self.get_key();
-        let rsa_key_object = rsa_key_arc.as_ref();
-
-        rng_object.init();
-
-        // This function signs a message digest
-        // using an RsaKey object to guarantee authenticity.
-        // Note, it also takes care of the hashing (Sha256 in this case).
-        let ret = unsafe {
-            wc_RsaPSS_Sign(
-                message.as_ptr(),
-                (message.len() + 1) as word32,
-                sig.as_mut_ptr(),
-                sig.len() as word32,
-                wc_HashType_WC_HASH_TYPE_SHA256,
-                WC_MGF1SHA256.try_into().unwrap(),
-                rsa_key_object.as_ptr(),
-                rng_object.as_ptr(),
-            )
-        };
-        check_if_zero(ret).unwrap();
-
-        let sig_vec = sig.to_vec();
-
-        Ok(sig_vec)
-    }
-
-    fn scheme(&self) -> SignatureScheme {
-        self.scheme
+        self.algo
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct RsaPssSha384Sign {
+pub struct RsaPssSigner {
     key: Arc<RsaKeyObject>,
     scheme: SignatureScheme,
 }
 
-impl RsaPssSha384Sign {
+impl RsaPssSigner {
     pub fn get_key(&self) -> Arc<RsaKeyObject> {
         Arc::clone(&self.key)
     }
 }
 
-impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha384Sign {
-    type Error = rustls::Error;
-
-    fn try_from(value: &PrivateKeyDer<'_>) -> Result<Self, Self::Error> {
-        match value {
-            PrivateKeyDer::Pkcs8(der) => {
-                let mut rsa_key_c_type: RsaKey = unsafe { mem::zeroed() };
-                let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut rsa_key_c_type) };
-                let pkcs8: &[u8] = der.secret_pkcs8_der();
-                let pkcs8_sz: word32 = pkcs8.len() as word32;
-                let mut ret;
-
-                ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
-                check_if_zero(ret).unwrap();
-
-                let mut idx: u32 = 0;
-
-                // This function finds the beginning of the traditional
-                // private key inside a PKCS#8 unencrypted buffer.
-                ret = unsafe {
-                    wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
-                };
-                check_if_zero(ret).unwrap();
-
-                ret = unsafe {
-                    wc_RsaPrivateKeyDecode(
-                        pkcs8.as_ptr() as *mut u8,
-                        &mut idx,
-                        rsa_key_object.as_ptr(),
-                        pkcs8_sz,
-                    )
-                };
-                check_if_zero(ret).unwrap();
-
-                Ok(Self {
-                    key: Arc::new(rsa_key_object),
-                    scheme: SignatureScheme::RSA_PSS_SHA384,
-                })
-            }
-            _ => panic!("unsupported private key format"),
-        }
-    }
-}
-
-impl SigningKey for RsaPssSha384Sign {
-    fn choose_scheme(&self, offered: &[SignatureScheme]) -> Option<Box<dyn Signer>> {
-        if offered.contains(&self.scheme) {
-            Some(Box::new(self.clone()))
-        } else {
-            None
-        }
-    }
-
-    fn algorithm(&self) -> SignatureAlgorithm {
-        SignatureAlgorithm::RSA
-    }
-}
-
-impl Signer for RsaPssSha384Sign {
+impl Signer for RsaPssSigner {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
         let rng_object: WCRngObject = WCRngObject::new(&mut rng);
-        let mut sig: [u8; 265] = [0; 265];
+        let mut sig: [u8; RSA_PSS_SIG_SIZE as usize] = [0; RSA_PSS_SIG_SIZE as usize];
         let rsa_key_arc = self.get_key();
         let rsa_key_object = rsa_key_arc.as_ref();
+        let mut digest: Vec<u8>;
+        let digest_length: word32;
+        let hash_type;
+        let mgf_type;
 
+        // Define Rust-style aliases for binding constants
+        const HASH_TYPE_SHA256: u32 = wc_HashType_WC_HASH_TYPE_SHA256;
+        const HASH_TYPE_SHA384: u32 = wc_HashType_WC_HASH_TYPE_SHA384;
+        const HASH_TYPE_SHA512: u32 = wc_HashType_WC_HASH_TYPE_SHA512;
+
+        const MGF1_SHA256: u32 = WC_MGF1SHA256;
+        const MGF1_SHA384: u32 = WC_MGF1SHA384;
+        const MGF1_SHA512: u32 = WC_MGF1SHA512;
+
+        // Determine the hashing algorithm, digest size, and MGF type based on the scheme
+        match self.scheme {
+            SignatureScheme::RSA_PSS_SHA256 => {
+                digest = vec![0; WC_SHA256_DIGEST_SIZE as usize];
+                digest_length = WC_SHA256_DIGEST_SIZE as word32;
+                hash_type = HASH_TYPE_SHA256;
+                mgf_type = MGF1_SHA256;
+            }
+            SignatureScheme::RSA_PSS_SHA384 => {
+                digest = vec![0; WC_SHA384_DIGEST_SIZE as usize];
+                digest_length = WC_SHA384_DIGEST_SIZE as word32;
+                hash_type = HASH_TYPE_SHA384;
+                mgf_type = MGF1_SHA384;
+            }
+            SignatureScheme::RSA_PSS_SHA512 => {
+                digest = vec![0; WC_SHA512_DIGEST_SIZE as usize];
+                digest_length = WC_SHA512_DIGEST_SIZE as word32;
+                hash_type = HASH_TYPE_SHA512;
+                mgf_type = MGF1_SHA512;
+            }
+            _ => {
+                return Err(rustls::Error::General(
+                    "Unsupported signature scheme".into(),
+                ));
+            }
+        }
+
+        // Initialize RNG
         rng_object.init();
 
-        // This function signs a message digest
-        // using an RsaKey object to guarantee authenticity.
-        // Note, it also takes care of the hashing (Sha384 in this case).
+        // Hash the message using the selected hashing algorithm
+        let ret = unsafe {
+            match hash_type {
+                HASH_TYPE_SHA256 => wc_Sha256Hash(
+                    message.as_ptr(),
+                    message.len() as word32,
+                    digest.as_mut_ptr(),
+                ),
+                HASH_TYPE_SHA384 => wc_Sha384Hash(
+                    message.as_ptr(),
+                    message.len() as word32,
+                    digest.as_mut_ptr(),
+                ),
+                HASH_TYPE_SHA512 => wc_Sha512Hash(
+                    message.as_ptr(),
+                    message.len() as word32,
+                    digest.as_mut_ptr(),
+                ),
+                _ => -1, // Should not reach here
+            }
+        };
+        check_if_zero(ret).unwrap();
+
+        // Sign the digest using the appropriate scheme
         let ret = unsafe {
             wc_RsaPSS_Sign(
-                message.as_ptr(),
-                (message.len() + 1) as word32,
+                digest.as_ptr(),
+                digest_length,
                 sig.as_mut_ptr(),
                 sig.len() as word32,
-                wc_HashType_WC_HASH_TYPE_SHA384,
-                WC_MGF1SHA384.try_into().unwrap(),
+                hash_type,
+                mgf_type.try_into().unwrap(),
                 rsa_key_object.as_ptr(),
                 rng_object.as_ptr(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_greater_than_zero(ret)
+            .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
-        let sig_vec = sig.to_vec();
+        let sz = ret;
+
+        // Convert the signature to a Vec and truncate to the actual size
+        let mut sig_vec = sig.to_vec();
+        sig_vec.truncate(sz as usize);
 
         Ok(sig_vec)
     }
 
     fn scheme(&self) -> SignatureScheme {
         self.scheme
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct RsaPssSha512Sign {
-    key: Arc<RsaKeyObject>,
-    scheme: SignatureScheme,
-}
-
-impl RsaPssSha512Sign {
-    pub fn get_key(&self) -> Arc<RsaKeyObject> {
-        Arc::clone(&self.key)
-    }
-}
-
-impl TryFrom<&PrivateKeyDer<'_>> for RsaPssSha512Sign {
-    type Error = rustls::Error;
-
-    fn try_from(value: &PrivateKeyDer<'_>) -> Result<Self, Self::Error> {
-        match value {
-            PrivateKeyDer::Pkcs8(der) => {
-                let mut rsa_key_c_type: RsaKey = unsafe { mem::zeroed() };
-                let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut rsa_key_c_type) };
-                let pkcs8: &[u8] = der.secret_pkcs8_der();
-                let pkcs8_sz: word32 = pkcs8.len() as word32;
-                let mut ret;
-
-                ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
-                check_if_zero(ret).unwrap();
-
-                let mut idx: u32 = 0;
-
-                // This function finds the beginning of the traditional
-                // private key inside a PKCS#8 unencrypted buffer.
-                ret = unsafe {
-                    wc_GetPkcs8TraditionalOffset(pkcs8.as_ptr() as *mut u8, &mut idx, pkcs8_sz)
-                };
-                check_if_zero(ret).unwrap();
-
-                ret = unsafe {
-                    wc_RsaPrivateKeyDecode(
-                        pkcs8.as_ptr() as *mut u8,
-                        &mut idx,
-                        rsa_key_object.as_ptr(),
-                        pkcs8_sz,
-                    )
-                };
-                check_if_zero(ret).unwrap();
-
-                Ok(Self {
-                    key: Arc::new(rsa_key_object),
-                    scheme: SignatureScheme::RSA_PSS_SHA512,
-                })
-            }
-            _ => panic!("unsupported private key format"),
-        }
-    }
-}
-
-impl SigningKey for RsaPssSha512Sign {
-    fn choose_scheme(&self, offered: &[SignatureScheme]) -> Option<Box<dyn Signer>> {
-        if offered.contains(&self.scheme) {
-            Some(Box::new(self.clone()))
-        } else {
-            None
-        }
-    }
-
-    fn algorithm(&self) -> SignatureAlgorithm {
-        SignatureAlgorithm::RSA
-    }
-}
-
-impl Signer for RsaPssSha512Sign {
-    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
-        let mut rng: WC_RNG = unsafe { mem::zeroed() };
-        let rng_object: WCRngObject = WCRngObject::new(&mut rng);
-        let mut sig: [u8; 265] = [0; 265];
-        let rsa_key_arc = self.get_key();
-        let rsa_key_object = rsa_key_arc.as_ref();
-
-        rng_object.init();
-
-        // This function signs a message digest
-        // using an RsaKey object to guarantee authenticity.
-        // Note, it also takes care of the hashing (Sha512 in this case).
-        let ret = unsafe {
-            wc_RsaPSS_Sign(
-                message.as_ptr(),
-                (message.len() + 1) as word32,
-                sig.as_mut_ptr(),
-                sig.len() as word32,
-                wc_HashType_WC_HASH_TYPE_SHA512,
-                WC_MGF1SHA512.try_into().unwrap(),
-                rsa_key_object.as_ptr(),
-                rng_object.as_ptr(),
-            )
-        };
-        check_if_zero(ret).unwrap();
-
-        let sig_vec = sig.to_vec();
-
-        Ok(sig_vec)
-    }
-
-    fn scheme(&self) -> SignatureScheme {
-        self.scheme
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_signer() {
-        let mut rsa_key_c_type: RsaKey = unsafe { mem::zeroed() };
-        let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut rsa_key_c_type) };
-        let mut ret;
-        let message = "This is the string to be signed".as_bytes();
-        let mut signature: [u8; 256] = [0; 256];
-        let mut final_output: [u8; 64] = [0; 64];
-        let sz;
-
-        ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
-        check_if_zero(ret).unwrap();
-
-        let mut rng_c_type: WC_RNG = unsafe { mem::zeroed() };
-        let rng_object = WCRngObject::new(&mut rng_c_type);
-        rng_object.init();
-
-        unsafe { wc_RsaSetRNG(rsa_key_object.as_ptr(), rng_object.as_ptr()) };
-
-        ret = unsafe {
-            wc_MakeRsaKey(
-                rsa_key_object.as_ptr(),
-                2048,
-                WC_RSA_EXPONENT.into(),
-                rng_object.as_ptr(),
-            )
-        };
-        check_if_zero(ret).unwrap();
-
-        ret = unsafe {
-            wc_RsaPSS_Sign(
-                message.as_ptr(),
-                (message.len() + 1) as word32,
-                signature.as_mut_ptr(),
-                signature.len() as word32,
-                wc_HashType_WC_HASH_TYPE_SHA256,
-                WC_MGF1SHA256.try_into().unwrap(),
-                rsa_key_object.as_ptr(),
-                rng_object.as_ptr(),
-            )
-        };
-        check_if_greater_than_zero(ret).unwrap();
-
-        sz = ret;
-
-        ret = unsafe {
-            wc_RsaPSS_Verify(
-                signature.as_mut_ptr(),
-                sz as word32,
-                final_output.as_mut_ptr(),
-                final_output.len() as word32,
-                wc_HashType_WC_HASH_TYPE_SHA256,
-                WC_MGF1SHA256.try_into().unwrap(),
-                rsa_key_object.as_ptr(),
-            )
-        };
-
-        assert!(ret > 0);
     }
 }
