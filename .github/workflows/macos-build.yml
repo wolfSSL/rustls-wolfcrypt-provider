@@ -1,0 +1,61 @@
+name: macOS Build and Test
+
+on:
+  push:
+    branches: [ '*' ]
+  pull_request:
+    branches: [ '*' ]
+
+jobs:
+  macos-build:
+    name: Build and Test (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Build Prerequisites
+        run: |
+          brew install autoconf libtool automake
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: macos-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            macos-cargo-
+
+      - name: Build and Test wolfcrypt-rs
+        run: |
+          cd wolfcrypt-rs
+          make build
+          make test
+
+      - name: Build and Test rustls-wolfcrypt-provider
+        run: |
+          cd rustls-wolfcrypt-provider
+          make build
+          make test
+
+      - name: Check formatting
+        run: |
+          cd wolfcrypt-rs
+          cargo fmt --all -- --check
+          cd ../rustls-wolfcrypt-provider
+          cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: |
+          cd wolfcrypt-rs
+          cargo clippy -- -D warnings
+          cd ../rustls-wolfcrypt-provider
+          cargo clippy -- -D warnings
