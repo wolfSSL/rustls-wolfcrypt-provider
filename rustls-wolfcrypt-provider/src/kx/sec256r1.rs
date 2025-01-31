@@ -1,4 +1,4 @@
-use crate::{error::check_if_zero, types::types::*};
+use crate::{error::check_if_zero, types::*};
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;

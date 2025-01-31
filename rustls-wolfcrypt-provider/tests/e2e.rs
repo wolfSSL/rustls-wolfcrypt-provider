@@ -1,8 +1,10 @@
 use foreign_types::ForeignType;
+use lazy_static::lazy_static;
+use rayon::prelude::*;
 use rustls::version::{TLS12, TLS13};
 use rustls::SignatureScheme;
 use rustls_wolfcrypt_provider::error::*;
-use rustls_wolfcrypt_provider::types::types::*;
+use rustls_wolfcrypt_provider::types::*;
 use rustls_wolfcrypt_provider::{
     TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256, TLS12_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
     TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, TLS13_AES_128_GCM_SHA256,
@@ -16,10 +18,10 @@ use std::io::{Read, Write};
 use std::mem;
 use std::net::TcpStream;
 use std::process::{Child, Command};
+use std::sync::Once;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use wolfcrypt_rs::*;
-use lazy_static::lazy_static;
 
 /*
  * Version config used by the server to specify
@@ -36,6 +38,21 @@ const TLSV1_3: &str = "-v 4";
 */
 lazy_static! {
     static ref SERVER_LOCK: Mutex<()> = Mutex::new(());
+}
+
+/*
+ * Initiliaze the thread pool once for all tests.
+ * */
+static INIT: Once = Once::new();
+
+fn init_thread_pool() {
+    INIT.call_once(|| {
+        let num_cpus = num_cpus::get();
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(num_cpus)
+            .build_global()
+            .unwrap();
+    });
 }
 
 /*
@@ -406,10 +423,9 @@ mod tests {
             ),
         ];
 
-
         for &(scheme, curve_id, key_size) in &test_configs {
             let mut der_ecc_key: Vec<u8> = vec![0; 200]; // Adjust size if needed
-            // Initialize RNG and ECC key objects
+                                                         // Initialize RNG and ECC key objects
             let mut rng: WC_RNG = unsafe { mem::zeroed() };
             let rng_object: WCRngObject = WCRngObject::new(&mut rng);
             rng_object.init();
@@ -544,16 +560,7 @@ mod tests {
 
     #[test]
     fn rsa_pss_sign_and_verify() {
-        use rayon::prelude::*;
-
-        #[cfg(target_os = "macos")]
-        {
-            let num_cpus = num_cpus::get();
-            rayon::ThreadPoolBuilder::new()
-                .num_threads(num_cpus)
-                .build_global()
-                .unwrap();
-        }
+        init_thread_pool();
 
         let wolfcrypt_default_provider = rustls_wolfcrypt_provider::provider();
         let schemes = [
@@ -564,26 +571,14 @@ mod tests {
 
         let test_cases: Vec<_> = schemes
             .iter()
-            .flat_map(|&scheme| {
-                [2048, 4096].iter().map(move |&key_size| (scheme, key_size))
-            })
-        .collect();
+            .flat_map(|&scheme| [2048, 4096].iter().map(move |&key_size| (scheme, key_size)))
+            .collect();
 
-        #[cfg(target_os = "macos")]
-        {
-            test_cases.par_iter().for_each(|&(scheme, key_size)| {
-                generate_and_test_pss_key(&wolfcrypt_default_provider, scheme, key_size)
-                .expect(&format!("Failed for scheme {:?} with key size {}", scheme, key_size));
-            });
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            test_cases.iter().for_each(|&(scheme, key_size)| {
-                generate_and_test_pss_key(&wolfcrypt_default_provider, scheme, key_size)
-                .expect(&format!("Failed for scheme {:?} with key size {}", scheme, key_size));
-            });
-        }
+        test_cases.par_iter().for_each(|&(scheme, key_size)| {
+            generate_and_test_pss_key(&wolfcrypt_default_provider, scheme, key_size).expect(
+                &format!("Failed for scheme {:?} with key size {}", scheme, key_size),
+            );
+        });
     }
 
     fn generate_and_test_pss_key(
@@ -650,7 +645,7 @@ mod tests {
 
     #[test]
     fn rsa_pkcs1_sign_and_verify() {
-        use rayon::prelude::*;
+        init_thread_pool();
 
         let wolfcrypt_default_provider = rustls_wolfcrypt_provider::provider();
         let test_cases: Vec<_> = [
@@ -658,16 +653,15 @@ mod tests {
             SignatureScheme::RSA_PKCS1_SHA384,
             SignatureScheme::RSA_PKCS1_SHA512,
         ]
-            .iter()
-            .flat_map(|&scheme| {
-                [2048, 4096].iter().map(move |&key_size| (scheme, key_size))
-            })
+        .iter()
+        .flat_map(|&scheme| [2048, 4096].iter().map(move |&key_size| (scheme, key_size)))
         .collect();
 
         test_cases.par_iter().for_each(|&(scheme, key_size)| {
-            generate_and_test_pkcs1_key(&wolfcrypt_default_provider, scheme, key_size)
-                .expect(&format!("Failed for scheme {:?} with key size {}", scheme, key_size));
-            });
+            generate_and_test_pkcs1_key(&wolfcrypt_default_provider, scheme, key_size).expect(
+                &format!("Failed for scheme {:?} with key size {}", scheme, key_size),
+            );
+        });
     }
 
     fn generate_and_test_pkcs1_key(
@@ -724,7 +718,12 @@ mod tests {
         check_if_greater_than_zero(ret).unwrap();
         pub_key_der.resize(ret as usize, 0);
 
-        sign_and_verify(provider, scheme, rustls_private_key.clone_key(), &pub_key_der);
+        sign_and_verify(
+            provider,
+            scheme,
+            rustls_private_key.clone_key(),
+            &pub_key_der,
+        );
         Ok(())
     }
 

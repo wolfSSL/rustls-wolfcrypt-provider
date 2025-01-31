@@ -1,5 +1,5 @@
 use crate::error::*;
-use crate::types::types::*;
+use crate::types::*;
 use core::mem;
 use foreign_types::ForeignType;
 use wolfcrypt_rs::*;

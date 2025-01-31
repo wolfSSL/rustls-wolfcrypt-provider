@@ -1,6 +1,6 @@
 use crate::error::check_if_zero;
 use crate::error::*;
-use crate::types::types::*;
+use crate::types::*;
 use alloc::vec::Vec;
 use core::ffi::c_void;
 use core::mem;
@@ -131,7 +131,9 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
                 signature.as_ptr(),
                 signature.len() as word32,
                 rsa_key_object.as_ptr() as *const c_void,
-                mem::size_of_val(&dereferenced_rsa_key_c_type).try_into().unwrap(),
+                mem::size_of_val(&dereferenced_rsa_key_c_type)
+                    .try_into()
+                    .unwrap(),
             )
         };
 
@@ -196,7 +198,9 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha512Verify {
                 signature.as_ptr(),
                 signature.len() as word32,
                 rsa_key_object.as_ptr() as *const c_void,
-                mem::size_of_val(&dereferenced_rsa_key_c_type).try_into().unwrap(),
+                mem::size_of_val(&dereferenced_rsa_key_c_type)
+                    .try_into()
+                    .unwrap(),
             )
         };
 

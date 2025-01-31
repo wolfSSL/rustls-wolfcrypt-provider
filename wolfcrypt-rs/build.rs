@@ -1,23 +1,24 @@
 extern crate bindgen;
 
 use std::env;
-use std::path::PathBuf;
-use std::path::Path;
-use std::process::Command;
 use std::fs;
+use std::path::Path;
+use std::path::PathBuf;
+use std::process::Command;
 
 fn main() {
-    // We check if the release was already fetched, if not, 
+    // We check if the release was already fetched, if not,
     // we fetch it and setup it.
-    if !fs::metadata("wolfssl-5.7.4-stable").is_ok() {
+    if fs::metadata("wolfssl-5.7.4-stable").is_err() {
         setup_wolfssl();
     }
 
-    let wolfssl_lib_dir = Path::new(&"/opt/wolfssl-rs/lib/"); 
+    let wolfssl_lib_dir = Path::new(&"/opt/wolfssl-rs/lib/");
     let wolfssl_include_dir = Path::new(&"/opt/wolfssl-rs/include/");
 
-    println!("cargo:rustc-link-search={}",
-            wolfssl_lib_dir.to_str().unwrap()
+    println!(
+        "cargo:rustc-link-search={}",
+        wolfssl_lib_dir.to_str().unwrap()
     );
     println!("cargo:rustc-link-lib=static=wolfssl");
 
@@ -99,7 +100,8 @@ fn setup_wolfssl() {
                             println!("make completed successfully.");
 
                             // Step 8: Execute sudo make install
-                            let output = Command::new("make")
+                            let output = Command::new("sudo")
+                                .arg("make")
                                 .arg("install")
                                 .output()
                                 .expect("Failed to execute sudo make install");
@@ -107,25 +109,42 @@ fn setup_wolfssl() {
                             if output.status.success() {
                                 println!("sudo make install completed successfully.");
                             } else {
-                                eprintln!("Error executing sudo make install: {}", String::from_utf8_lossy(&output.stderr));
+                                eprintln!(
+                                    "Error executing sudo make install: {}",
+                                    String::from_utf8_lossy(&output.stderr)
+                                );
                             }
                         } else {
-                            eprintln!("Error executing make: {}", String::from_utf8_lossy(&output.stderr));
+                            eprintln!(
+                                "Error executing make: {}",
+                                String::from_utf8_lossy(&output.stderr)
+                            );
                         }
                     } else {
-                        eprintln!("Error executing ./configure: {}", String::from_utf8_lossy(&output.stderr));
+                        eprintln!(
+                            "Error executing ./configure: {}",
+                            String::from_utf8_lossy(&output.stderr)
+                        );
                     }
                 } else {
-                    eprintln!("Error executing ./autogen.sh: {}", String::from_utf8_lossy(&output.stderr));
+                    eprintln!(
+                        "Error executing ./autogen.sh: {}",
+                        String::from_utf8_lossy(&output.stderr)
+                    );
                 }
             }
         } else {
-            eprintln!("Error unzipping file: {}", String::from_utf8_lossy(&output.stderr));
+            eprintln!(
+                "Error unzipping file: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
     } else {
-        eprintln!("Error downloading file: {}", String::from_utf8_lossy(&output.stderr));
+        eprintln!(
+            "Error downloading file: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
-
 
     // Final step: we change the directory back to the root directory
     // to finally generate the bindings.

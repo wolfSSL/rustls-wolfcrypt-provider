@@ -1,5 +1,5 @@
 use crate::error::*;
-use crate::types::types::*;
+use crate::types::*;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -67,11 +67,9 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKeyP256Sha256Sign {
                     scheme: SignatureScheme::ECDSA_NISTP256_SHA256,
                 })
             }
-            _ => {
-                return Err(rustls::Error::General(
-                    "Unsupported private key format".into(),
-                ))
-            }
+            _ => Err(rustls::Error::General(
+                "Unsupported private key format".into(),
+            )),
         }
     }
 }
@@ -208,11 +206,9 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKeyP384Sha384Sign {
                     scheme: SignatureScheme::ECDSA_NISTP384_SHA384,
                 })
             }
-            _ => {
-                return Err(rustls::Error::General(
-                    "Unsupported private key format".into(),
-                ))
-            }
+            _ => Err(rustls::Error::General(
+                "Unsupported private key format".into(),
+            )),
         }
     }
 }
@@ -348,11 +344,9 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKeyP521Sha512Sign {
                     scheme: SignatureScheme::ECDSA_NISTP521_SHA512,
                 })
             }
-            _ => {
-                return Err(rustls::Error::General(
-                    "Unsupported private key format".into(),
-                ))
-            }
+            _ => Err(rustls::Error::General(
+                "Unsupported private key format".into(),
+            )),
         }
     }
 }

@@ -1,5 +1,5 @@
 use crate::error::*;
-use crate::types::types::*;
+use crate::types::*;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec;
@@ -42,9 +42,9 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssPrivateKey {
                 let pkcs8: &[u8] = der.secret_pkcs8_der();
                 let pkcs8_sz: word32 = pkcs8.len() as word32;
                 let mut ret;
-		let rsa_key_box = Box::new(unsafe { mem::zeroed::<RsaKey>() });
-		let rsa_key_ptr = Box::into_raw(rsa_key_box);
-		let rsa_key_object = unsafe { RsaKeyObject::from_ptr(rsa_key_ptr) };
+                let rsa_key_box = Box::new(unsafe { mem::zeroed::<RsaKey>() });
+                let rsa_key_ptr = Box::into_raw(rsa_key_box);
+                let rsa_key_object = unsafe { RsaKeyObject::from_ptr(rsa_key_ptr) };
 
                 ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
                 check_if_zero(ret).unwrap();
@@ -67,11 +67,9 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssPrivateKey {
                     algo: SignatureAlgorithm::RSA,
                 })
             }
-            _ => {
-                return Err(rustls::Error::General(
-                    "Unsupported private key format".into(),
-                ))
-            }
+            _ => Err(rustls::Error::General(
+                "Unsupported private key format".into(),
+            )),
         }
     }
 }
@@ -83,7 +81,7 @@ impl SigningKey for RsaPssPrivateKey {
             if offered.contains(&scheme) {
                 Some(Box::new(RsaPssSigner {
                     key: self.get_key(),
-                    scheme: scheme,
+                    scheme,
                 }) as Box<dyn Signer>)
             } else {
                 None

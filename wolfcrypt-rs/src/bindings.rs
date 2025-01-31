@@ -9,4 +9,6 @@
 #![allow(non_snake_case)]
 #![allow(clippy::useless_transmute)]
 #![allow(clippy::upper_case_acronyms)]
+#![allow(clippy::too_many_arguments)]
+#![allow(improper_ctypes)]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));

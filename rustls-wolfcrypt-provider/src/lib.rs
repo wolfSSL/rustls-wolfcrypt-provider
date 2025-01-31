@@ -12,13 +12,13 @@ use alloc::vec::Vec;
 use rustls::crypto::CryptoProvider;
 use rustls::pki_types::PrivateKeyDer;
 pub mod error;
+mod hkdf;
 mod kx;
+mod prf;
 mod random;
 mod verify;
-mod prf;
-mod hkdf;
-use crate::prf::WCPrfUsingHmac;
 use crate::hkdf::WCHkdfUsingHmac;
+use crate::prf::WCPrfUsingHmac;
 pub mod aead {
     pub mod aes128gcm;
     pub mod aes256gcm;
@@ -38,15 +38,15 @@ pub mod hash {
 }
 use crate::hash::{sha256, sha384};
 
-pub mod hmac {
-    pub mod hmac;
-}
+pub mod hmac;
 
-use crate::hmac::hmac::WCShaHmac;
+use crate::hmac::WCShaHmac;
 
-pub mod types {
-    pub mod types;
-}
+pub mod types;
+
+type SigningKeyResult = Result<Arc<dyn rustls::sign::SigningKey>, rustls::Error>;
+type SigningKeyFn = dyn Fn(&PrivateKeyDer<'static>) -> SigningKeyResult;
+type SigningAlgorithms = Vec<Box<SigningKeyFn>>;
 
 /*
  * Crypto provider struct that we populate with our own crypto backend (wolfcrypt).
@@ -92,13 +92,7 @@ impl rustls::crypto::KeyProvider for Provider {
         key_der: PrivateKeyDer<'static>,
     ) -> Result<Arc<dyn rustls::sign::SigningKey>, rustls::Error> {
         // Define supported algorithms as closures
-        let algorithms: Vec<
-            Box<
-                dyn Fn(
-                    &PrivateKeyDer<'static>,
-                ) -> Result<Arc<dyn rustls::sign::SigningKey>, rustls::Error>,
-            >,
-        > = vec![
+        let algorithms: SigningAlgorithms = vec![
             Box::new(|key| {
                 sign::ecdsa::EcdsaSigningKeyP256Sha256Sign::try_from(key).map(|x| Arc::new(x) as _)
             }),
