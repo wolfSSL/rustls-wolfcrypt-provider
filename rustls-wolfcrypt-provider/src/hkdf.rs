@@ -1,12 +1,12 @@
-use rustls::crypto::tls13::{self, Hkdf as RustlsHkdf};
 use alloc::boxed::Box;
 use alloc::vec;
-use core::mem;
 use alloc::vec::Vec;
+use core::mem;
+use rustls::crypto::tls13::{self, Hkdf as RustlsHkdf};
 use wolfcrypt_rs::*;
 
 use crate::error::check_if_zero;
-use crate::hmac::hmac::WCShaHmac;
+use crate::hmac::WCShaHmac;
 
 pub struct WCHkdfUsingHmac(pub WCShaHmac);
 
@@ -42,7 +42,11 @@ impl RustlsHkdf for WCHkdfUsingHmac {
         };
         check_if_zero(ret).unwrap();
 
-        Box::new(WolfHkdfExpander::new(extracted_key, self.0.hash_type().try_into().unwrap(), self.0.hash_len()))
+        Box::new(WolfHkdfExpander::new(
+            extracted_key,
+            self.0.hash_type().try_into().unwrap(),
+            self.0.hash_len(),
+        ))
     }
 
     fn expander_for_okm(
@@ -74,28 +78,13 @@ impl RustlsHkdf for WCHkdfUsingHmac {
         };
         check_if_zero(ret).unwrap();
 
-        ret = unsafe {
-            wc_HmacUpdate(
-                &mut hmac_ctx,
-                message.as_ptr(),
-                message.len() as u32,
-            )
-        };
+        ret = unsafe { wc_HmacUpdate(&mut hmac_ctx, message.as_ptr(), message.len() as u32) };
         check_if_zero(ret).unwrap();
 
-        ret = unsafe {
-            wc_HmacFinal(
-                &mut hmac_ctx,
-                hmac.as_mut_ptr(),
-            )
-        };
+        ret = unsafe { wc_HmacFinal(&mut hmac_ctx, hmac.as_mut_ptr()) };
         check_if_zero(ret).unwrap();
 
-        unsafe {
-            wc_HmacFree(
-                &mut hmac_ctx,
-            )
-        };
+        unsafe { wc_HmacFree(&mut hmac_ctx) };
         check_if_zero(ret).unwrap();
 
         rustls::crypto::hmac::Tag::new(&hmac)
@@ -104,9 +93,9 @@ impl RustlsHkdf for WCHkdfUsingHmac {
 
 /// Expander implementation that holds the extracted key material from HKDF extract phase
 struct WolfHkdfExpander {
-    extracted_key: Vec<u8>,  // The pseudorandom key (PRK) output from HKDF-Extract
+    extracted_key: Vec<u8>, // The pseudorandom key (PRK) output from HKDF-Extract
     hash_type: i32,         // The wolfSSL hash algorithm identifier
-    hash_len: usize,       // Length of the hash function output
+    hash_len: usize,        // Length of the hash function output
 }
 
 impl WolfHkdfExpander {
@@ -126,7 +115,7 @@ impl tls13::HkdfExpander for WolfHkdfExpander {
         output: &mut [u8],
     ) -> Result<(), tls13::OutputLengthError> {
         let info_concat = info.concat();
-        
+
         if output.len() > 255 * self.hash_len {
             return Err(tls13::OutputLengthError);
         }
@@ -142,7 +131,7 @@ impl tls13::HkdfExpander for WolfHkdfExpander {
                 output.len() as u32,
             );
         }
-        
+
         Ok(())
     }
 
@@ -179,10 +168,10 @@ mod tests {
 
         let hkdf = WCHkdfUsingHmac(WCShaHmac::new(wc_HashType_WC_HASH_TYPE_SHA256));
         let expander = hkdf.extract_from_secret(Some(&salt), &ikm);
-        
+
         let mut okm = vec![0u8; 42]; // Length from test vector
         expander.expand_slice(&[&info], &mut okm).unwrap();
-        
+
         assert_eq!(&okm[..], &expected_okm[..]);
     }
 
@@ -194,13 +183,13 @@ mod tests {
         let ikm = hex!("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b");
         let salt = hex!("000102030405060708090a0b0c");
         let info = hex!("f0f1f2f3f4f5f6f7f8f9");
-        
+
         let hkdf = WCHkdfUsingHmac(WCShaHmac::new(wc_HashType_WC_HASH_TYPE_SHA384));
         let expander = hkdf.extract_from_secret(Some(&salt), &ikm);
-        
+
         let mut okm = vec![0u8; 48]; // SHA384 output length
         expander.expand_slice(&[&info], &mut okm).unwrap();
-        
+
         // Just verify we can generate output - actual value would need a verified test vector
         assert!(!okm.iter().all(|&x| x == 0));
     }
@@ -211,12 +200,12 @@ mod tests {
     fn test_hkdf_output_length_limit() {
         let hkdf = WCHkdfUsingHmac(WCShaHmac::new(wc_HashType_WC_HASH_TYPE_SHA256));
         let expander = hkdf.extract_from_zero_ikm(None);
-        
+
         // Maximum allowed length (255 * hash_len)
         let max_len = 255 * 32;
         let mut okm = vec![0u8; max_len];
         assert!(expander.expand_slice(&[&[]], &mut okm).is_ok());
-        
+
         // Exceeding maximum length should fail
         let mut okm = vec![0u8; max_len + 1];
         assert!(expander.expand_slice(&[&[]], &mut okm).is_err());
@@ -229,17 +218,17 @@ mod tests {
         let hkdf = WCHkdfUsingHmac(WCShaHmac::new(wc_HashType_WC_HASH_TYPE_SHA256));
         let salt = hex!("000102030405060708090a0b0c");
         let info = hex!("f0f1f2f3f4f5f6f7f8f9");
-        
+
         let expander = hkdf.extract_from_zero_ikm(Some(&salt));
-        
+
         let mut okm1 = vec![0u8; 32];
         expander.expand_slice(&[&info], &mut okm1).unwrap();
-        
+
         // Verify that zero IKM produces consistent output
         let expander2 = hkdf.extract_from_zero_ikm(Some(&salt));
         let mut okm2 = vec![0u8; 32];
         expander2.expand_slice(&[&info], &mut okm2).unwrap();
-        
+
         assert_eq!(okm1, okm2);
     }
 
@@ -252,22 +241,24 @@ mod tests {
         let info1 = hex!("f0f1f2f3");
         let info2 = hex!("f4f5f6f7");
         let info3 = hex!("f8f9");
-        
+
         let expander = hkdf.extract_from_zero_ikm(Some(&salt));
-        
+
         // Test with multiple info components
         let mut okm1 = vec![0u8; 32];
-        expander.expand_slice(&[&info1, &info2, &info3], &mut okm1).unwrap();
-        
+        expander
+            .expand_slice(&[&info1, &info2, &info3], &mut okm1)
+            .unwrap();
+
         // Test with concatenated info
         let mut info_concat = Vec::new();
         info_concat.extend_from_slice(&info1);
         info_concat.extend_from_slice(&info2);
         info_concat.extend_from_slice(&info3);
-        
+
         let mut okm2 = vec![0u8; 32];
         expander.expand_slice(&[&info_concat], &mut okm2).unwrap();
-        
+
         // Results should be identical
         assert_eq!(okm1, okm2);
     }

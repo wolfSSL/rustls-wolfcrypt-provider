@@ -1,5 +1,5 @@
 use crate::error::check_if_zero;
-use crate::types::types::*;
+use crate::types::*;
 use alloc::boxed::Box;
 use alloc::vec;
 use core::mem;

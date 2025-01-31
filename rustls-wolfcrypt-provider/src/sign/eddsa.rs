@@ -1,5 +1,5 @@
 use crate::error::*;
-use crate::types::types::*;
+use crate::types::*;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -82,11 +82,9 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed25519PrivateKey {
                     algo: SignatureAlgorithm::ED25519,
                 })
             }
-            _ => {
-                return Err(rustls::Error::General(
-                    "Unsupported private key format".into(),
-                ))
-            }
+            _ => Err(rustls::Error::General(
+                "Unsupported private key format".into(),
+            )),
         }
     }
 }
@@ -99,7 +97,7 @@ impl SigningKey for Ed25519PrivateKey {
                 Some(Box::new(Ed25519Signer {
                     priv_key: self.priv_key.clone(),
                     pub_key: self.pub_key.clone(),
-                    scheme: scheme,
+                    scheme,
                 }) as Box<dyn Signer>)
             } else {
                 None

@@ -1,10 +1,9 @@
-use rustls::crypto;
 use alloc::boxed::Box;
+use rustls::crypto;
 use wolfcrypt_rs::*;
 
 use crate::error::check_if_zero;
-use crate::hmac::hmac::*;
-
+use crate::hmac::*;
 
 pub struct WCPrfUsingHmac(pub WCShaHmac);
 
@@ -18,18 +17,11 @@ impl crypto::tls12::Prf for WCPrfUsingHmac {
         seed: &[u8],
     ) -> Result<(), rustls::Error> {
         let secret = kx.complete(peer_pub_key)?;
-        Ok(wc_prf(output, secret.secret_bytes(), label, seed, self.0)?)
+        wc_prf(output, secret.secret_bytes(), label, seed, self.0)
     }
 
-    fn for_secret(
-        &self,
-        output: &mut [u8],
-        secret: &[u8],
-        label: &[u8],
-        seed: &[u8]
-    ) -> () {
-        wc_prf(output, secret, label, seed, self.0)
-            .expect("failed to calculate prf in for_secret")
+    fn for_secret(&self, output: &mut [u8], secret: &[u8], label: &[u8], seed: &[u8]) {
+        wc_prf(output, secret, label, seed, self.0).expect("failed to calculate prf in for_secret")
     }
 }
 
@@ -58,7 +50,7 @@ fn wc_prf(
             1,
             mac_algorithm.try_into().unwrap(),
             core::ptr::null_mut(),
-            INVALID_DEVID
+            INVALID_DEVID,
         )
     };
 
@@ -73,10 +65,7 @@ mod tests {
 
     #[test]
     fn test_hmac_variants() {
-        let test_cases = [
-            (WCShaHmac::Sha256, 32),
-            (WCShaHmac::Sha384, 48),
-        ];
+        let test_cases = [(WCShaHmac::Sha256, 32), (WCShaHmac::Sha384, 48)];
 
         for (variant, expected_size) in test_cases {
             let hmac = variant;

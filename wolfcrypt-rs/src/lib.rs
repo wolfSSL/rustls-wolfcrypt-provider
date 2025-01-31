@@ -4,9 +4,8 @@ pub use bindings::*;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::mem;
     use core::ffi::c_int;
-
+    use core::mem;
 
     #[test]
     fn rsa_encrypt_decrypt() {
@@ -34,7 +33,12 @@ mod tests {
                 panic!("Error while setting rng to Rsa key! Ret value: {}", ret);
             }
 
-            ret = wc_MakeRsaKey(&mut rsa_key, 2048 as c_int, WC_RSA_EXPONENT.into(), &mut rng);
+            ret = wc_MakeRsaKey(
+                &mut rsa_key,
+                2048 as c_int,
+                WC_RSA_EXPONENT.into(),
+                &mut rng,
+            );
             if ret != 0 {
                 panic!("Error while creating the Rsa Key! Ret value: {}", ret);
             }
@@ -65,9 +69,10 @@ mod tests {
             }
 
             let plain_str = String::from_utf8_lossy(&plain).to_string();
-            let input_str = std::ffi::CStr::from_ptr(input.as_mut_ptr() as *const std::os::raw::c_char)
-                .to_str()
-                .expect("Failed to convert C string to str");
+            let input_str =
+                std::ffi::CStr::from_ptr(input.as_mut_ptr() as *const std::os::raw::c_char)
+                    .to_str()
+                    .expect("Failed to convert C string to str");
 
             assert_eq!(plain_str.trim_end_matches('\0'), input_str);
 

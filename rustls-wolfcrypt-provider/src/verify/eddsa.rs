@@ -1,6 +1,6 @@
 use crate::{
     error::{check_if_one, check_if_zero, WCError},
-    types::types::*,
+    types::*,
 };
 use core::mem;
 use foreign_types::ForeignType;

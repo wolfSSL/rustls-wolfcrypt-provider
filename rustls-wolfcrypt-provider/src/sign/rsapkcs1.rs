@@ -1,5 +1,5 @@
 use crate::error::*;
-use crate::types::types::*;
+use crate::types::*;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -41,9 +41,9 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPkcs1PrivateKey {
                 let pkcs1: &[u8] = der.secret_pkcs1_der();
                 let pkcs1_sz: word32 = pkcs1.len() as word32;
                 let mut ret;
-		let rsa_key_box = Box::new(unsafe { mem::zeroed::<RsaKey>() });
-		let rsa_key_ptr = Box::into_raw(rsa_key_box);
-		let rsa_key_object = unsafe { RsaKeyObject::from_ptr(rsa_key_ptr) };
+                let rsa_key_box = Box::new(unsafe { mem::zeroed::<RsaKey>() });
+                let rsa_key_ptr = Box::into_raw(rsa_key_box);
+                let rsa_key_object = unsafe { RsaKeyObject::from_ptr(rsa_key_ptr) };
 
                 ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
                 check_if_zero(ret).unwrap();
@@ -66,11 +66,9 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPkcs1PrivateKey {
                     algo: SignatureAlgorithm::RSA,
                 })
             }
-            _ => {
-                return Err(rustls::Error::General(
-                    "Unsupported private key format".into(),
-                ))
-            }
+            _ => Err(rustls::Error::General(
+                "Unsupported private key format".into(),
+            )),
         }
     }
 }
@@ -82,7 +80,7 @@ impl SigningKey for RsaPkcs1PrivateKey {
             if offered.contains(&scheme) {
                 Some(Box::new(RsaPkcs1Signer {
                     key: self.get_key(),
-                    scheme: scheme,
+                    scheme,
                 }) as Box<dyn Signer>)
             } else {
                 None
@@ -115,7 +113,6 @@ impl Signer for RsaPkcs1Signer {
         let mut sig_len: word32 = sig.len() as word32;
         let rsa_key_arc = self.get_key();
         let rsa_key_object = rsa_key_arc.as_ref();
-        let hash_type;
 
         // Define Rust-style aliases for binding constants
         const HASH_TYPE_SHA256: u32 = wc_HashType_WC_HASH_TYPE_SHA256;
@@ -123,22 +120,16 @@ impl Signer for RsaPkcs1Signer {
         const HASH_TYPE_SHA512: u32 = wc_HashType_WC_HASH_TYPE_SHA512;
 
         // Determine the hashing algorithm, digest size, and MGF type based on the scheme
-        match self.scheme {
-            SignatureScheme::RSA_PKCS1_SHA256 => {
-                hash_type = HASH_TYPE_SHA256;
-            }
-            SignatureScheme::RSA_PKCS1_SHA384 => {
-                hash_type = HASH_TYPE_SHA384;
-            }
-            SignatureScheme::RSA_PKCS1_SHA512 => {
-                hash_type = HASH_TYPE_SHA512;
-            }
+        let hash_type: u32 = match self.scheme {
+            SignatureScheme::RSA_PKCS1_SHA256 => HASH_TYPE_SHA256,
+            SignatureScheme::RSA_PKCS1_SHA384 => HASH_TYPE_SHA384,
+            SignatureScheme::RSA_PKCS1_SHA512 => HASH_TYPE_SHA512,
             _ => {
                 return Err(rustls::Error::General(
                     "Unsupported signature scheme".into(),
                 ));
             }
-        }
+        };
 
         rng_object.init();
 
@@ -160,8 +151,7 @@ impl Signer for RsaPkcs1Signer {
                 rng_object.as_ptr(),
             )
         };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
+        check_if_zero(ret).map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
         let sz = unsafe {
             wc_SignatureGetSize(

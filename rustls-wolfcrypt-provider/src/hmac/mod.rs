@@ -1,5 +1,5 @@
-use crate::{error::check_if_zero, types::types::*};
-use alloc::{boxed::Box, vec::Vec, vec};
+use crate::{error::check_if_zero, types::*};
+use alloc::{boxed::Box, vec, vec::Vec};
 use core::mem;
 use foreign_types::ForeignType;
 use rustls::crypto;
@@ -102,24 +102,14 @@ impl WCHmacKey {
     }
 
     fn hmac_update(&self, hmac_object: HmacObject, input: &[u8]) {
-        let ret = unsafe { 
-            wc_HmacUpdate(
-                hmac_object.as_ptr(),
-                input.as_ptr(),
-                input.len() as word32
-            )
-        };
+        let ret =
+            unsafe { wc_HmacUpdate(hmac_object.as_ptr(), input.as_ptr(), input.len() as word32) };
         check_if_zero(ret).unwrap();
     }
 
     fn hmac_final(&self, hmac_object: HmacObject) -> Vec<u8> {
         let mut digest = vec![0u8; self.variant.digest_size()];
-        let ret = unsafe { 
-            wc_HmacFinal(
-                hmac_object.as_ptr(),
-                digest.as_mut_ptr()
-            )
-        };
+        let ret = unsafe { wc_HmacFinal(hmac_object.as_ptr(), digest.as_mut_ptr()) };
         check_if_zero(ret).unwrap();
         digest
     }
