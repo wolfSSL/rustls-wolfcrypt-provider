@@ -59,10 +59,10 @@ fn init_thread_pool() {
  * Starts background job for wolfssl server (localhost:4443).
  * */
 fn start_wolfssl_server(current_dir_string: String, tls_version: &str) -> Child {
-    if let Err(e) = env::set_current_dir("../wolfcrypt-rs/wolfssl-5.7.4-stable/") {
+    if let Err(e) = env::set_current_dir("../wolfcrypt-rs/wolfssl-5.7.6-stable/") {
         panic!("Error changing directory: {}", e);
     } else {
-        println!("Changed directory to wolfssl-5.7.4-stable.");
+        println!("Changed directory to wolfssl-5.7.6-stable.");
 
         Command::new("./examples/server/server")
             .arg("-d")

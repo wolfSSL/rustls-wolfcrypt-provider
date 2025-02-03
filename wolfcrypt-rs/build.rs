@@ -9,7 +9,7 @@ use std::process::Command;
 fn main() {
     // We check if the release was already fetched, if not,
     // we fetch it and setup it.
-    if fs::metadata("wolfssl-5.7.4-stable").is_err() {
+    if fs::metadata("wolfssl-5.7.6-stable").is_err() {
         setup_wolfssl();
     }
 
@@ -40,8 +40,8 @@ fn setup_wolfssl() {
     let output = Command::new("curl")
         .arg("-L")
         .arg("-o")
-        .arg("wolfssl-5.7.4-stable.zip")
-        .arg("https://github.com/wolfSSL/wolfssl/archive/refs/tags/v5.7.4-stable.zip")
+        .arg("wolfssl-5.7.6-stable.zip")
+        .arg("https://github.com/wolfSSL/wolfssl/archive/refs/tags/v5.7.6-stable.zip")
         .output()
         .expect("Failed to execute curl command");
 
@@ -50,7 +50,7 @@ fn setup_wolfssl() {
 
         // Step 2: Unzip the downloaded file
         let output = Command::new("unzip")
-            .arg("wolfssl-5.7.4-stable.zip")
+            .arg("wolfssl-5.7.6-stable.zip")
             .output()
             .expect("Failed to execute unzip command");
 
@@ -58,17 +58,17 @@ fn setup_wolfssl() {
             println!("Unzipping completed successfully.");
 
             // Step 3: Remove the ZIP file
-            if let Err(e) = fs::remove_file("wolfssl-5.7.4-stable.zip") {
+            if let Err(e) = fs::remove_file("wolfssl-5.7.6-stable.zip") {
                 eprintln!("Error removing ZIP file: {}", e);
             } else {
                 println!("Removed ZIP file successfully.");
             }
 
             // Step 4: Change the current working directory to the unzipped folder
-            if let Err(e) = env::set_current_dir("wolfssl-5.7.4-stable") {
+            if let Err(e) = env::set_current_dir("wolfssl-5.7.6-stable") {
                 eprintln!("Error changing directory: {}", e);
             } else {
-                println!("Changed directory to wolfssl-5.7.4-stable.");
+                println!("Changed directory to wolfssl-5.7.6-stable.");
 
                 // Step 5: Execute ./autogen.sh
                 let output = Command::new("./autogen.sh")
@@ -151,6 +151,6 @@ fn setup_wolfssl() {
     if let Err(e) = env::set_current_dir("../") {
         eprintln!("Error changing directory: {}", e);
     } else {
-        println!("Changed directory to wolfssl-5.7.4-stable.");
+        println!("Changed directory to wolfssl-5.7.6-stable.");
     }
 }

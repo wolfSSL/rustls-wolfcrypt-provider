@@ -7,7 +7,7 @@ edition = "2021"
 std = []
 
 [build-dependencies]
-bindgen = "0.70.1"
+bindgen = "0.71.1"
 
 [profile.release]
 strip = true
