@@ -151,6 +151,12 @@ impl tls13::HkdfExpander for WolfHkdfExpander {
 mod tests {
     use super::*;
     use hex_literal::hex;
+    use crate::{
+        TLS13_AES_128_GCM_SHA256,
+        TLS13_CHACHA20_POLY1305_SHA256,
+        TLS13_AES_256_GCM_SHA384
+    };
+    use wycheproof::{hkdf::TestName, TestResult};
 
     /// Tests the HKDF implementation against RFC 5869 test vector A.1
     /// This is the primary compliance test using SHA-256
@@ -261,5 +267,78 @@ mod tests {
 
         // Results should be identical
         assert_eq!(okm1, okm2);
+    }
+
+    #[test]
+    fn test_hkdf_wycheproof_sha256() {
+        let suites: &[rustls::SupportedCipherSuite] = &[
+            TLS13_AES_128_GCM_SHA256,
+            TLS13_CHACHA20_POLY1305_SHA256,
+        ];
+
+        let test_name: TestName= TestName::HkdfSha256;
+
+        let test_set = wycheproof::hkdf::TestSet::load(test_name).unwrap();
+
+        let test_groups = &test_set.test_groups;
+
+        for suite in suites {
+            let hkdf_provider = suite.tls13().unwrap().hkdf_provider;
+
+            for test_group in test_groups {
+                let tests = &test_group.tests;
+                for test in tests {
+                    let pseudorandom_key_expander = hkdf_provider.extract_from_secret(Some(&test.salt), &test.ikm);
+                    let mut outputkey_material = vec![0; test.size];
+                    let result = pseudorandom_key_expander.expand_slice(&[&test.info], &mut outputkey_material);
+
+                    match &test.result {
+                        TestResult::Acceptable | TestResult::Valid => {
+                            assert!(result.is_ok());
+                            assert_eq!(outputkey_material[..], test.okm[..], "Failed test: {}", test.comment);
+                        }
+                        TestResult::Invalid => {
+                            assert!(result.is_err(), "Failed test: {}", test.comment)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_hkdf_wycheproof_sha384() {
+        let suites: &[rustls::SupportedCipherSuite] = &[
+            TLS13_AES_256_GCM_SHA384
+        ];
+
+        let test_name: TestName= TestName::HkdfSha384;
+
+        let test_set = wycheproof::hkdf::TestSet::load(test_name).unwrap();
+
+        let test_groups = &test_set.test_groups;
+
+        for suite in suites {
+            let hkdf_provider = suite.tls13().unwrap().hkdf_provider;
+
+            for test_group in test_groups {
+                let tests = &test_group.tests;
+                for test in tests {
+                    let pseudorandom_key_expander = hkdf_provider.extract_from_secret(Some(&test.salt), &test.ikm);
+                    let mut outputkey_material = vec![0; test.size];
+                    let result = pseudorandom_key_expander.expand_slice(&[&test.info], &mut outputkey_material);
+
+                    match &test.result {
+                        TestResult::Acceptable | TestResult::Valid => {
+                            assert!(result.is_ok());
+                            assert_eq!(outputkey_material[..], test.okm[..], "Failed test: {}", test.comment);
+                        }
+                        TestResult::Invalid => {
+                            assert!(result.is_err(), "Failed test: {}", test.comment)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
