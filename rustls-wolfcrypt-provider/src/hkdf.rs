@@ -150,12 +150,10 @@ impl tls13::HkdfExpander for WolfHkdfExpander {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hex_literal::hex;
     use crate::{
-        TLS13_AES_128_GCM_SHA256,
-        TLS13_CHACHA20_POLY1305_SHA256,
-        TLS13_AES_256_GCM_SHA384
+        TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384, TLS13_CHACHA20_POLY1305_SHA256,
     };
+    use hex_literal::hex;
     use wycheproof::{hkdf::TestName, TestResult};
 
     /// Tests the HKDF implementation against RFC 5869 test vector A.1
@@ -271,12 +269,10 @@ mod tests {
 
     #[test]
     fn test_hkdf_wycheproof_sha256() {
-        let suites: &[rustls::SupportedCipherSuite] = &[
-            TLS13_AES_128_GCM_SHA256,
-            TLS13_CHACHA20_POLY1305_SHA256,
-        ];
+        let suites: &[rustls::SupportedCipherSuite] =
+            &[TLS13_AES_128_GCM_SHA256, TLS13_CHACHA20_POLY1305_SHA256];
 
-        let test_name: TestName= TestName::HkdfSha256;
+        let test_name: TestName = TestName::HkdfSha256;
 
         let test_set = wycheproof::hkdf::TestSet::load(test_name).unwrap();
 
@@ -288,14 +284,21 @@ mod tests {
             for test_group in test_groups {
                 let tests = &test_group.tests;
                 for test in tests {
-                    let pseudorandom_key_expander = hkdf_provider.extract_from_secret(Some(&test.salt), &test.ikm);
+                    let pseudorandom_key_expander =
+                        hkdf_provider.extract_from_secret(Some(&test.salt), &test.ikm);
                     let mut outputkey_material = vec![0; test.size];
-                    let result = pseudorandom_key_expander.expand_slice(&[&test.info], &mut outputkey_material);
+                    let result = pseudorandom_key_expander
+                        .expand_slice(&[&test.info], &mut outputkey_material);
 
                     match &test.result {
                         TestResult::Acceptable | TestResult::Valid => {
                             assert!(result.is_ok());
-                            assert_eq!(outputkey_material[..], test.okm[..], "Failed test: {}", test.comment);
+                            assert_eq!(
+                                outputkey_material[..],
+                                test.okm[..],
+                                "Failed test: {}",
+                                test.comment
+                            );
                         }
                         TestResult::Invalid => {
                             assert!(result.is_err(), "Failed test: {}", test.comment)
@@ -308,11 +311,9 @@ mod tests {
 
     #[test]
     fn test_hkdf_wycheproof_sha384() {
-        let suites: &[rustls::SupportedCipherSuite] = &[
-            TLS13_AES_256_GCM_SHA384
-        ];
+        let suites: &[rustls::SupportedCipherSuite] = &[TLS13_AES_256_GCM_SHA384];
 
-        let test_name: TestName= TestName::HkdfSha384;
+        let test_name: TestName = TestName::HkdfSha384;
 
         let test_set = wycheproof::hkdf::TestSet::load(test_name).unwrap();
 
@@ -324,14 +325,21 @@ mod tests {
             for test_group in test_groups {
                 let tests = &test_group.tests;
                 for test in tests {
-                    let pseudorandom_key_expander = hkdf_provider.extract_from_secret(Some(&test.salt), &test.ikm);
+                    let pseudorandom_key_expander =
+                        hkdf_provider.extract_from_secret(Some(&test.salt), &test.ikm);
                     let mut outputkey_material = vec![0; test.size];
-                    let result = pseudorandom_key_expander.expand_slice(&[&test.info], &mut outputkey_material);
+                    let result = pseudorandom_key_expander
+                        .expand_slice(&[&test.info], &mut outputkey_material);
 
                     match &test.result {
                         TestResult::Acceptable | TestResult::Valid => {
                             assert!(result.is_ok());
-                            assert_eq!(outputkey_material[..], test.okm[..], "Failed test: {}", test.comment);
+                            assert_eq!(
+                                outputkey_material[..],
+                                test.okm[..],
+                                "Failed test: {}",
+                                test.comment
+                            );
                         }
                         TestResult::Invalid => {
                             assert!(result.is_err(), "Failed test: {}", test.comment)

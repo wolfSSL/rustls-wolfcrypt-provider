@@ -494,127 +494,127 @@ mod tests {
         let test_set = wycheproof::aead::TestSet::load(test_name).unwrap();
         let mut counter = 0;
 
-        for group in test_set.test_groups.into_iter()
+        for group in test_set
+            .test_groups
+            .into_iter()
             .filter(|group| group.key_size == 128)
-                .filter(|group| group.nonce_size == 96)
-                {
-                    for test in group.tests {
-                        counter += 1;
+            .filter(|group| group.nonce_size == 96)
+        {
+            for test in group.tests {
+                counter += 1;
 
-                        let mut aes_c_type: Aes = unsafe { mem::zeroed() };
-                        let aes_object = unsafe { AesObject::from_ptr(&mut aes_c_type) };
+                let mut aes_c_type: Aes = unsafe { mem::zeroed() };
+                let aes_object = unsafe { AesObject::from_ptr(&mut aes_c_type) };
 
-                        unsafe {
-                            let ret = wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID);
-                            check_if_zero(ret).unwrap();
+                unsafe {
+                    let ret = wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID);
+                    check_if_zero(ret).unwrap();
 
-                            let ret = wc_AesGcmSetKey(
-                                aes_object.as_ptr(),
-                                test.key.as_ptr(),
-                                test.key.len() as word32
+                    let ret = wc_AesGcmSetKey(
+                        aes_object.as_ptr(),
+                        test.key.as_ptr(),
+                        test.key.len() as word32,
+                    );
+                    check_if_zero(ret).unwrap();
+                }
+
+                let mut actual_ciphertext = test.pt.to_vec();
+                let mut actual_tag = [0u8; GCM_TAG_LENGTH];
+
+                let encrypt_result = unsafe {
+                    wc_AesGcmEncrypt(
+                        aes_object.as_ptr(),
+                        actual_ciphertext.as_mut_ptr(),
+                        test.pt.as_ptr(),
+                        test.pt.len() as word32,
+                        test.nonce.as_ptr(),
+                        test.nonce.len() as word32,
+                        actual_tag.as_mut_ptr(),
+                        actual_tag.len() as word32,
+                        test.aad.as_ptr(),
+                        test.aad.len() as word32,
+                    )
+                };
+
+                match &test.result {
+                    TestResult::Invalid => {
+                        if test.flags.iter().any(|flag| *flag == TestFlag::ModifiedTag) {
+                            assert_ne!(
+                                actual_tag[..],
+                                test.tag[..],
+                                "Expected incorrect tag. Id {}: {}",
+                                test.tc_id,
+                                test.comment
                             );
-                            check_if_zero(ret).unwrap();
-                        }
-
-                        let mut actual_ciphertext = test.pt.to_vec();
-                        let mut actual_tag = [0u8; GCM_TAG_LENGTH];
-
-                        let encrypt_result = unsafe {
-                            wc_AesGcmEncrypt(
-                                aes_object.as_ptr(),
-                                actual_ciphertext.as_mut_ptr(),
-                                test.pt.as_ptr(),
-                                test.pt.len() as word32,
-                                test.nonce.as_ptr(),
-                                test.nonce.len() as word32,
-                                actual_tag.as_mut_ptr(),
-                                actual_tag.len() as word32,
-                                test.aad.as_ptr(),
-                                test.aad.len() as word32,
-                            )
-                        };
-
-                        match &test.result {
-                            TestResult::Invalid => {
-                                if test.flags.iter().any(|flag| *flag == TestFlag::ModifiedTag) {
-                                    assert_ne!(
-                                        actual_tag[..],
-                                        test.tag[..],
-                                        "Expected incorrect tag. Id {}: {}",
-                                        test.tc_id,
-                                        test.comment
-                                    );
-                                }
-                            }
-                            TestResult::Valid | TestResult::Acceptable => {
-                                assert_eq!(
-                                    encrypt_result, 0,
-                                    "Encryption failed for test case {}: {}",
-                                    test.tc_id,
-                                    test.comment
-                                );
-
-                                assert_eq!(
-                                    actual_ciphertext[..],
-                                    test.ct[..],
-                                    "Encryption failed for test case {}: {}",
-                                    test.tc_id,
-                                    test.comment
-                                );
-
-                                assert_eq!(
-                                    actual_tag[..],
-                                    test.tag[..],
-                                    "Tag mismatch in test case {}: {}",
-                                    test.tc_id,
-                                    test.comment
-                                );
-                            }
-                        }
-
-                        let mut decrypted_data = test.ct.to_vec();
-                        let decrypt_result = unsafe {
-                            wc_AesGcmDecrypt(
-                                aes_object.as_ptr(),
-                                decrypted_data.as_mut_ptr(),
-                                test.ct.as_ptr(),
-                                test.ct.len() as word32,
-                                test.nonce.as_ptr(),
-                                test.nonce.len() as word32,
-                                test.tag.as_ptr(),
-                                test.tag.len() as word32,
-                                test.aad.as_ptr(),
-                                test.aad.len() as word32,
-                            )
-                        };
-
-                        match &test.result {
-                            TestResult::Invalid => {
-                                assert!(
-                                    decrypt_result != 0,
-                                    "Decryption should have failed for invalid test case {}: {}",
-                                    test.tc_id,
-                                    test.comment
-                                );
-                            }
-                            TestResult::Valid | TestResult::Acceptable => {
-                                assert_eq!(
-                                    decrypt_result, 0,
-                                    "Decryption failed for test case {}: {}",
-                                    test.tc_id,
-                                    test.comment
-                                );
-                                assert_eq!(
-                                    decrypted_data[..],
-                                    test.pt[..],
-                                    "Decryption failed for test case {}: {}",
-                                    test.tc_id,
-                                    test.comment
-                                );
-                            }
                         }
                     }
+                    TestResult::Valid | TestResult::Acceptable => {
+                        assert_eq!(
+                            encrypt_result, 0,
+                            "Encryption failed for test case {}: {}",
+                            test.tc_id, test.comment
+                        );
+
+                        assert_eq!(
+                            actual_ciphertext[..],
+                            test.ct[..],
+                            "Encryption failed for test case {}: {}",
+                            test.tc_id,
+                            test.comment
+                        );
+
+                        assert_eq!(
+                            actual_tag[..],
+                            test.tag[..],
+                            "Tag mismatch in test case {}: {}",
+                            test.tc_id,
+                            test.comment
+                        );
+                    }
                 }
+
+                let mut decrypted_data = test.ct.to_vec();
+                let decrypt_result = unsafe {
+                    wc_AesGcmDecrypt(
+                        aes_object.as_ptr(),
+                        decrypted_data.as_mut_ptr(),
+                        test.ct.as_ptr(),
+                        test.ct.len() as word32,
+                        test.nonce.as_ptr(),
+                        test.nonce.len() as word32,
+                        test.tag.as_ptr(),
+                        test.tag.len() as word32,
+                        test.aad.as_ptr(),
+                        test.aad.len() as word32,
+                    )
+                };
+
+                match &test.result {
+                    TestResult::Invalid => {
+                        assert!(
+                            decrypt_result != 0,
+                            "Decryption should have failed for invalid test case {}: {}",
+                            test.tc_id,
+                            test.comment
+                        );
+                    }
+                    TestResult::Valid | TestResult::Acceptable => {
+                        assert_eq!(
+                            decrypt_result, 0,
+                            "Decryption failed for test case {}: {}",
+                            test.tc_id, test.comment
+                        );
+                        assert_eq!(
+                            decrypted_data[..],
+                            test.pt[..],
+                            "Decryption failed for test case {}: {}",
+                            test.tc_id,
+                            test.comment
+                        );
+                    }
+                }
+            }
+        }
 
         assert!(
             counter > 50,
