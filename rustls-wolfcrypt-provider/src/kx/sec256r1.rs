@@ -1,21 +1,19 @@
 use crate::{error::check_if_zero, types::*};
 use alloc::boxed::Box;
-use alloc::vec;
-use alloc::vec::Vec;
 use core::mem;
 use core::ptr;
 use foreign_types::ForeignType;
 use wolfcrypt_rs::*;
 
 pub struct KeyExchangeSecP256r1 {
-    priv_key_bytes: Vec<u8>,
-    pub_key_bytes: Vec<u8>,
+    priv_key_bytes: Box<[u8]>,
+    pub_key_bytes: Box<[u8]>,
 }
 
 pub struct ECCPubKey {
-    qx: Vec<u8>,
+    qx: [u8; 32],
     qx_len: word32,
-    qy: Vec<u8>,
+    qy: [u8; 32],
     qy_len: word32,
 }
 
@@ -27,21 +25,18 @@ impl KeyExchangeSecP256r1 {
         let rng_object: WCRngObject = WCRngObject::new(&mut rng);
         let mut ret;
         let mut pub_key_raw = ECCPubKey {
-            qx: [0; 32].to_vec(),
+            qx: [0; 32],
             qx_len: 32,
-            qy: [0; 32].to_vec(),
+            qy: [0; 32],
             qy_len: 32,
         };
 
-        // We initiliaze the ecc key object.
         key_object.init();
-
-        // We initiliaze the rng object.
         rng_object.init();
 
         let key_size = unsafe { wc_ecc_get_curve_size_from_id(ecc_curve_id_ECC_SECP256R1) };
 
-        let mut priv_key_raw: Vec<u8> = vec![0; key_size as usize];
+        let mut priv_key_raw = [0u8; 32];
         let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
 
         ret = unsafe {
@@ -73,33 +68,31 @@ impl KeyExchangeSecP256r1 {
             )
         };
         check_if_zero(ret).unwrap();
+        // One byte prefix (0x04) + 32 bytes X coord + 32 bytes Y coord
+        let mut pub_key_bytes = [0x04; 65];
 
-        let mut pub_key_bytes = Vec::new();
+        // Copy X coordinate into bytes 1-32
+        pub_key_bytes[1..33].copy_from_slice(&pub_key_raw.qx);
 
-        pub_key_bytes.push(0x04);
-        pub_key_bytes.extend(pub_key_raw.qx.clone());
-        pub_key_bytes.extend(pub_key_raw.qy.clone());
-        pub_key_bytes.as_slice();
+        // Copy Y coordinate into bytes 33-64
+        pub_key_bytes[33..65].copy_from_slice(&pub_key_raw.qy);
 
         KeyExchangeSecP256r1 {
-            priv_key_bytes: priv_key_raw.to_vec(),
-            pub_key_bytes: pub_key_bytes.to_vec(),
+            priv_key_bytes: Box::new(priv_key_raw),
+            pub_key_bytes: Box::new(pub_key_bytes),
         }
     }
 
-    pub fn derive_shared_secret(&self, peer_pub_key: Vec<u8>) -> Vec<u8> {
+    pub fn derive_shared_secret(&self, peer_pub_key: &[u8]) -> Box<[u8]> {
         let mut priv_key: ecc_key = unsafe { mem::zeroed() };
         let priv_key_object = ECCKeyObject::new(&mut priv_key);
         let mut pub_key: ecc_key = unsafe { mem::zeroed() };
         let pub_key_object = ECCKeyObject::new(&mut pub_key);
-        let mut ret;
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
         let rng_object = WCRngObject::new(&mut rng);
+        let mut ret: i32;
 
-        // We initialize the private key before we import it.
         priv_key_object.init();
-
-        // We initiliaze the public key before we import it.
         pub_key_object.init();
 
         ret = unsafe {
@@ -114,10 +107,6 @@ impl KeyExchangeSecP256r1 {
         };
         check_if_zero(ret).unwrap();
 
-        /*
-         * Skipping first byte because rustls uses this format:
-         * https://www.rfc-editor.org/rfc/rfc8446#section-4.2.8.2.
-         * */
         ret = unsafe {
             wc_ecc_import_unsigned(
                 pub_key_object.as_ptr(),
@@ -129,7 +118,6 @@ impl KeyExchangeSecP256r1 {
         };
         check_if_zero(ret).unwrap();
 
-        // We initialize the rng object.
         rng_object.init();
 
         ret = unsafe { wc_ecc_set_rng(pub_key_object.as_ptr(), rng_object.as_ptr()) };
@@ -138,9 +126,7 @@ impl KeyExchangeSecP256r1 {
         ret = unsafe { wc_ecc_set_rng(priv_key_object.as_ptr(), rng_object.as_ptr()) };
         check_if_zero(ret).unwrap();
 
-        let key_size = unsafe { wc_ecc_get_curve_size_from_id(ecc_curve_id_ECC_SECP256R1) };
-
-        let mut out: Vec<u8> = vec![0; key_size as usize];
+        let mut out = [0u8; 32];
         let mut out_len: word32 = out.len() as word32;
 
         ret = unsafe {
@@ -153,7 +139,7 @@ impl KeyExchangeSecP256r1 {
         };
         check_if_zero(ret).unwrap();
 
-        out.to_vec()
+        Box::new(out)
     }
 }
 
@@ -162,15 +148,12 @@ impl rustls::crypto::ActiveKeyExchange for KeyExchangeSecP256r1 {
         self: Box<Self>,
         peer_pub_key: &[u8],
     ) -> Result<rustls::crypto::SharedSecret, rustls::Error> {
-        // We derive the shared secret with our private key and
-        // the received public key.
-        let secret = self.derive_shared_secret(peer_pub_key.to_vec());
-
-        Ok(rustls::crypto::SharedSecret::from(secret.as_slice()))
+        let secret = self.derive_shared_secret(peer_pub_key);
+        Ok(rustls::crypto::SharedSecret::from(&*secret))
     }
 
     fn pub_key(&self) -> &[u8] {
-        self.pub_key_bytes.as_slice()
+        &self.pub_key_bytes
     }
 
     fn group(&self) -> rustls::NamedGroup {
@@ -189,8 +172,8 @@ mod tests {
         let bob = Box::new(KeyExchangeSecP256r1::use_secp256r1());
 
         assert_eq!(
-            alice.derive_shared_secret(bob.pub_key().try_into().unwrap()),
-            bob.derive_shared_secret(alice.pub_key().try_into().unwrap()),
+            alice.derive_shared_secret(bob.pub_key()),
+            bob.derive_shared_secret(alice.pub_key()),
         )
     }
 }

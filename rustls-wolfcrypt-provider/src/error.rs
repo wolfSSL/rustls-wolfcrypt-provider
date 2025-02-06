@@ -89,7 +89,7 @@ pub fn check_if_one(stat: i32) -> WCResult {
     match stat {
         1 => Ok(()),
         0 => Err(WCError::Failure),
-        _ => check_error(stat)
+        _ => check_error(stat),
     }
 }
 
@@ -106,7 +106,7 @@ pub fn check_if_greater_than_zero(ret: i32) -> WCResult {
     match ret {
         x if x > 0 => Ok(()),
         0 => Err(WCError::Failure),
-        _ => check_error(ret)
+        _ => check_error(ret),
     }
 }
 
@@ -119,10 +119,16 @@ mod tests {
         assert_eq!(WCError::Success.to_string(), "Operation successful");
         assert_eq!(WCError::Failure.to_string(), "Operation failed");
         assert_eq!(WCError::Memory.to_string(), "Memory allocation error");
-        assert_eq!(WCError::InvalidArgument.to_string(), "Invalid argument or state");
+        assert_eq!(
+            WCError::InvalidArgument.to_string(),
+            "Invalid argument or state"
+        );
         assert_eq!(WCError::Buffer.to_string(), "Buffer error");
         assert_eq!(WCError::Authentication.to_string(), "Authentication failed");
-        assert_eq!(WCError::RandomError.to_string(), "Random number generation error");
+        assert_eq!(
+            WCError::RandomError.to_string(),
+            "Random number generation error"
+        );
         assert_eq!(WCError::ASNParse.to_string(), "ASN parsing error");
         assert_eq!(WCError::KeyError.to_string(), "Key-related error");
         assert_eq!(WCError::NotAvailable.to_string(), "Feature not available");
@@ -160,6 +166,9 @@ mod tests {
     fn test_check_if_greater_than_zero() {
         assert!(check_if_greater_than_zero(1).is_ok());
         assert!(check_if_greater_than_zero(0).is_err());
-        assert!(matches!(check_if_greater_than_zero(-1), Err(WCError::Failure)));
+        assert!(matches!(
+            check_if_greater_than_zero(-1),
+            Err(WCError::Failure)
+        ));
     }
 }
