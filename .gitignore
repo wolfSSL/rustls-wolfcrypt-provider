@@ -2,4 +2,4 @@
 /rustls-wolfcrypt-provider/Cargo.lock
 /wolfcrypt-rs/target
 /wolfcrypt-rs/Cargo.lock
-/wolfcrypt-rs/wolfssl-5.7.4-stable/
+/wolfcrypt-rs/wolfssl-*/
