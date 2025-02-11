@@ -1,13 +1,12 @@
 use crate::{error::check_if_zero, types::*};
 use alloc::boxed::Box;
-use alloc::vec::Vec;
 use core::mem;
 use foreign_types::ForeignType;
 use wolfcrypt_rs::*;
 
 pub struct KeyExchangeX25519 {
-    pub_key_bytes: Vec<u8>,
-    priv_key_bytes: Vec<u8>,
+    pub_key_bytes: Box<[u8]>,
+    priv_key_bytes: Box<[u8]>,
 }
 
 impl KeyExchangeX25519 {
@@ -48,12 +47,12 @@ impl KeyExchangeX25519 {
         check_if_zero(ret).unwrap();
 
         KeyExchangeX25519 {
-            pub_key_bytes: pub_key_raw.to_vec(),
-            priv_key_bytes: priv_key_raw.to_vec(),
+            pub_key_bytes: Box::new(pub_key_raw),
+            priv_key_bytes: Box::new(priv_key_raw),
         }
     }
 
-    pub fn derive_shared_secret(&self, peer_pub_key: Vec<u8>) -> Vec<u8> {
+    pub fn derive_shared_secret(&self, peer_pub_key: &[u8]) -> Box<[u8]> {
         let mut ret;
         let endian: u32 = EC25519_LITTLE_ENDIAN;
         let mut pub_key_provided: curve25519_key = unsafe { mem::zeroed() };
@@ -113,7 +112,7 @@ impl KeyExchangeX25519 {
         };
         check_if_zero(ret).unwrap();
 
-        out.to_vec()
+        Box::new(out)
     }
 }
 
@@ -124,9 +123,9 @@ impl rustls::crypto::ActiveKeyExchange for KeyExchangeX25519 {
     ) -> Result<rustls::crypto::SharedSecret, rustls::Error> {
         // We derive the shared secret with our private key and
         // the received public key.
-        let secret = self.derive_shared_secret(peer_pub_key.to_vec());
+        let secret = self.derive_shared_secret(peer_pub_key);
 
-        Ok(rustls::crypto::SharedSecret::from(secret.as_slice()))
+        Ok(rustls::crypto::SharedSecret::from(&*secret))
     }
 
     fn pub_key(&self) -> &[u8] {

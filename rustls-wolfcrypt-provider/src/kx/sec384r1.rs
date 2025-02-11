@@ -1,22 +1,20 @@
 use crate::error::*;
 use crate::types::*;
 use alloc::boxed::Box;
-use alloc::vec;
-use alloc::vec::Vec;
 use core::mem;
 use core::ptr;
 use foreign_types::ForeignType;
 use wolfcrypt_rs::*;
 
 pub struct KeyExchangeSecP384r1 {
-    priv_key_bytes: Vec<u8>,
-    pub_key_bytes: Vec<u8>,
+    priv_key_bytes: Box<[u8]>,
+    pub_key_bytes: Box<[u8]>,
 }
 
 pub struct ECCPubKey {
-    qx: Vec<u8>,
+    qx: [u8; 48],
     qx_len: word32,
-    qy: Vec<u8>,
+    qy: [u8; 48],
     qy_len: word32,
 }
 
@@ -28,9 +26,9 @@ impl KeyExchangeSecP384r1 {
         let rng_object: WCRngObject = WCRngObject::new(&mut rng);
         let mut ret;
         let mut pub_key_raw = ECCPubKey {
-            qx: [0; 48].to_vec(),
+            qx: [0; 48],
             qx_len: 48,
-            qy: [0; 48].to_vec(),
+            qy: [0; 48],
             qy_len: 48,
         };
 
@@ -50,7 +48,7 @@ impl KeyExchangeSecP384r1 {
         };
         check_if_zero(ret).unwrap();
 
-        let mut priv_key_raw: Vec<u8> = vec![0; key_size as usize];
+        let mut priv_key_raw = [0u8; 48];
         let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
 
         ret = unsafe {
@@ -73,20 +71,22 @@ impl KeyExchangeSecP384r1 {
         };
         check_if_zero(ret).unwrap();
 
-        let mut pub_key_bytes = Vec::new();
+        // One byte prefix + 48 bytes X + 48 bytes Y
+        let mut pub_key_bytes = [0x04; 97];
 
-        pub_key_bytes.push(0x04);
-        pub_key_bytes.extend(pub_key_raw.qx.clone());
-        pub_key_bytes.extend(pub_key_raw.qy.clone());
-        pub_key_bytes.as_slice();
+        // Copy X coordinate into bytes 1-49
+        pub_key_bytes[1..49].copy_from_slice(&pub_key_raw.qx);
+
+        // Copy Y coordinate into bytes 49-97
+        pub_key_bytes[49..97].copy_from_slice(&pub_key_raw.qy);
 
         KeyExchangeSecP384r1 {
-            priv_key_bytes: priv_key_raw.to_vec(),
-            pub_key_bytes: pub_key_bytes.to_vec(),
+            priv_key_bytes: Box::new(priv_key_raw),
+            pub_key_bytes: Box::new(pub_key_bytes),
         }
     }
 
-    pub fn derive_shared_secret(&self, peer_pub_key: Vec<u8>) -> Vec<u8> {
+    pub fn derive_shared_secret(&self, peer_pub_key: &[u8]) -> Box<[u8]> {
         let mut priv_key: ecc_key = unsafe { mem::zeroed() };
         let priv_key_object: ECCKeyObject = ECCKeyObject::new(&mut priv_key);
         let mut pub_key: ecc_key = unsafe { mem::zeroed() };
@@ -133,9 +133,7 @@ impl KeyExchangeSecP384r1 {
         ret = unsafe { wc_ecc_set_rng(priv_key_object.as_ptr(), rng_object.as_ptr()) };
         check_if_zero(ret).unwrap();
 
-        let key_size = unsafe { wc_ecc_get_curve_size_from_id(ecc_curve_id_ECC_SECP384R1) };
-
-        let mut out: Vec<u8> = vec![0; key_size as usize];
+        let mut out = [0u8; 48];
         let mut out_len: word32 = out.len() as word32;
 
         ret = unsafe {
@@ -148,7 +146,7 @@ impl KeyExchangeSecP384r1 {
         };
         check_if_zero(ret).unwrap();
 
-        out.to_vec()
+        Box::new(out)
     }
 }
 
@@ -159,13 +157,13 @@ impl rustls::crypto::ActiveKeyExchange for KeyExchangeSecP384r1 {
     ) -> Result<rustls::crypto::SharedSecret, rustls::Error> {
         // We derive the shared secret with our private key and
         // the received public key.
-        let secret = self.derive_shared_secret(peer_pub_key.to_vec());
+        let secret = self.derive_shared_secret(peer_pub_key);
 
-        Ok(rustls::crypto::SharedSecret::from(secret.as_slice()))
+        Ok(rustls::crypto::SharedSecret::from(&*secret))
     }
 
     fn pub_key(&self) -> &[u8] {
-        self.pub_key_bytes.as_slice()
+        &self.pub_key_bytes
     }
 
     fn group(&self) -> rustls::NamedGroup {

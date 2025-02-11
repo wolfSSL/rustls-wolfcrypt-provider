@@ -1,6 +1,7 @@
 use crate::error::*;
 use core::ptr::NonNull;
 use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
+use log::error;
 
 use wolfcrypt_rs::*;
 
@@ -29,8 +30,8 @@ macro_rules! define_foreign_type {
         }
 
         impl $struct_name {
-            // Given a $c_type (FFI C binding), it creates an object around it
-            // using the ForeignType's function from_ptr function.
+            /// Given a $c_type (FFI C binding), it creates an object around it
+            /// using the ForeignType's function from_ptr function.
             pub fn new(c_type: &mut $c_type) -> $struct_name {
                 unsafe {
                     let new_object: $struct_name = $struct_name::from_ptr(c_type);
@@ -38,25 +39,32 @@ macro_rules! define_foreign_type {
                 }
             }
 
-            // Given an $init_function, it calls it with the object's ptr as argument.
+            /// Given an $init_function, it calls it with the object's ptr as argument.
             pub fn init(&self) {
                 unsafe { check_if_zero($init_function(self.as_ptr())).unwrap() }
             }
         }
     };
 
-    // For types that also need Drop implementations
     ($struct_name:ident, $ref_name:ident, $c_type:ty, drop($drop_fn:ident), $init_function:ident) => {
         define_foreign_type!($struct_name, $ref_name, $c_type, $init_function);
 
+        /// Implements Drop trait for cryptographic types that require cleanup.
+        /// This safely frees memory and other resources when the type goes out of scope.
+        /// Any cleanup errors are logged but cannot be returned since this is Drop.
+        /// The unsafe block is needed for FFI calls to the underlying C functions.
         impl Drop for $struct_name {
             fn drop(&mut self) {
                 let ret = unsafe { $drop_fn(self.as_ptr()) };
-                if ret != 0 {
-                    panic!(
-                        "Error while freeing resource in Drop for {}",
-                        stringify!($struct_name)
-                    );
+                match check_if_zero(ret) {
+                    Err(err) => {
+                        error!(
+                            "Error while freeing resource in Drop for {}: {}",
+                            stringify!($struct_name),
+                            err
+                        );
+                    }
+                    Ok(()) => {}
                 }
             }
         }
@@ -88,15 +96,27 @@ macro_rules! define_foreign_type_with_copy {
         }
     };
 
-    // For types that also need Drop implementations
     ($struct_name:ident, $ref_name:ident, $c_type:ty, drop($drop_fn:ident)) => {
         define_foreign_type_with_copy!($struct_name, $ref_name, $c_type);
 
+        /// Implements Drop trait for cryptographic types that require cleanup.
+        /// This safely frees memory and other resources when the type goes out of scope.
+        /// Any cleanup errors are logged but cannot be returned since this is Drop.
+        /// The unsafe block is needed for FFI calls to the underlying C functions.
         impl Drop for $struct_name {
             fn drop(&mut self) {
                 unsafe {
                     let ret = $drop_fn(self.as_ptr());
-                    check_if_zero(ret).unwrap()
+                    match check_if_zero(ret) {
+                        Err(err) => {
+                            error!(
+                                "Error while freeing resource in Drop for {}: {}",
+                                stringify!($struct_name),
+                                err
+                            );
+                        }
+                        Ok(()) => {}
+                    }
                 }
             }
         }
