@@ -93,15 +93,7 @@ impl rustls::crypto::KeyProvider for Provider {
     ) -> Result<Arc<dyn rustls::sign::SigningKey>, rustls::Error> {
         // Define supported algorithms as closures
         let algorithms: SigningAlgorithms = vec![
-            Box::new(|key| {
-                sign::ecdsa::EcdsaSigningKeyP256Sha256Sign::try_from(key).map(|x| Arc::new(x) as _)
-            }),
-            Box::new(|key| {
-                sign::ecdsa::EcdsaSigningKeyP384Sha384Sign::try_from(key).map(|x| Arc::new(x) as _)
-            }),
-            Box::new(|key| {
-                sign::ecdsa::EcdsaSigningKeyP521Sha512Sign::try_from(key).map(|x| Arc::new(x) as _)
-            }),
+            Box::new(|key| sign::ecdsa::EcdsaSigningKey::try_from(key).map(|x| Arc::new(x) as _)),
             Box::new(|key| sign::rsapss::RsaPssPrivateKey::try_from(key).map(|x| Arc::new(x) as _)),
             Box::new(|key| {
                 sign::rsapkcs1::RsaPkcs1PrivateKey::try_from(key).map(|x| Arc::new(x) as _)
