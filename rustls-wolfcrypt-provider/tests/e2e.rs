@@ -83,7 +83,9 @@ fn start_wolfssl_server(current_dir_string: String, tls_version: &str) -> Child 
 #[cfg(test)]
 mod tests {
     use rustls::crypto::CryptoProvider;
-    use rustls_pki_types::{PrivateKeyDer, PrivatePkcs1KeyDer, PrivatePkcs8KeyDer};
+    use rustls_pki_types::{
+        PrivateKeyDer, PrivatePkcs1KeyDer, PrivatePkcs8KeyDer, PrivateSec1KeyDer,
+    };
 
     use super::*;
 
@@ -478,14 +480,28 @@ mod tests {
             };
             check_if_greater_than_zero(ret).unwrap();
 
-            der_ecc_key.resize(ret as usize, 0); // Trim to actual size
-            let rustls_pkcs8_der = PrivatePkcs8KeyDer::from(der_ecc_key.as_slice());
-            let rustls_private_key = PrivateKeyDer::from(rustls_pkcs8_der);
+            // Trim to actual key size
+            der_ecc_key.resize(ret as usize, 0);
+
+            // Convert to PKCS#8 format and verify
+            let rustls_private_key_pkcs8 =
+                PrivateKeyDer::from(PrivatePkcs8KeyDer::from(der_ecc_key.as_slice()));
 
             sign_and_verify(
                 &wolfcrypt_default_provider,
                 scheme,
-                rustls_private_key.clone_key(),
+                rustls_private_key_pkcs8.clone_key(),
+                pub_key_bytes.as_slice(),
+            );
+
+            // Convert to SEC1 format and verify
+            let rustls_private_key_sec1 =
+                PrivateKeyDer::from(PrivateSec1KeyDer::from(der_ecc_key.as_slice()));
+
+            sign_and_verify(
+                &wolfcrypt_default_provider,
+                scheme,
+                rustls_private_key_sec1.clone_key(),
                 pub_key_bytes.as_slice(),
             );
         }

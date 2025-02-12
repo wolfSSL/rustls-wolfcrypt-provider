@@ -31,8 +31,14 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKey {
     type Error = rustls::Error;
 
     fn try_from(value: &PrivateKeyDer<'_>) -> Result<Self, Self::Error> {
-        let pkcs8 = match value {
+        let der_formatted = match value {
             PrivateKeyDer::Pkcs8(der) => der.secret_pkcs8_der(),
+            PrivateKeyDer::Sec1(der) => der.secret_sec1_der(),
+            PrivateKeyDer::Pkcs1(_) => {
+                return Err(rustls::Error::General(
+                    "Unsupported ECDSA key format (PKCS#1)".into(),
+                ))
+            }
             _ => {
                 return Err(rustls::Error::General(
                     "Unsupported ECDSA key format (not PKCS#8)".into(),
@@ -48,10 +54,10 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKey {
         let mut idx: u32 = 0;
         let ret = unsafe {
             wc_EccPrivateKeyDecode(
-                pkcs8.as_ptr() as *mut u8,
+                der_formatted.as_ptr() as *mut u8,
                 &mut idx,
                 ecc_key_object.as_ptr(),
-                pkcs8.len() as word32,
+                der_formatted.len() as word32,
             )
         };
         check_if_zero(ret)
@@ -78,8 +84,6 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKey {
             .map_err(|_| rustls::Error::General("wc_ecc_export_private_only failed".into()))?;
 
         priv_key_bytes.truncate(priv_key_bytes_len as usize);
-
-        log::info!("test");
 
         let scheme =
             curve_id_to_scheme(key_size).map_err(|e| rustls::Error::General(e.to_string()))?;
