@@ -98,9 +98,6 @@ impl rustls::crypto::KeyProvider for Provider {
             Box::new(|key| {
                 sign::rsapkcs1::RsaPkcs1PrivateKey::try_from(key).map(|x| Arc::new(x) as _)
             }),
-            Box::new(|key| {
-                sign::rsapkcs1::RsaPkcs1PrivateKey::try_from(key).map(|x| Arc::new(x) as _)
-            }),
             Box::new(|key| sign::eddsa::Ed25519PrivateKey::try_from(key).map(|x| Arc::new(x) as _)),
         ];
 
