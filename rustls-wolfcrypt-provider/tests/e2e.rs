@@ -578,8 +578,6 @@ mod tests {
     fn rsa_pss_sign_and_verify() {
         init_thread_pool();
 
-        env_logger::init();
-
         let wolfcrypt_default_provider = rustls_wolfcrypt_provider::provider();
         let schemes = [
             SignatureScheme::RSA_PSS_SHA256,
@@ -671,8 +669,6 @@ mod tests {
     fn rsa_pkcs1_sign_and_verify() {
         init_thread_pool();
 
-        env_logger::init();
-
         let wolfcrypt_default_provider = rustls_wolfcrypt_provider::provider();
         let test_cases: Vec<_> = [
             SignatureScheme::RSA_PKCS1_SHA256,
@@ -685,6 +681,12 @@ mod tests {
 
         test_cases.par_iter().for_each(|&(scheme, key_size)| {
             generate_and_test_rsa_pkcs1_key(&wolfcrypt_default_provider, scheme, key_size).expect(
+                &format!("Failed for scheme {:?} with key size {}", scheme, key_size),
+            );
+        });
+
+        test_cases.par_iter().for_each(|&(scheme, key_size)| {
+            generate_and_test_rsa_pkcs8_key(&wolfcrypt_default_provider, scheme, key_size).expect(
                 &format!("Failed for scheme {:?} with key size {}", scheme, key_size),
             );
         });
