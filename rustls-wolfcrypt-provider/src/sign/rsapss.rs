@@ -39,6 +39,8 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssPrivateKey {
     fn try_from(value: &PrivateKeyDer<'_>) -> Result<Self, Self::Error> {
         match value {
             PrivateKeyDer::Pkcs8(der) => {
+                log::info!("Converting PKCS8 to RSAPSS");
+
                 let pkcs8: &[u8] = der.secret_pkcs8_der();
                 let pkcs8_sz: word32 = pkcs8.len() as word32;
                 let mut ret;
@@ -57,6 +59,37 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPssPrivateKey {
                         &mut idx,
                         rsa_key_object.as_ptr(),
                         pkcs8_sz,
+                    )
+                };
+                check_if_zero(ret)
+                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
+
+                Ok(Self {
+                    key: Arc::new(rsa_key_object),
+                    algo: SignatureAlgorithm::RSA,
+                })
+            },
+            PrivateKeyDer::Pkcs1(der) => {
+                log::info!("Converting PKCS1 key to RSAPSS key");
+
+                let pkcs1: &[u8] = der.secret_pkcs1_der();
+                let pkcs1_sz: word32 = pkcs1.len() as word32;
+                let mut ret;
+                let rsa_key_box = Box::new(unsafe { mem::zeroed::<RsaKey>() });
+                let rsa_key_ptr = Box::into_raw(rsa_key_box);
+                let rsa_key_object = unsafe { RsaKeyObject::from_ptr(rsa_key_ptr) };
+
+                ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
+                check_if_zero(ret).unwrap();
+
+                let mut idx: u32 = 0;
+
+                ret = unsafe {
+                    wc_RsaPrivateKeyDecode(
+                        pkcs1.as_ptr() as *mut u8,
+                        &mut idx,
+                        rsa_key_object.as_ptr(),
+                        pkcs1_sz,
                     )
                 };
                 check_if_zero(ret)

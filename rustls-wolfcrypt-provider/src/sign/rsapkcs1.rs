@@ -38,6 +38,8 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPkcs1PrivateKey {
     fn try_from(value: &PrivateKeyDer<'_>) -> Result<Self, Self::Error> {
         match value {
             PrivateKeyDer::Pkcs1(der) => {
+                log::info!("Converting PKCS1 to RSAPKCS1");
+
                 let pkcs1: &[u8] = der.secret_pkcs1_der();
                 let pkcs1_sz: word32 = pkcs1.len() as word32;
                 let mut ret;
