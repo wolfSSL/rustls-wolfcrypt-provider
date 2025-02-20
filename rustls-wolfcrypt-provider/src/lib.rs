@@ -27,8 +27,7 @@ pub mod aead {
 pub mod sign {
     pub mod ecdsa;
     pub mod eddsa;
-    pub mod rsapkcs1;
-    pub mod rsapss;
+    pub mod rsa;
 }
 use crate::aead::{aes128gcm, aes256gcm, chacha20};
 
@@ -93,22 +92,8 @@ impl rustls::crypto::KeyProvider for Provider {
     ) -> Result<Arc<dyn rustls::sign::SigningKey>, rustls::Error> {
         // Define supported algorithms as closures
         let algorithms: SigningAlgorithms = vec![
-            Box::new(|key| {
-                sign::ecdsa::EcdsaSigningKeyP256Sha256Sign::try_from(key).map(|x| Arc::new(x) as _)
-            }),
-            Box::new(|key| {
-                sign::ecdsa::EcdsaSigningKeyP384Sha384Sign::try_from(key).map(|x| Arc::new(x) as _)
-            }),
-            Box::new(|key| {
-                sign::ecdsa::EcdsaSigningKeyP521Sha512Sign::try_from(key).map(|x| Arc::new(x) as _)
-            }),
-            Box::new(|key| sign::rsapss::RsaPssPrivateKey::try_from(key).map(|x| Arc::new(x) as _)),
-            Box::new(|key| {
-                sign::rsapkcs1::RsaPkcs1PrivateKey::try_from(key).map(|x| Arc::new(x) as _)
-            }),
-            Box::new(|key| {
-                sign::rsapkcs1::RsaPkcs1PrivateKey::try_from(key).map(|x| Arc::new(x) as _)
-            }),
+            Box::new(|key| sign::ecdsa::EcdsaSigningKey::try_from(key).map(|x| Arc::new(x) as _)),
+            Box::new(|key| sign::rsa::RsaPrivateKey::try_from(key).map(|x| Arc::new(x) as _)),
             Box::new(|key| sign::eddsa::Ed25519PrivateKey::try_from(key).map(|x| Arc::new(x) as _)),
         ];
 
