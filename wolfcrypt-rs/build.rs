@@ -17,7 +17,7 @@ const WOLFSSL_SHA256: &str = "1aeb6e49222bb9d8cf012063f0dfc3f229084f24ce2b5740a2
 /// Handles the main build process and exits with an error code if anything fails.
 fn main() {
     if let Err(e) = run_build() {
-        eprintln!("Build failed: {}", e);
+        eprintln!("Build failed: {e}");
         std::process::exit(1);
     }
 }
@@ -74,7 +74,7 @@ fn generate_bindings() -> Result<()> {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings
         .write_to_file(out_path.join("bindings.rs"))
-        .map_err(|e| io::Error::other(format!("Couldn't write bindings: {}", e)))
+        .map_err(|e| io::Error::other(format!("Couldn't write bindings: {e}")))
 }
 
 /// Coordinates the complete setup process for WolfSSL.
@@ -189,7 +189,7 @@ fn remove_zip() -> Result<()> {
 /// Returns `Ok(())` if all build steps succeed, or an error if any step fails.
 fn build_wolfssl() -> Result<()> {
     env::set_current_dir(WOLFSSL_DIR)?;
-    println!("Changed directory to {}.", WOLFSSL_DIR);
+    println!("Changed directory to {WOLFSSL_DIR}.");
 
     let prefix = install_prefix();
     let prefix_arg = format!("--prefix={}", prefix.to_str().unwrap());
@@ -230,7 +230,7 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<()> {
             String::from_utf8_lossy(&output.stderr)
         )));
     }
-    println!("{} completed successfully.", cmd);
+    println!("{cmd} completed successfully.");
     Ok(())
 }
 
