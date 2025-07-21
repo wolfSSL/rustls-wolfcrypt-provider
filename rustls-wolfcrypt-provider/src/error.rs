@@ -110,6 +110,38 @@ pub fn check_if_greater_than_zero(ret: i32) -> WCResult {
     }
 }
 
+/// An error with absolutely no details.
+///
+
+///
+/// Experience with using and implementing other crypto libraries like has
+/// shown that sophisticated error reporting facilities often cause significant
+/// bugs themselves, both within the crypto library and within users of the
+/// crypto library. This approach attempts to minimize complexity in the hopes
+/// of avoiding such problems. In some cases, this approach may be too extreme,
+/// and it may be important for an operation to provide some details about the
+/// cause of a failure. Users of *aws-lc-rs* are encouraged to report such cases so
+/// that they can be addressed individually.
+///
+/// [`std::error::Error`]: https://doc.rust-lang.org/std/error/trait.Error.html
+/// [“Error Handling” in the Rust Book]:
+///     https://doc.rust-lang.org/book/first-edition/error-handling.html#the-from-trait
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Unspecified;
+
+// This is required for the implementation of `std::error::Error`.
+impl core::fmt::Display for Unspecified {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        f.write_str("Unspecified")
+    }
+}
+
+impl From<core::array::TryFromSliceError> for Unspecified {
+    fn from(_: core::array::TryFromSliceError) -> Self {
+        Self
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
