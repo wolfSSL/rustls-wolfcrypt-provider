@@ -34,6 +34,7 @@ hex-literal = "0.4.1"
 zeroize = { version = "1", default-features = false, features = ["alloc", "derive"] }
 
 
+
 [dev-dependencies]
 rcgen = { version = "0.13" }
 serial_test = { version = "3.2.0", default-features = false }
@@ -45,6 +46,7 @@ rustls-pemfile = { version = "2.2.0", default-features = false, features = ["std
 [features]
 default = []
 std = ["pkcs8/std", "rustls/std", "wolfcrypt-rs/std"]
+quic = []
 
 [profile.release]
 strip = true

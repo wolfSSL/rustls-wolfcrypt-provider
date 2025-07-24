@@ -229,3 +229,4 @@ define_foreign_type!(
 define_foreign_type_no_copy!(RsaKeyObject, RsaKeyObjectRef, RsaKey, drop(wc_FreeRsaKey));
 define_foreign_type_with_copy!(HmacObject, HmacObjectRef, wolfcrypt_rs::Hmac);
 define_foreign_type_no_copy!(AesObject, AesObjectRef, Aes, drop_void(wc_AesFree));
+define_foreign_type_with_copy!(ChaChaObject, ChaChaObjectRef, ChaCha);
