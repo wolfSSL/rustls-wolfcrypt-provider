@@ -1,9 +1,8 @@
 #![cfg_attr(not(test), no_std)]
 
+extern crate alloc;
 #[cfg(test)]
 extern crate std;
-
-extern crate alloc;
 
 use alloc::boxed::Box;
 use alloc::sync::Arc;
@@ -23,6 +22,7 @@ pub mod aead {
     pub mod aes128gcm;
     pub mod aes256gcm;
     pub mod chacha20;
+    #[cfg(feature = "quic")]
     pub mod quic;
 }
 pub mod sign {
@@ -30,8 +30,9 @@ pub mod sign {
     pub mod eddsa;
     pub mod rsa;
 }
+#[cfg(feature = "quic")]
+use crate::aead::quic::KeyFactory;
 use crate::aead::{aes128gcm, aes256gcm, chacha20};
-use crate::aead::quic::{HeaderProtectionAlgorithm, KeyBuilder, PacketKeyAlgorithm};
 
 pub mod hash {
     pub mod sha256;
@@ -149,9 +150,12 @@ pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
         },
         hkdf_provider: &WCHkdfUsingHmac(WCShaHmac::Sha256),
         aead_alg: &chacha20::Chacha20Poly1305,
-        quic:Some(&KeyBuilder {
-            packet_algo: PacketKeyAlgorithm::ChaCha20Poly1305,
-            header_algo: HeaderProtectionAlgorithm::ChaCha20,
+        #[cfg(not(feature = "quic"))]
+        quic: None,
+        #[cfg(feature = "quic")]
+        quic:Some(&KeyFactory {
+            packet_algo: &aead::quic::CHACHA20_POLY1305,
+            header_algo: &aead::quic::CHACHA20,
             // ref: <https://datatracker.ietf.org/doc/html/rfc9001#section-6.6>
             confidentiality_limit: u64::MAX,
             // ref: <https://datatracker.ietf.org/doc/html/rfc9001#section-6.6>
@@ -168,9 +172,12 @@ pub static TLS13_AES_128_GCM_SHA256: rustls::SupportedCipherSuite =
         },
         hkdf_provider: &WCHkdfUsingHmac(WCShaHmac::Sha256),
         aead_alg: &aes128gcm::Aes128Gcm,
-        quic: Some(&KeyBuilder {
-            packet_algo: PacketKeyAlgorithm::Aes128Gcm,
-            header_algo: HeaderProtectionAlgorithm::Aes128,
+        #[cfg(not(feature = "quic"))]
+        quic: None,
+        #[cfg(feature = "quic")]
+        quic: Some(&KeyFactory {
+            packet_algo: &aead::quic::AES_128_GCM,
+            header_algo: &aead::quic::AES_128,
             // ref: <https://datatracker.ietf.org/doc/html/rfc9001#section-b.1.1>
             confidentiality_limit: 1 << 23,
             // ref: <https://datatracker.ietf.org/doc/html/rfc9001#section-b.1.2>
@@ -187,9 +194,12 @@ pub static TLS13_AES_256_GCM_SHA384: rustls::SupportedCipherSuite =
         },
         hkdf_provider: &WCHkdfUsingHmac(WCShaHmac::Sha384),
         aead_alg: &aes256gcm::Aes256Gcm,
-        quic: Some(&KeyBuilder {
-            packet_algo: PacketKeyAlgorithm::Aes256Gcm,
-            header_algo: HeaderProtectionAlgorithm::Aes256,
+        #[cfg(not(feature = "quic"))]
+        quic: None,
+        #[cfg(feature = "quic")]
+        quic: Some(&KeyFactory {
+            packet_algo: &aead::quic::AES_256_GCM,
+            header_algo: &aead::quic::AES_256,
             // ref: <https://datatracker.ietf.org/doc/html/rfc9001#section-b.1.1>
             confidentiality_limit: 1 << 23,
             // ref: <https://datatracker.ietf.org/doc/html/rfc9001#section-b.1.2>
