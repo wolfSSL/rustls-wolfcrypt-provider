@@ -368,7 +368,9 @@ pub static CHACHA20_POLY1305: AeadAlgorithm = AeadAlgorithm {
 };
 
 fn init_chacha20_poly1305_cipher(key: &[u8]) -> Result<Cipher, Error> {
-    let chacha_cipher = ChaChaCipher::new(Some(<[u8; 32]>::try_from(key).unwrap()));
+    let key_array = <[u8; 32]>::try_from(key)
+        .map_err(|_| Error::General("Invalid key length for ChaCha20-Poly1305".into()))?;
+    let chacha_cipher = ChaChaCipher::new(Some(key_array));
     Ok(Cipher::ChaCha20(chacha_cipher))
 }
 
@@ -423,7 +425,7 @@ impl PacketKey {
             return Err(Error::General("Invalid key length".into()));
         }
         Ok(Self {
-            packet_cipher: (algorithm.init)(key.as_ref()).unwrap(),
+            packet_cipher: (algorithm.init)(key.as_ref())?,
             iv,
             confidentiality_limit,
             integrity_limit,
@@ -493,19 +495,26 @@ pub(crate) struct KeyFactory {
 impl quic::Algorithm for KeyFactory {
     fn packet_key(&self, key: AeadKey, iv: Iv) -> Box<dyn quic::PacketKey> {
         Box::new(
-            PacketKey::new(
+            match PacketKey::new(
                 key,
                 iv,
                 self.confidentiality_limit,
                 self.integrity_limit,
                 self.packet_algo,
-            )
-            .unwrap(),
+            ) {
+                Ok(packet_key) => packet_key,
+                Err(e) => panic!("PacketKey object creation failed: {:?}", e),
+            },
         )
     }
 
     fn header_protection_key(&self, key: AeadKey) -> Box<dyn quic::HeaderProtectionKey> {
-        Box::new(HeaderProtectionKey::new(key.as_ref().to_vec(), self.header_algo).unwrap())
+        Box::new(
+            match HeaderProtectionKey::new(key.as_ref().to_vec(), self.header_algo) {
+                Ok(header_key) => header_key,
+                Err(e) => panic!("HeaderProtection Key object creation failed: {:?}", e),
+            },
+        )
     }
 
     fn aead_key_len(&self) -> usize {
@@ -649,6 +658,12 @@ impl ChaChaCipher {
         if key.len() != CHACHA_KEY_LEN {
             return Err(Error::General("Invalid key length".into()));
         }
+
+        if self.chacha_cipher.is_none() {
+            return Err(Error::General(
+                "Cipher is none. Create a cipher object before setting key".into(),
+            ));
+        }
         //Set key for ChaCha object
         let ret = unsafe {
             wc_Chacha_SetKey(
@@ -666,6 +681,12 @@ impl ChaChaCipher {
     }
 
     pub fn encrypt_sample(&self, sample: &[u8]) -> Result<Vec<u8>, Error> {
+        if self.chacha_cipher.is_none() {
+            return Err(Error::General(
+                "Cipher is none. Create a cipher object before encryption".into(),
+            ));
+        }
+
         let mut out = vec![0; TAG_LEN];
 
         let (ctr, nonce) = sample.split_at(4);
@@ -772,9 +793,9 @@ fn new_chacha_cipher() -> Result<ChaChaObject, Error> {
 
 #[cfg(test)]
 mod tests {
-    use std::prelude::rust_2015::ToString;
     use hex_literal::hex;
     use rustls::crypto::tls13::HkdfExpander;
+    use std::prelude::rust_2015::ToString;
     use std::prelude::v1::Vec;
     use std::vec;
 
@@ -782,13 +803,13 @@ mod tests {
     use rustls::crypto::cipher::{AeadKey, Iv, NONCE_LEN};
     use rustls::quic::*;
 
+    use crate::provider;
     use crate::{TLS13_AES_128_GCM_SHA256, TLS13_CHACHA20_POLY1305_SHA256};
     use rustls::crypto::tls13::OkmBlock;
-    use rustls::{ClientConfig, ServerConfig, Side, SideData, Error};
-    use std::sync::Arc;
     use rustls::internal::msgs::codec::Codec;
+    use rustls::{ClientConfig, Error, ServerConfig, Side, SideData};
     use rustls_pki_types::PrivatePkcs8KeyDer;
-    use crate::provider;
+    use std::sync::Arc;
 
     // Returns the sender's next secrets to use, or the receiver's error.
     fn step<L: SideData, R: SideData>(
@@ -854,7 +875,10 @@ mod tests {
             .with_safe_default_protocol_versions()
             .unwrap()
             .with_no_client_auth()
-            .with_single_cert(vec![server_cert.into()], PrivatePkcs8KeyDer::from(server_key.serialize_der()).into())
+            .with_single_cert(
+                vec![server_cert.into()],
+                PrivatePkcs8KeyDer::from(server_key.serialize_der()).into(),
+            )
             .unwrap();
 
         server_config.key_log = Arc::new(rustls::KeyLogFile::new());
@@ -862,7 +886,7 @@ mod tests {
         server_config
     }
     /// Encode each of `items`
-    pub fn iter_to_vec_of_bytes<'a, T: Codec<'a>>(items: impl Iterator<Item=T>) -> Vec<u8> {
+    pub fn iter_to_vec_of_bytes<'a, T: Codec<'a>>(items: impl Iterator<Item = T>) -> Vec<u8> {
         let mut body = Vec::new();
 
         for i in items {
@@ -874,15 +898,19 @@ mod tests {
     ///Encode length as prefix
     pub fn prefix_len(mut body: Vec<u8>, len: usize) -> Vec<u8> {
         match len {
-            8 => { body.splice(0..0, [body.len() as u8]); }
-            16 => { body.splice(0..0, (body.len() as u16).to_be_bytes()); }
+            8 => {
+                body.splice(0..0, [body.len() as u8]);
+            }
+            16 => {
+                body.splice(0..0, (body.len() as u16).to_be_bytes());
+            }
             24 => {
                 let len = (body.len() as u32).to_be_bytes();
                 body.insert(0, len[1]);
                 body.insert(1, len[2]);
                 body.insert(2, len[3]);
             }
-            _ => panic!("wrong length!")
+            _ => panic!("wrong length!"),
         };
         body
     }
@@ -893,7 +921,10 @@ mod tests {
         // kx group
         extensions.push(Extension {
             typ: 0x000a, // EllipticCurves
-            body: prefix_len(iter_to_vec_of_bytes([rustls::NamedGroup::secp256r1].into_iter()), 16),
+            body: prefix_len(
+                iter_to_vec_of_bytes([rustls::NamedGroup::secp256r1].into_iter()),
+                16,
+            ),
         });
         // Sig algs
         extensions.push(Extension {
@@ -909,22 +940,28 @@ mod tests {
         // Supported Versions,
         extensions.push(Extension {
             typ: 0x002b, // Supported Versions
-            body: prefix_len(iter_to_vec_of_bytes(
-                [rustls::ProtocolVersion::TLSv1_3, rustls::ProtocolVersion::TLSv1_2].into_iter(),
-            ), 8),
+            body: prefix_len(
+                iter_to_vec_of_bytes(
+                    [
+                        rustls::ProtocolVersion::TLSv1_3,
+                        rustls::ProtocolVersion::TLSv1_2,
+                    ]
+                    .into_iter(),
+                ),
+                8,
+            ),
         });
 
         // Key share
         const SOME_POINT_ON_P256: &[u8] = &[
-            4, 41, 39, 177, 5, 18, 186, 227, 237, 220, 254, 70, 120, 40, 18, 139, 173, 41, 3,
-            38, 153, 25, 247, 8, 96, 105, 200, 196, 223, 108, 115, 40, 56, 199, 120, 121, 100,
-            234, 172, 0, 229, 146, 31, 177, 73, 138, 96, 244, 96, 103, 102, 179, 217, 104, 80,
-            1, 85, 141, 26, 151, 78, 115, 65, 81, 62,
+            4, 41, 39, 177, 5, 18, 186, 227, 237, 220, 254, 70, 120, 40, 18, 139, 173, 41, 3, 38,
+            153, 25, 247, 8, 96, 105, 200, 196, 223, 108, 115, 40, 56, 199, 120, 121, 100, 234,
+            172, 0, 229, 146, 31, 177, 73, 138, 96, 244, 96, 103, 102, 179, 217, 104, 80, 1, 85,
+            141, 26, 151, 78, 115, 65, 81, 62,
         ];
 
         let mut share = prefix_len(SOME_POINT_ON_P256.to_vec(), 16);
         share.splice(0..0, rustls::NamedGroup::secp256r1.to_array());
-
 
         extensions.push(Extension {
             typ: 0x0033, // Key share
@@ -940,7 +977,9 @@ mod tests {
         vec![
             rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
             rustls::CipherSuite::TLS13_AES_128_GCM_SHA256,
-        ].to_vec().encode(&mut ch); // Encode cypher suites
+        ]
+        .to_vec()
+        .encode(&mut ch); // Encode cypher suites
         ch.extend_from_slice(&[0x01, 0x00]); // only null compression
 
         //Generate ch extensions
@@ -1104,7 +1143,7 @@ mod tests {
         let (first, rest) = header.split_at_mut(1);
         let sample = &sample[..header_protection_key.sample_len()];
         header_protection_key
-            .encrypt_in_place(sample, &mut first[0], dbg!(rest))
+            .encrypt_in_place(sample, &mut first[0], rest)
             .unwrap();
 
         assert_eq!(&buf, expected);
@@ -1209,7 +1248,6 @@ mod tests {
         assert_eq!(server_packet[..], expected_server_packet[..]);
     }
 
-
     #[test]
     fn test_quic_rejects_missing_alpn() {
         //Code taken from rustls with modification
@@ -1228,15 +1266,16 @@ mod tests {
             "localhost".try_into().unwrap(),
             client_params.into(),
         )
-            .unwrap();
-        let mut server =
-            rustls::quic::ServerConnection::new(server_config, rustls::quic::Version::V1, server_params.into())
-                .unwrap();
+        .unwrap();
+        let mut server = rustls::quic::ServerConnection::new(
+            server_config,
+            rustls::quic::Version::V1,
+            server_params.into(),
+        )
+        .unwrap();
 
         assert_eq!(
-            step(&mut client, &mut server)
-                .err()
-                .unwrap(),
+            step(&mut client, &mut server).err().unwrap(),
             rustls::Error::NoApplicationProtocol
         );
 
@@ -1267,8 +1306,12 @@ mod tests {
 
             let wrapped = Arc::new(server_config.clone());
             assert_eq!(
-                rustls::quic::ServerConnection::new(wrapped, rustls::quic::Version::V1, b"server params".to_vec(), )
-                    .is_ok(),
+                rustls::quic::ServerConnection::new(
+                    wrapped,
+                    rustls::quic::Version::V1,
+                    b"server params".to_vec(),
+                )
+                .is_ok(),
                 ok
             );
         }
@@ -1286,7 +1329,7 @@ mod tests {
             rustls::quic::Version::V1,
             b"server params".to_vec(),
         )
-            .unwrap();
+        .unwrap();
 
         //Make a basic client hello
         let ch = make_client_hello();
@@ -1301,8 +1344,8 @@ mod tests {
     #[test]
     fn packet_key_api() {
         //Code taken from rustls
-        use rustls::Side;
         use rustls::quic::{Keys, Version};
+        use rustls::Side;
 
         // Test vectors: https://www.rfc-editor.org/rfc/rfc9001.html#name-client-initial
         const CONNECTION_ID: &[u8] = &[0x83, 0x94, 0xc8, 0xf0, 0x3e, 0x51, 0x57, 0x08];
@@ -1335,14 +1378,8 @@ mod tests {
 
         let client_keys = Keys::initial(
             Version::V1,
-            TLS13_AES_128_GCM_SHA256
-                .tls13()
-                .unwrap(),
-            TLS13_AES_128_GCM_SHA256
-                .tls13()
-                .unwrap()
-                .quic
-                .unwrap(),
+            TLS13_AES_128_GCM_SHA256.tls13().unwrap(),
+            TLS13_AES_128_GCM_SHA256.tls13().unwrap().quic.unwrap(),
             CONNECTION_ID,
             Side::Client,
         );
@@ -1469,14 +1506,8 @@ mod tests {
 
         let server_keys = Keys::initial(
             Version::V1,
-            TLS13_AES_128_GCM_SHA256
-                .tls13()
-                .unwrap(),
-            TLS13_AES_128_GCM_SHA256
-                .tls13()
-                .unwrap()
-                .quic
-                .unwrap(),
+            TLS13_AES_128_GCM_SHA256.tls13().unwrap(),
+            TLS13_AES_128_GCM_SHA256.tls13().unwrap().quic.unwrap(),
             CONNECTION_ID,
             Side::Server,
         );

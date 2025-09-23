@@ -153,7 +153,7 @@ pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
         #[cfg(not(feature = "quic"))]
         quic: None,
         #[cfg(feature = "quic")]
-        quic:Some(&KeyFactory {
+        quic: Some(&KeyFactory {
             packet_algo: &aead::quic::CHACHA20_POLY1305,
             header_algo: &aead::quic::CHACHA20,
             // ref: <https://datatracker.ietf.org/doc/html/rfc9001#section-6.6>

@@ -110,8 +110,6 @@ pub fn check_if_greater_than_zero(ret: i32) -> WCResult {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;

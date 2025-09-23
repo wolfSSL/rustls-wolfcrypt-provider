@@ -148,8 +148,6 @@ impl tls13::HkdfExpander for WolfHkdfExpander {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
