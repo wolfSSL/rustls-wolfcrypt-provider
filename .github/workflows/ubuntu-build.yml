@@ -57,6 +57,6 @@ jobs:
       - name: Run clippy
         run: |
           cd wolfcrypt-rs
-          cargo clippy -- -D warnings
+          cargo clippy --all-features -- -D warnings
           cd ../rustls-wolfcrypt-provider
-          cargo clippy -- -D warnings
+          cargo clippy --all-features -- -D warnings
