@@ -16,7 +16,7 @@ const WOLFSSL_URL: &str = "https://github.com/wolfSSL/wolfssl/archive/refs/tags/
 /// Handles the main build process and exits with an error code if anything fails.
 fn main() {
     if let Err(e) = run_build() {
-        eprintln!("Build failed: {}", e);
+        eprintln!("Build failed: {e}");
         std::process::exit(1);
     }
 }
@@ -155,7 +155,7 @@ fn remove_zip() -> Result<()> {
 /// Returns `Ok(())` if all build steps succeed, or an error if any step fails.
 fn build_wolfssl() -> Result<()> {
     env::set_current_dir(WOLFSSL_DIR)?;
-    println!("Changed directory to {}.", WOLFSSL_DIR);
+    println!("Changed directory to {WOLFSSL_DIR}.");
 
     run_command("./autogen.sh", &[])?;
     run_command(
@@ -193,7 +193,7 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<()> {
             String::from_utf8_lossy(&output.stderr)
         )));
     }
-    println!("{} completed successfully.", cmd);
+    println!("{cmd} completed successfully.");
     Ok(())
 }
 
