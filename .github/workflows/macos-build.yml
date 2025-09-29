@@ -58,4 +58,4 @@ jobs:
           cd wolfcrypt-rs
           cargo clippy -- -D warnings -A unnecessary-transmutes
           cd ../rustls-wolfcrypt-provider
-          cargo clippy -- -D warnings
+          cargo clippy --all-features -- -D warnings
