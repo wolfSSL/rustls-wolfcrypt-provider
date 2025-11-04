@@ -161,7 +161,7 @@ impl MessageDecrypter for WCTls12Cipher {
                 payload[..message_len].as_mut_ptr(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| rustls::Error::DecryptError)?;
 
         // We extract the final result...
         payload.truncate(message_len);
@@ -303,7 +303,7 @@ impl MessageDecrypter for WCTls13Cipher {
                 payload[..message_len].as_mut_ptr(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| rustls::Error::DecryptError)?;
 
         // We extract the final result...
         payload.truncate(message_len);
