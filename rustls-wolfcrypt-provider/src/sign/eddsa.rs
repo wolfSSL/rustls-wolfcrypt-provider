@@ -95,14 +95,14 @@ impl Ed25519PrivateKey {
         key_sub_slice = input_key.get(skip_bytes..).unwrap();
 
         // Check if optional SET OF attributes exists and skip
-        if key_sub_slice[0] == TAG_OPTIONAL_SET_OF_ATTRIBUTES {
+        if key_sub_slice.first() == Some(&TAG_OPTIONAL_SET_OF_ATTRIBUTES) {
             skip_bytes += (2 + (key_sub_slice[1])) as usize;
             key_sub_slice = input_key.get(skip_bytes..).unwrap();
         }
 
         // Check if optional public key value exists. If exists, skip tag, length encoding byte,
         // and bits-used byte
-        if key_sub_slice[0] == TAG_OPTIONAL_PUBLIC_KEY_BIT_STRING {
+        if key_sub_slice.first() == Some(&TAG_OPTIONAL_PUBLIC_KEY_BIT_STRING) {
             public_key_raw.copy_from_slice(&key_sub_slice[3..(3 + ED25519_KEY_SIZE as usize)]);
             Ok((private_key_raw, Some(public_key_raw)))
         } else {
@@ -128,13 +128,25 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed25519PrivateKey {
                     Err(error) => return Err(error),
                 };
 
+                let mut ret;
+
                 // This function initiliazes an ed25519_key object for
                 // using it to sign a message.
                 ed25519_key_object.init();
 
                 // Generate pub key part if not given
                 if pub_key_raw.is_none() {
-                    let ret = unsafe {
+                    ret = unsafe {
+                        wc_ed25519_import_private_only(
+                            priv_key_raw.as_ptr(),
+                            priv_key_raw.len() as word32,
+                            ed25519_key_object.as_ptr(),
+                        )
+                    };
+                    check_if_zero(ret)
+                        .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
+
+                    ret = unsafe {
                         wc_ed25519_make_public(
                             ed25519_key_object.as_ptr(),
                             pub_raw.as_mut_ptr(),
