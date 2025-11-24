@@ -629,7 +629,7 @@ impl AesCipher {
                 aad.len() as word32,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| rustls::Error::DecryptError)?;
 
         Ok(())
     }
@@ -766,7 +766,7 @@ impl ChaChaCipher {
                 payload[..message_len].as_mut_ptr(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| rustls::Error::DecryptError)?;
         Ok(())
     }
 }
