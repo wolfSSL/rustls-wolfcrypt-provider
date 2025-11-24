@@ -173,6 +173,9 @@ impl MessageDecrypter for WCTls12Decrypter {
         seq: u64,
     ) -> Result<InboundPlainMessage<'a>, rustls::Error> {
         let payload = &mut m.payload;
+        if payload.len() < GCM_TAG_LENGTH {
+            return Err(rustls::Error::DecryptError);
+        }
         let payload_len = payload.len();
 
         // First we copy the implicit nonce followed by copying
@@ -356,6 +359,9 @@ impl MessageDecrypter for WCTls13Cipher {
         seq: u64,
     ) -> Result<InboundPlainMessage<'a>, rustls::Error> {
         let payload = &mut m.payload;
+        if payload.len() < GCM_TAG_LENGTH {
+            return Err(rustls::Error::DecryptError);
+        }
         let nonce = Nonce::new(&self.iv, seq);
         let aad = make_tls13_aad(payload.len());
         let mut auth_tag = [0u8; GCM_TAG_LENGTH];
