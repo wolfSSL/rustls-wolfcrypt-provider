@@ -117,25 +117,25 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed25519PrivateKey {
     fn try_from(value: &PrivateKeyDer<'_>) -> Result<Self, Self::Error> {
         match value {
             PrivateKeyDer::Pkcs8(der) => {
-                let mut ed25519_c_type: ed25519_key = unsafe { mem::zeroed() };
-                let ed25519_key_object = ED25519KeyObject::new(&mut ed25519_c_type);
-                let mut pub_raw: [u8; 32] = [0; 32];
-                let pub_key_raw_len: word32 = pub_raw.len() as word32;
                 let pkcs8: &[u8] = der.secret_pkcs8_der();
-                let (priv_key_raw, pub_key_raw) = match Ed25519PrivateKey::extract_key_pair(pkcs8) {
-                    Ok((priv_raw, pub_raw)) => (priv_raw, pub_raw),
+                let (priv_key_raw, pub_option) = match Ed25519PrivateKey::extract_key_pair(pkcs8) {
+                    Ok((priv_value, pub_value)) => (priv_value, pub_value),
 
                     Err(error) => return Err(error),
                 };
 
                 let mut ret;
-
-                // This function initiliazes an ed25519_key object for
-                // using it to sign a message.
-                ed25519_key_object.init();
+                let mut pub_key_raw: [u8; 32] = [0; 32];
+                let pub_key_raw_len: word32 = pub_key_raw.len() as word32;
 
                 // Generate pub key part if not given
-                if pub_key_raw.is_none() {
+                if pub_option.is_none() {
+                    let mut ed25519_c_type: ed25519_key = unsafe { mem::zeroed() };
+                    let ed25519_key_object = ED25519KeyObject::new(&mut ed25519_c_type);
+                    // This function initiliazes an ed25519_key object for
+                    // using it to sign a message.
+                    ed25519_key_object.init();
+
                     ret = unsafe {
                         wc_ed25519_import_private_only(
                             priv_key_raw.as_ptr(),
@@ -149,7 +149,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed25519PrivateKey {
                     ret = unsafe {
                         wc_ed25519_make_public(
                             ed25519_key_object.as_ptr(),
-                            pub_raw.as_mut_ptr(),
+                            pub_key_raw.as_mut_ptr(),
                             pub_key_raw_len,
                         )
                     };
@@ -159,7 +159,10 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed25519PrivateKey {
 
                 Ok(Self {
                     priv_key: Arc::new(Zeroizing::new(priv_key_raw.to_vec())),
-                    pub_key: Arc::new(pub_key_raw.to_vec()),
+                    pub_key: Arc::new(match pub_option {
+                        Some(pub_value) => pub_value.to_vec(),
+                        None => pub_key_raw.to_vec(),
+                    }),
                     algo: SignatureAlgorithm::ED25519,
                 })
             }
