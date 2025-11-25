@@ -4,7 +4,7 @@ use std::sync::Arc;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 use rustls::server::Acceptor;
 use rustls::ServerConfig;
-use rustls_wolfcrypt_provider::provider;
+use rustls_wolfcrypt_provider::default_provider;
 
 fn main() {
     env_logger::init();
@@ -90,7 +90,7 @@ impl TestPki {
     }
 
     fn server_config(self) -> Arc<ServerConfig> {
-        let mut server_config = ServerConfig::builder_with_provider(provider().into())
+        let mut server_config = ServerConfig::builder_with_provider(default_provider().into())
             .with_safe_default_protocol_versions()
             .unwrap()
             .with_no_client_auth()

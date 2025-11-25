@@ -12,7 +12,7 @@ use rustls::crypto::CryptoProvider;
 use rustls::pki_types::PrivateKeyDer;
 pub mod error;
 mod hkdf;
-mod kx;
+pub mod kx;
 mod prf;
 mod random;
 mod verify;
@@ -53,7 +53,7 @@ type SigningAlgorithms = Vec<Box<SigningKeyFn>>;
 /*
  * Crypto provider struct that we populate with our own crypto backend (wolfcrypt).
  * */
-pub fn provider() -> CryptoProvider {
+pub fn default_provider() -> CryptoProvider {
     CryptoProvider {
         cipher_suites: ALL_CIPHER_SUITES.to_vec(),
         kx_groups: kx::ALL_KX_GROUPS.to_vec(),
@@ -113,7 +113,7 @@ impl rustls::crypto::KeyProvider for Provider {
     }
 }
 
-static ALL_CIPHER_SUITES: &[rustls::SupportedCipherSuite] = &[
+pub static ALL_CIPHER_SUITES: &[rustls::SupportedCipherSuite] = &[
     TLS13_AES_256_GCM_SHA384,
     TLS13_AES_128_GCM_SHA256,
     TLS13_CHACHA20_POLY1305_SHA256,
