@@ -1,4 +1,4 @@
-use rustls_wolfcrypt_provider::provider;
+use rustls_wolfcrypt_provider::default_provider;
 use std::io::{stdout, Read, Write};
 use std::net::TcpStream;
 use std::sync::Arc;
@@ -9,7 +9,7 @@ fn main() {
     let root_store =
         rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
-    let config = rustls::ClientConfig::builder_with_provider(provider().into())
+    let config = rustls::ClientConfig::builder_with_provider(default_provider().into())
         .with_safe_default_protocol_versions()
         .unwrap()
         .with_root_certificates(root_store)
