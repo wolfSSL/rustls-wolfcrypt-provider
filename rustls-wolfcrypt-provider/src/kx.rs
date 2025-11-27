@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use crypto::SupportedKxGroup;
 use rustls::crypto;
-
+use rustls::ffdhe_groups::FfdheGroup;
 mod sec256r1;
 mod sec384r1;
 mod sec521r1;
@@ -21,6 +21,10 @@ macro_rules! define_kx_group {
 
             fn name(&self) -> rustls::NamedGroup {
                 $named_group
+            }
+
+            fn ffdhe_group(&self) -> Option<FfdheGroup<'static>> {
+                None
             }
         }
     };
