@@ -16,6 +16,7 @@ jobs:
       - name: Install Build Prerequisites
         run: |
           brew install autoconf libtool automake
+          brew install go
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
