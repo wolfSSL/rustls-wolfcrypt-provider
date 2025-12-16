@@ -590,12 +590,10 @@ impl AesCipher {
 
         // Prepare aes_object for encryption
         ret = unsafe {
-            wc_AesSetKey(
+            wc_AesGcmSetKey(
                 self.aes_object.as_ptr(),
                 self.key.as_ptr(),
                 self.key.len() as word32,
-                ptr::null_mut(),
-                0,
             )
         };
         check_if_zero(ret).unwrap();
@@ -633,12 +631,10 @@ impl AesCipher {
 
         // Prepare aes_object for decryption
         ret = unsafe {
-            wc_AesSetKey(
+            wc_AesGcmSetKey(
                 self.aes_object.as_ptr(),
                 self.key.as_ptr(),
                 self.key.len() as word32,
-                ptr::null_mut(),
-                0,
             )
         };
         check_if_zero(ret).unwrap();
