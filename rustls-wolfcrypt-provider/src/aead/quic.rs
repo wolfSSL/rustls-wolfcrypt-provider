@@ -98,7 +98,7 @@ pub static AES_256: HPAlgorithm = HPAlgorithm {
 };
 
 fn init_hp_aes_cipher(key: &[u8]) -> Result<Cipher, Error> {
-    let aes_cipher = AesCipher::default();
+    let mut aes_cipher = AesCipher::default();
     aes_cipher.set_key(key)?;
     Ok(Cipher::Aes(aes_cipher))
 }
@@ -323,7 +323,7 @@ pub static AES_256_GCM: AeadAlgorithm = AeadAlgorithm {
 };
 
 fn init_aes_gcm_cipher(key: &[u8]) -> Result<Cipher, Error> {
-    let aes_cipher = AesCipher::default();
+    let mut aes_cipher = AesCipher::default();
     aes_cipher.set_key(key)?;
     Ok(Cipher::Aes(aes_cipher))
 }
@@ -527,7 +527,8 @@ impl quic::Algorithm for KeyFactory {
 }
 
 pub struct AesCipher {
-    aes_cipher: AesObject,
+    aes_object: AesObject,
+    key: Vec<u8>,
 }
 
 impl Default for AesCipher {
@@ -539,18 +540,19 @@ impl Default for AesCipher {
 impl AesCipher {
     pub fn new() -> Self {
         Self {
-            aes_cipher: new_aes_cipher().unwrap(),
+            aes_object: new_aes_object().unwrap(),
+            key: Vec::new(),
         }
     }
 
-    /// It initializes an AES object with the given key.
-    pub fn set_key(&self, key: &[u8]) -> Result<(), Error> {
+    /// It initializes an AES cipher with the given key.
+    pub fn set_key(&mut self, key: &[u8]) -> Result<(), Error> {
         if key.len() != AES_256_KEY_LEN && key.len() != AES_128_KEY_LEN {
             return Err(Error::General("Invalid key length".into()));
         }
         let ret = unsafe {
             wc_AesSetKey(
-                self.aes_cipher.as_ptr(),
+                self.aes_object.as_ptr(),
                 key.as_ptr(),
                 key.len() as word32,
                 ptr::null_mut(),
@@ -558,6 +560,7 @@ impl AesCipher {
             )
         };
         check_if_zero(ret).unwrap();
+        self.key = key.to_vec();
         Ok(())
     }
 
@@ -566,7 +569,7 @@ impl AesCipher {
 
         let ret = unsafe {
             wc_AesEncryptDirect(
-                self.aes_cipher.as_ptr(),
+                self.aes_object.as_ptr(),
                 out_block.as_mut_ptr(),
                 sample.as_ptr(),
             )
@@ -583,6 +586,19 @@ impl AesCipher {
         payload: &mut [u8],
     ) -> Result<Tag, Error> {
         let mut auth_tag = vec![0u8; TAG_LEN];
+        let mut ret;
+
+        // Prepare aes_object for encryption
+        ret = unsafe {
+            wc_AesSetKey(
+                self.aes_object.as_ptr(),
+                self.key.as_ptr(),
+                self.key.len() as word32,
+                ptr::null_mut(),
+                0,
+            )
+        };
+        check_if_zero(ret).unwrap();
 
         // This function encrypts the input message, held in the buffer in,
         // and stores the resulting cipher text in the output buffer out.
@@ -590,9 +606,9 @@ impl AesCipher {
         // It also encodes the input authentication vector,
         // authIn, into the authentication tag, authTag.
 
-        let ret = unsafe {
+        ret = unsafe {
             wc_AesGcmEncrypt(
-                self.aes_cipher.as_ptr(),
+                self.aes_object.as_ptr(),
                 payload.as_mut_ptr(),
                 payload.as_ptr(),
                 payload.as_ref().len() as word32,
@@ -613,11 +629,25 @@ impl AesCipher {
         let message_len = payload.len() - TAG_LEN;
         auth_tag.copy_from_slice(&payload[message_len..]);
 
+        let mut ret;
+
+        // Prepare aes_object for decryption
+        ret = unsafe {
+            wc_AesSetKey(
+                self.aes_object.as_ptr(),
+                self.key.as_ptr(),
+                self.key.len() as word32,
+                ptr::null_mut(),
+                0,
+            )
+        };
+        check_if_zero(ret).unwrap();
+
         // Finally, we have everything to decrypt the message
         // from the payload.
-        let ret = unsafe {
+        ret = unsafe {
             wc_AesGcmDecrypt(
-                self.aes_cipher.as_ptr(),
+                self.aes_object.as_ptr(),
                 payload[..message_len].as_mut_ptr(),
                 payload[..message_len].as_ptr(),
                 payload[..message_len].len().try_into().unwrap(),
@@ -644,7 +674,7 @@ impl ChaChaCipher {
     pub fn new(key: Option<[u8; CHACHA_KEY_LEN]>) -> Self {
         match key {
             None => Self {
-                chacha_cipher: Some(new_chacha_cipher().unwrap()),
+                chacha_cipher: Some(new_chacha_object().unwrap()),
                 key: None,
             },
             Some(key_bytes) => Self {
@@ -771,7 +801,7 @@ impl ChaChaCipher {
     }
 }
 
-fn new_aes_cipher() -> Result<AesObject, Error> {
+fn new_aes_object() -> Result<AesObject, Error> {
     let aes_c_type_box = Box::new(unsafe { mem::zeroed::<Aes>() });
     let aes_c_type_ptr = Box::into_raw(aes_c_type_box);
     let aes_object = unsafe { AesObject::from_ptr(aes_c_type_ptr) };
@@ -782,7 +812,7 @@ fn new_aes_cipher() -> Result<AesObject, Error> {
     Ok(aes_object)
 }
 
-fn new_chacha_cipher() -> Result<ChaChaObject, Error> {
+fn new_chacha_object() -> Result<ChaChaObject, Error> {
     //Create ChaCha object
     let chacha_c_typ_box = Box::new(unsafe { mem::zeroed::<ChaCha>() });
     let chacha_c_typ_ptr = Box::into_raw(chacha_c_typ_box);
@@ -803,7 +833,7 @@ mod tests {
     use rustls::crypto::cipher::{AeadKey, Iv, NONCE_LEN};
     use rustls::quic::*;
 
-    use crate::provider;
+    use crate::default_provider;
     use crate::{TLS13_AES_128_GCM_SHA256, TLS13_CHACHA20_POLY1305_SHA256};
     use rustls::crypto::tls13::OkmBlock;
     use rustls::internal::msgs::codec::Codec;
@@ -836,7 +866,7 @@ mod tests {
         let root_store =
             rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
-        let config = rustls::ClientConfig::builder_with_provider(provider().into())
+        let config = rustls::ClientConfig::builder_with_provider(default_provider().into())
             .with_safe_default_protocol_versions()
             .unwrap()
             .with_root_certificates(root_store)
@@ -871,7 +901,7 @@ mod tests {
             .signed_by(&server_key, &ca_cert, &ca_key)
             .unwrap();
 
-        let mut server_config = ServerConfig::builder_with_provider(provider().into())
+        let mut server_config = ServerConfig::builder_with_provider(default_provider().into())
             .with_safe_default_protocol_versions()
             .unwrap()
             .with_no_client_auth()
@@ -1563,7 +1593,7 @@ mod tests {
             },
         ];
 
-        let aes_cipher = crate::aead::quic::AesCipher::default();
+        let mut aes_cipher = crate::aead::quic::AesCipher::default();
         let mut mask = [0u8; 5];
 
         for v in &vectors {
