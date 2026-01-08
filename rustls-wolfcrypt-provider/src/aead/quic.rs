@@ -127,7 +127,7 @@ pub static CHACHA20: HPAlgorithm = HPAlgorithm {
 };
 
 fn init_hp_chacha20_cipher(key: &[u8]) -> Result<Cipher, Error> {
-    let chacha_cipher = ChaChaCipher::new(None)?;
+    let mut chacha_cipher = ChaChaCipher::new(None)?;
     chacha_cipher.set_key(key)?;
     Ok(Cipher::ChaCha20(chacha_cipher))
 }
@@ -696,7 +696,7 @@ impl ChaChaCipher {
         }
     }
 
-    fn set_key(&self, key: &[u8]) -> Result<(), Error> {
+    fn set_key(&mut self, key: &[u8]) -> Result<(), Error> {
         if key.len() != CHACHA_KEY_LEN {
             return Err(Error::General("Invalid key length".into()));
         }
@@ -709,6 +709,10 @@ impl ChaChaCipher {
             unsafe { wc_Chacha_SetKey(chacha_cipher.as_ptr(), key.as_ptr(), key.len() as word32) };
         check_if_zero(ret)
             .map_err(|_| rustls::Error::General("Function wc_Chacha_SetKey failed".into()))?;
+        self.key = Some(
+            key.try_into()
+                .map_err(|_| Error::General("Key must be exactly 32 bytes".into()))?,
+        );
         Ok(())
     }
 
@@ -1636,7 +1640,7 @@ mod tests {
             mask: hex!("6409a6196d"),
         };
 
-        let chacha_cipher = crate::aead::quic::ChaChaCipher::new(None).unwrap();
+        let mut chacha_cipher = crate::aead::quic::ChaChaCipher::new(None).unwrap();
         let mut mask = mask_array!();
 
         let _ = chacha_cipher.set_key(&test_vector.key);
