@@ -6,6 +6,7 @@
 use alloc::vec;
 use core::mem;
 use foreign_types::ForeignType;
+use zeroize::Zeroize;
 
 use crate::error::check_if_zero;
 use crate::types::{AesObject, ChaChaObject};
@@ -531,6 +532,12 @@ pub struct AesCipher {
     key: Vec<u8>,
 }
 
+impl Drop for AesCipher {
+    fn drop(&mut self) {
+        self.key.zeroize();
+    }
+}
+
 impl AesCipher {
     pub fn new() -> Result<Self, Error> {
         Ok(Self {
@@ -664,6 +671,15 @@ impl AesCipher {
 pub struct ChaChaCipher {
     chacha_cipher: Option<ChaChaObject>,
     key: Option<[u8; CHACHA_KEY_LEN]>, // In case of packet protection, no need to initiate a cipher
+}
+
+impl Drop for ChaChaCipher {
+    fn drop(&mut self) {
+        if let Some(key) = self.key.as_mut() {
+            key.zeroize();
+        }
+        self.key = None;
+    }
 }
 
 impl ChaChaCipher {
