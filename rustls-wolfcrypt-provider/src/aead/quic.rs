@@ -843,7 +843,6 @@ fn new_chacha_object() -> Result<ChaChaObject, Error> {
 mod tests {
     use hex_literal::hex;
     use rustls::crypto::tls13::HkdfExpander;
-    use std::prelude::rust_2015::ToString;
     use std::prelude::v1::Vec;
     use std::vec;
 
