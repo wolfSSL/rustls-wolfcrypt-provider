@@ -2,7 +2,6 @@
 //!
 //! See draft-ietf-quic-tls.
 
-#![allow(clippy::type_complexity)]
 use alloc::vec;
 use core::mem;
 use foreign_types::ForeignType;
@@ -18,6 +17,12 @@ use rustls::crypto::cipher::{Iv, Nonce};
 use rustls::quic::Tag;
 use rustls::{crypto::cipher::AeadKey, quic, Error};
 use wolfcrypt_rs::*;
+
+type PktEncFn =
+    fn(packet_cipher: &Cipher, nonce: &[u8], aad: &[u8], in_out: &mut [u8]) -> Result<Tag, Error>;
+
+type PktDecFn =
+    fn(packet_cipher: &Cipher, nonce: &[u8], aad: &[u8], in_out: &mut [u8]) -> Result<(), Error>;
 
 macro_rules! mask_array {
     () => {
@@ -260,18 +265,8 @@ pub(crate) enum PacketKeyAlgorithmID {
 pub struct AeadAlgorithm {
     init: fn(key: &[u8]) -> Result<Cipher, Error>,
 
-    encrypt: fn(
-        packet_cipher: &Cipher,
-        nonce: &[u8],
-        aad: &[u8],
-        in_out: &mut [u8],
-    ) -> Result<Tag, Error>,
-    decrypt: fn(
-        packet_cipher: &Cipher,
-        nonce: &[u8],
-        aad: &[u8],
-        in_out: &mut [u8],
-    ) -> Result<(), Error>,
+    encrypt: PktEncFn,
+    decrypt: PktDecFn,
 
     key_len: usize,
     id: PacketKeyAlgorithmID,
