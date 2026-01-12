@@ -5,7 +5,7 @@
 use alloc::vec;
 use core::mem;
 use foreign_types::ForeignType;
-use zeroize::Zeroize;
+use der::zeroize::Zeroize;
 
 use crate::error::check_if_zero;
 use crate::types::{AesObject, ChaChaObject};
