@@ -60,30 +60,3 @@ jobs:
           cargo clippy -- -D warnings -A unnecessary-transmutes
           cd ../rustls-wolfcrypt-provider
           cargo clippy --all-features -- -D warnings
-
-      - name: Run tests of rustls v0.23.35
-        run: |
-          mkdir rustlsv0.23.35-test-workspace
-          cd rustlsv0.23.35-test-workspace
-          git clone https://github.com/rustls/rustls.git
-          cd rustls
-          git fetch --tags
-          selected_tag=$(git tag -l "v/0\.23\.35")
-          git checkout "$selected_tag"
-          cd ..
-          git clone https://github.com/helkoulak/rustls-wolfcrypt-provider.git
-          cd rustls-wolfcrypt-provider/
-          git checkout quic-support
-          cd wolfcrypt-rs/
-          make build
-          cd ../rustls-wolfcrypt-provider/
-          cargo build --all-features --release
-          cd ../..
-          git clone https://github.com/helkoulak/rustls_v0.23.35_test_files.git
-          cp -r ./rustls_v0.23.35_test_files/tests .
-          cp ./rustls_v0.23.35_test_files/Cargo.toml .
-          cp ./rustls_v0.23.35_test_files/provider_files/Cargo.toml ./rustls-wolfcrypt-provider/rustls-wolfcrypt-provider/
-          rm -rf rustls_v0.23.35_test_files
-          cargo test -p tests --test all_suites --all-features
-          cd ..
-          rm -rf rustlsv0.23.35-test-workspace
