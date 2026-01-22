@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: rustls/rustls
-          ref: v0.23.35
+          ref: v/0.23.35
           path: rustlsv0.23.35-test-workspace/rustls
 
       - name: Checkout rustls-wolfcrypt-provider (quic-support)
