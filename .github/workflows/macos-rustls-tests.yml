@@ -40,6 +40,7 @@ jobs:
         with:
           repository: rustls/rustls
           ref: v/0.23.35
+          fetch-depth: 0
           path: rustlsv0.23.35-test-workspace/rustls
 
       - name: Checkout rustls-wolfcrypt-provider (quic-support)
@@ -54,7 +55,7 @@ jobs:
         run: make build
 
       - name: Build rustls-wolfcrypt-provider
-        working-directory: rustlsv0.23.35-test-workspace/rustls-wolfcrypt-provider
+        working-directory: rustlsv0.23.35-test-workspace/rustls-wolfcrypt-provider/rustls-wolfcrypt-provider
         run: cargo build --all-features --release
 
       - name: Checkout rustls v0.23.35 test files
