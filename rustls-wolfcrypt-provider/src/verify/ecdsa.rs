@@ -1,5 +1,5 @@
 use crate::{
-    error::{check_if_one, check_if_zero, WCError},
+    error::{check_if_zero},
     types::*,
 };
 use alloc::vec;
@@ -133,16 +133,8 @@ impl SignatureVerificationAlgorithm for EcdsaVerifier {
                 ecc_key_object.as_ptr(),
             );
 
-            // If stat != 1, signature is invalid
-            if stat != 1 {
-                panic!("ret = {}, stat = {}", ret, stat);
-            }
-
-            if let Err(WCError::Failure) = check_if_one(stat) {
-                Err(InvalidSignature)
-            } else {
-                Ok(())
-            }
+            check_if_zero(ret).map_err(|_| InvalidSignature)?;
+            if stat == 1 { Ok(()) } else { Err(InvalidSignature) }
         }
     }
 }
