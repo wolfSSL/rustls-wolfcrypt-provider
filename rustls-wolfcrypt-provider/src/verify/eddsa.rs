@@ -1,5 +1,5 @@
 use crate::{
-    error::{check_if_one, check_if_zero, WCError},
+    error::{check_if_zero},
     types::*,
 };
 use core::mem;
@@ -51,11 +51,8 @@ impl SignatureVerificationAlgorithm for Ed25519 {
                 ed25519_key_object.as_ptr(),
             );
 
-            if let Err(WCError::Failure) = check_if_one(ret) {
-                Ok(())
-            } else {
-                Err(InvalidSignature)
-            }
+            check_if_zero(ret).map_err(|_| InvalidSignature)?;
+            if stat == 1 { Ok(()) } else { Err(InvalidSignature) }
         }
     }
 }
