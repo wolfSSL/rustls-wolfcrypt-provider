@@ -8,6 +8,7 @@ use foreign_types::ForeignType;
 use rustls::pki_types::PrivateKeyDer;
 use rustls::sign::{Signer, SigningKey};
 use rustls::{SignatureAlgorithm, SignatureScheme};
+use alloc::format;
 
 use wolfcrypt_rs::*;
 
@@ -151,7 +152,9 @@ impl Signer for Ed25519Signer {
             )
         };
         if ret < 0 {
-            panic!("{}", ret);
+            return Err(rustls::Error::General(
+                    format!("wc_ed25519_sign_msg failed: {}", ret).into()
+            ));
         }
 
         let mut sig_vec = sig.to_vec();
