@@ -11,7 +11,7 @@ use rustls::{SignatureAlgorithm, SignatureScheme};
 
 use wolfcrypt_rs::*;
 
-const ALL_EDDSA_SCHEMES: &[SignatureScheme] = &[SignatureScheme::ED25519, SignatureScheme::ED448];
+const ALL_EDDSA_SCHEMES: &[SignatureScheme] = &[SignatureScheme::ED25519];
 
 #[derive(Clone, Debug)]
 pub struct Ed25519PrivateKey {
