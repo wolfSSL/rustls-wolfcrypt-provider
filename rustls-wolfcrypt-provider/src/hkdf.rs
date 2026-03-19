@@ -85,7 +85,6 @@ impl RustlsHkdf for WCHkdfUsingHmac {
         check_if_zero(ret).unwrap();
 
         unsafe { wc_HmacFree(&mut hmac_ctx) };
-        check_if_zero(ret).unwrap();
 
         rustls::crypto::hmac::Tag::new(&hmac)
     }
