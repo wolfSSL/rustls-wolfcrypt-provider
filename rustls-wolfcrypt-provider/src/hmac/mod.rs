@@ -2,8 +2,8 @@ use crate::error::check_if_zero;
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::mem;
 use rustls::crypto;
-use zeroize::Zeroizing;
 use wolfcrypt_rs::*;
+use zeroize::Zeroizing;
 
 #[derive(Clone, Copy)]
 pub enum WCShaHmac {
@@ -101,8 +101,7 @@ impl WCHmacKey {
     }
 
     fn hmac_update(&self, hmac_ptr: *mut Hmac, input: &[u8]) {
-        let ret =
-            unsafe { wc_HmacUpdate(hmac_ptr, input.as_ptr(), input.len() as word32) };
+        let ret = unsafe { wc_HmacUpdate(hmac_ptr, input.as_ptr(), input.len() as word32) };
         check_if_zero(ret).unwrap();
     }
 
@@ -112,7 +111,9 @@ impl WCHmacKey {
         check_if_zero(ret).unwrap();
 
         // Free the heap-allocated Hmac struct.
-        unsafe { drop(Box::from_raw(hmac_ptr)); }
+        unsafe {
+            drop(Box::from_raw(hmac_ptr));
+        }
 
         digest
     }

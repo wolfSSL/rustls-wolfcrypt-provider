@@ -1,7 +1,4 @@
-use crate::{
-    error::{check_if_zero},
-    types::*,
-};
+use crate::{error::check_if_zero, types::*};
 use core::mem;
 use foreign_types::ForeignType;
 use rustls::pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerificationAlgorithm};
@@ -52,7 +49,11 @@ impl SignatureVerificationAlgorithm for Ed25519 {
             );
 
             check_if_zero(ret).map_err(|_| InvalidSignature)?;
-            if stat == 1 { Ok(()) } else { Err(InvalidSignature) }
+            if stat == 1 {
+                Ok(())
+            } else {
+                Err(InvalidSignature)
+            }
         }
     }
 }

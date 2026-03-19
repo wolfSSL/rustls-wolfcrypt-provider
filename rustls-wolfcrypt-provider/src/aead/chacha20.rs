@@ -13,7 +13,7 @@ use rustls::{ConnectionTrafficSecrets, ContentType, ProtocolVersion};
 use wolfcrypt_rs::*;
 
 use crate::error::check_if_zero;
-use zeroize::{Zeroizing};
+use zeroize::Zeroizing;
 
 const CHACHAPOLY1305_OVERHEAD: usize = 16;
 

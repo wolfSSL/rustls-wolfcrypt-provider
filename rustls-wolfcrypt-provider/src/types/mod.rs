@@ -188,7 +188,6 @@ macro_rules! define_foreign_type_no_copy {
             }
         }
     };
-
 }
 
 define_foreign_type!(
@@ -205,7 +204,13 @@ define_foreign_type!(
     drop_void(wc_curve25519_free),
     wc_curve25519_init
 );
-define_foreign_type!(ECCKeyObject, ECCKeyObjectRef, ecc_key, drop(wc_ecc_free), wc_ecc_init);
+define_foreign_type!(
+    ECCKeyObject,
+    ECCKeyObjectRef,
+    ecc_key,
+    drop(wc_ecc_free),
+    wc_ecc_init
+);
 define_foreign_type!(
     ED25519KeyObject,
     ED25519KeyObjectRef,
@@ -213,7 +218,13 @@ define_foreign_type!(
     drop_void(wc_ed25519_free),
     wc_ed25519_init
 );
-define_foreign_type!(ED448KeyObject, ED448KeyObjectRef, ed448_key, drop_void(wc_ed448_free), wc_ed448_init);
+define_foreign_type!(
+    ED448KeyObject,
+    ED448KeyObjectRef,
+    ed448_key,
+    drop_void(wc_ed448_free),
+    wc_ed448_init
+);
 
 define_foreign_type_no_copy!(RsaKeyObject, RsaKeyObjectRef, RsaKey, drop(wc_FreeRsaKey));
 define_foreign_type_with_copy!(HmacObject, HmacObjectRef, wolfcrypt_rs::Hmac);

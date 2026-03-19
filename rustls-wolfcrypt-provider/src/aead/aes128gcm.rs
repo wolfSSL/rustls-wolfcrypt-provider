@@ -4,7 +4,6 @@ use alloc::boxed::Box;
 use alloc::vec;
 use core::mem;
 use foreign_types::ForeignType;
-use zeroize::Zeroizing;
 use rustls::crypto::cipher::{
     make_tls12_aad, make_tls13_aad, AeadKey, InboundOpaqueMessage, InboundPlainMessage, Iv,
     KeyBlockShape, MessageDecrypter, MessageEncrypter, Nonce, OutboundOpaqueMessage,
@@ -12,6 +11,7 @@ use rustls::crypto::cipher::{
     UnsupportedOperationError,
 };
 use rustls::{ConnectionTrafficSecrets, ContentType, ProtocolVersion};
+use zeroize::Zeroizing;
 
 use alloc::vec::Vec;
 use core::ptr;

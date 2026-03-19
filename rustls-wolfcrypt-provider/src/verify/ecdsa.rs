@@ -1,7 +1,4 @@
-use crate::{
-    error::{check_if_zero},
-    types::*,
-};
+use crate::{error::check_if_zero, types::*};
 use alloc::vec;
 use core::mem;
 use core::ptr;
@@ -134,7 +131,11 @@ impl SignatureVerificationAlgorithm for EcdsaVerifier {
             );
 
             check_if_zero(ret).map_err(|_| InvalidSignature)?;
-            if stat == 1 { Ok(()) } else { Err(InvalidSignature) }
+            if stat == 1 {
+                Ok(())
+            } else {
+                Err(InvalidSignature)
+            }
         }
     }
 }

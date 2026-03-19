@@ -86,7 +86,9 @@ impl KeyExchangeSecP256r1 {
 
     pub fn derive_shared_secret(&self, peer_pub_key: &[u8]) -> Result<Box<[u8]>, rustls::Error> {
         if peer_pub_key.len() != 65 {
-            return Err(rustls::Error::General("Invalid peer public key length".into()));
+            return Err(rustls::Error::General(
+                "Invalid peer public key length".into(),
+            ));
         }
 
         let mut priv_key: ecc_key = unsafe { mem::zeroed() };

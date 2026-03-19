@@ -1,6 +1,7 @@
 use crate::error::*;
 use crate::types::*;
 use alloc::boxed::Box;
+use alloc::format;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::mem;
@@ -8,7 +9,6 @@ use foreign_types::ForeignType;
 use rustls::pki_types::PrivateKeyDer;
 use rustls::sign::{Signer, SigningKey};
 use rustls::{SignatureAlgorithm, SignatureScheme};
-use alloc::format;
 
 use wolfcrypt_rs::*;
 use zeroize::Zeroizing;
@@ -154,7 +154,7 @@ impl Signer for Ed25519Signer {
         };
         if ret < 0 {
             return Err(rustls::Error::General(
-                    format!("wc_ed25519_sign_msg failed: {}", ret).into()
+                format!("wc_ed25519_sign_msg failed: {}", ret).into(),
             ));
         }
 

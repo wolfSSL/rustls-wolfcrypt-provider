@@ -94,8 +94,8 @@ impl RustlsHkdf for WCHkdfUsingHmac {
 /// Expander implementation that holds the extracted key material from HKDF extract phase
 struct WolfHkdfExpander {
     extracted_key: Zeroizing<Vec<u8>>, // The pseudorandom key (PRK) output from HKDF-Extract
-    hash_type: i32,                     // The wolfSSL hash algorithm identifier
-    hash_len: usize,                    // Length of the hash function output
+    hash_type: i32,                    // The wolfSSL hash algorithm identifier
+    hash_len: usize,                   // Length of the hash function output
 }
 
 impl WolfHkdfExpander {
