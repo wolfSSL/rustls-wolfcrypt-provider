@@ -109,12 +109,20 @@ mod tests {
 unsafe impl Sync for WCHasher384 {}
 unsafe impl Send for WCHasher384 {}
 impl Clone for WCHasher384 {
-    // Clone implementation.
-    // Returns a copy of the WCHasher256 struct.
     fn clone(&self) -> WCHasher384 {
-        WCHasher384 {
-            sha384_c_type: self.sha384_c_type,
+        let mut new_hasher = WCHasher384 {
+            sha384_c_type: unsafe { mem::zeroed() },
             hash: self.hash,
-        }
+        };
+        let ret = unsafe { wc_InitSha384(&mut new_hasher.sha384_c_type) };
+        check_if_zero(ret).unwrap();
+        let ret = unsafe {
+            wc_Sha384Copy(
+                &self.sha384_c_type as *const wc_Sha384 as *mut wc_Sha384,
+                &mut new_hasher.sha384_c_type,
+            )
+        };
+        check_if_zero(ret).unwrap();
+        new_hasher
     }
 }
