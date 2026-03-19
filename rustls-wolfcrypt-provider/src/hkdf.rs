@@ -120,7 +120,7 @@ impl tls13::HkdfExpander for WolfHkdfExpander {
             return Err(tls13::OutputLengthError);
         }
 
-        unsafe {
+        let ret = unsafe {
             wc_HKDF_Expand(
                 self.hash_type,
                 self.extracted_key.as_ptr(),
@@ -129,8 +129,9 @@ impl tls13::HkdfExpander for WolfHkdfExpander {
                 info_concat.len() as u32,
                 output.as_mut_ptr(),
                 output.len() as u32,
-            );
-        }
+            )
+        };
+        check_if_zero(ret).map_err(|_| tls13::OutputLengthError)?;
 
         Ok(())
     }
