@@ -67,11 +67,7 @@ fn generate_bindings() -> Result<()> {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings
         .write_to_file(out_path.join("bindings.rs"))
-        .map_err(|e| {
-            io::Error::other(
-                format!("Couldn't write bindings: {}", e),
-            )
-        })
+        .map_err(|e| io::Error::other(format!("Couldn't write bindings: {}", e)))
 }
 
 /// Coordinates the complete setup process for WolfSSL.
@@ -108,12 +104,10 @@ fn download_wolfssl() -> Result<()> {
         .output()?;
 
     if !output.status.success() {
-        return Err(io::Error::other(
-            format!(
-                "Failed to download: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ),
-        ));
+        return Err(io::Error::other(format!(
+            "Failed to download: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
     }
     println!("Download completed successfully.");
     Ok(())
@@ -129,12 +123,10 @@ fn unzip_wolfssl() -> Result<()> {
     let output = Command::new("unzip").arg(WOLFSSL_ZIP).output()?;
 
     if !output.status.success() {
-        return Err(io::Error::other(
-            format!(
-                "Failed to unzip: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ),
-        ));
+        return Err(io::Error::other(format!(
+            "Failed to unzip: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
     }
     println!("Unzipping completed successfully.");
     Ok(())
@@ -195,13 +187,11 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<()> {
     let output = Command::new(cmd).args(args).output()?;
 
     if !output.status.success() {
-        return Err(io::Error::other(
-            format!(
-                "Failed to execute {}: {}",
-                cmd,
-                String::from_utf8_lossy(&output.stderr)
-            ),
-        ));
+        return Err(io::Error::other(format!(
+            "Failed to execute {}: {}",
+            cmd,
+            String::from_utf8_lossy(&output.stderr)
+        )));
     }
     println!("{} completed successfully.", cmd);
     Ok(())
