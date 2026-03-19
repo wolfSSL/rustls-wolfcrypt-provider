@@ -62,14 +62,13 @@ fn generate_bindings() -> Result<()> {
         .clang_arg(format!("-I{}/", wolfssl_include_dir.to_str().unwrap()))
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
-        .map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to generate bindings"))?;
+        .map_err(|_| io::Error::other("Failed to generate bindings"))?;
 
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings
         .write_to_file(out_path.join("bindings.rs"))
         .map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::Other,
+            io::Error::other(
                 format!("Couldn't write bindings: {}", e),
             )
         })
@@ -109,8 +108,7 @@ fn download_wolfssl() -> Result<()> {
         .output()?;
 
     if !output.status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
+        return Err(io::Error::other(
             format!(
                 "Failed to download: {}",
                 String::from_utf8_lossy(&output.stderr)
@@ -131,8 +129,7 @@ fn unzip_wolfssl() -> Result<()> {
     let output = Command::new("unzip").arg(WOLFSSL_ZIP).output()?;
 
     if !output.status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
+        return Err(io::Error::other(
             format!(
                 "Failed to unzip: {}",
                 String::from_utf8_lossy(&output.stderr)
@@ -198,8 +195,7 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<()> {
     let output = Command::new(cmd).args(args).output()?;
 
     if !output.status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
+        return Err(io::Error::other(
             format!(
                 "Failed to execute {}: {}",
                 cmd,

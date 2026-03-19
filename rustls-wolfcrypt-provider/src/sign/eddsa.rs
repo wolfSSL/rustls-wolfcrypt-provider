@@ -154,7 +154,7 @@ impl Signer for Ed25519Signer {
         };
         if ret < 0 {
             return Err(rustls::Error::General(
-                format!("wc_ed25519_sign_msg failed: {}", ret).into(),
+                format!("wc_ed25519_sign_msg failed: {}", ret),
             ));
         }
 
