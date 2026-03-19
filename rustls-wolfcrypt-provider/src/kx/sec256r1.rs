@@ -4,9 +4,10 @@ use core::mem;
 use core::ptr;
 use foreign_types::ForeignType;
 use wolfcrypt_rs::*;
+use zeroize::Zeroizing;
 
 pub struct KeyExchangeSecP256r1 {
-    priv_key_bytes: Box<[u8]>,
+    priv_key_bytes: Zeroizing<Box<[u8]>>,
     pub_key_bytes: Box<[u8]>,
 }
 
@@ -78,7 +79,7 @@ impl KeyExchangeSecP256r1 {
         pub_key_bytes[33..65].copy_from_slice(&pub_key_raw.qy);
 
         KeyExchangeSecP256r1 {
-            priv_key_bytes: Box::new(priv_key_raw),
+            priv_key_bytes: Zeroizing::new(Box::new(priv_key_raw)),
             pub_key_bytes: Box::new(pub_key_bytes),
         }
     }

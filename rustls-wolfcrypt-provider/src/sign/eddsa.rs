@@ -11,12 +11,13 @@ use rustls::{SignatureAlgorithm, SignatureScheme};
 use alloc::format;
 
 use wolfcrypt_rs::*;
+use zeroize::Zeroizing;
 
 const ALL_EDDSA_SCHEMES: &[SignatureScheme] = &[SignatureScheme::ED25519];
 
 #[derive(Clone, Debug)]
 pub struct Ed25519PrivateKey {
-    priv_key: Arc<Vec<u8>>,
+    priv_key: Arc<Zeroizing<Vec<u8>>>,
     pub_key: Arc<Vec<u8>>,
     algo: SignatureAlgorithm,
 }
@@ -78,7 +79,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed25519PrivateKey {
                     .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 Ok(Self {
-                    priv_key: Arc::new(priv_key_raw.to_vec()),
+                    priv_key: Arc::new(Zeroizing::new(priv_key_raw.to_vec())),
                     pub_key: Arc::new(pub_key_raw.to_vec()),
                     algo: SignatureAlgorithm::ED25519,
                 })
@@ -113,7 +114,7 @@ impl SigningKey for Ed25519PrivateKey {
 
 #[derive(Clone, Debug)]
 pub struct Ed25519Signer {
-    priv_key: Arc<Vec<u8>>,
+    priv_key: Arc<Zeroizing<Vec<u8>>>,
     pub_key: Arc<Vec<u8>>,
     scheme: SignatureScheme,
 }

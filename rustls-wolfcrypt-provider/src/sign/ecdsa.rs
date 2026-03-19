@@ -14,6 +14,7 @@ use rustls::sign::{Signer, SigningKey};
 use rustls::{SignatureAlgorithm, SignatureScheme};
 
 use wolfcrypt_rs::*;
+use zeroize::Zeroizing;
 
 /// A unified ECDSA signing key that supports P-256, P-384, P-521.
 /// Internally, we store the raw private key bytes plus
@@ -22,7 +23,7 @@ use wolfcrypt_rs::*;
 pub struct EcdsaSigningKey {
     /// Raw private key bytes exported from WolfSSL (`wc_ecc_export_private_only`)
     /// in big-endian format.
-    key: Arc<Vec<u8>>,
+    key: Arc<Zeroizing<Vec<u8>>>,
     /// The signature scheme to use (e.g. ECDSA_NISTP256_SHA256).
     scheme: SignatureScheme,
 }
@@ -89,7 +90,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKey {
             curve_id_to_scheme(key_size).map_err(|e| rustls::Error::General(e.to_string()))?;
 
         Ok(Self {
-            key: Arc::new(priv_key_bytes),
+            key: Arc::new(Zeroizing::new(priv_key_bytes)),
             scheme,
         })
     }

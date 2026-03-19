@@ -3,6 +3,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::mem;
 use rustls::crypto;
+use zeroize::Zeroizing;
 
 use wolfcrypt_rs::*;
 
@@ -10,7 +11,7 @@ pub struct WCSha256Hmac;
 
 impl crypto::hmac::Hmac for WCSha256Hmac {
     fn with_key(&self, key: &[u8]) -> Box<dyn crypto::hmac::Key> {
-        Box::new(WCHmac256Key { key: key.to_vec() })
+        Box::new(WCHmac256Key { key: Zeroizing::new(key.to_vec()) })
     }
 
     fn hash_output_len(&self) -> usize {
@@ -19,7 +20,7 @@ impl crypto::hmac::Hmac for WCSha256Hmac {
 }
 
 struct WCHmac256Key {
-    key: Vec<u8>,
+    key: Zeroizing<Vec<u8>>,
 }
 
 impl crypto::hmac::Key for WCHmac256Key {

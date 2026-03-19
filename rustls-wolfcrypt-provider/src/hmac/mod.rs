@@ -2,6 +2,7 @@ use crate::error::check_if_zero;
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::mem;
 use rustls::crypto;
+use zeroize::Zeroizing;
 use wolfcrypt_rs::*;
 
 #[derive(Clone, Copy)]
@@ -51,7 +52,7 @@ impl WCShaHmac {
 impl crypto::hmac::Hmac for WCShaHmac {
     fn with_key(&self, key: &[u8]) -> Box<dyn crypto::hmac::Key> {
         Box::new(WCHmacKey {
-            key: key.to_vec(),
+            key: Zeroizing::new(key.to_vec()),
             variant: *self,
         })
     }
@@ -62,7 +63,7 @@ impl crypto::hmac::Hmac for WCShaHmac {
 }
 
 struct WCHmacKey {
-    key: Vec<u8>,
+    key: Zeroizing<Vec<u8>>,
     variant: WCShaHmac,
 }
 

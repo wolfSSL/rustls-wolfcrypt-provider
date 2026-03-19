@@ -13,6 +13,7 @@ use rustls::{ConnectionTrafficSecrets, ContentType, ProtocolVersion};
 use wolfcrypt_rs::*;
 
 use crate::error::check_if_zero;
+use zeroize::{Zeroizing};
 
 const CHACHAPOLY1305_OVERHEAD: usize = 16;
 
@@ -20,7 +21,7 @@ pub struct Chacha20Poly1305;
 
 impl Tls12AeadAlgorithm for Chacha20Poly1305 {
     fn encrypter(&self, key: AeadKey, iv: &[u8], _: &[u8]) -> Box<dyn MessageEncrypter> {
-        let mut key_as_vec = vec![0u8; 32];
+        let mut key_as_vec = Zeroizing::new(vec![0u8; 32]);
         key_as_vec.copy_from_slice(key.as_ref());
 
         Box::new(WCTls12Cipher {
@@ -30,7 +31,7 @@ impl Tls12AeadAlgorithm for Chacha20Poly1305 {
     }
 
     fn decrypter(&self, key: AeadKey, iv: &[u8]) -> Box<dyn MessageDecrypter> {
-        let mut key_as_vec = vec![0u8; 32];
+        let mut key_as_vec = Zeroizing::new(vec![0u8; 32]);
         key_as_vec.copy_from_slice(key.as_ref());
 
         Box::new(WCTls12Cipher {
@@ -63,7 +64,7 @@ impl Tls12AeadAlgorithm for Chacha20Poly1305 {
 }
 
 pub struct WCTls12Cipher {
-    key: Vec<u8>,
+    key: Zeroizing<Vec<u8>>,
     iv: Iv,
 }
 
@@ -175,7 +176,7 @@ impl MessageDecrypter for WCTls12Cipher {
 
 impl Tls13AeadAlgorithm for Chacha20Poly1305 {
     fn encrypter(&self, key: AeadKey, iv: Iv) -> Box<dyn MessageEncrypter> {
-        let mut key_as_array = [0u8; 32];
+        let mut key_as_array = Zeroizing::new([0u8; 32]);
         key_as_array[..32].copy_from_slice(key.as_ref());
 
         Box::new(WCTls13Cipher {
@@ -185,7 +186,7 @@ impl Tls13AeadAlgorithm for Chacha20Poly1305 {
     }
 
     fn decrypter(&self, key: AeadKey, iv: Iv) -> Box<dyn MessageDecrypter> {
-        let mut key_as_array = [0u8; 32];
+        let mut key_as_array = Zeroizing::new([0u8; 32]);
         key_as_array[..32].copy_from_slice(key.as_ref());
 
         Box::new(WCTls13Cipher {
@@ -208,7 +209,7 @@ impl Tls13AeadAlgorithm for Chacha20Poly1305 {
 }
 
 pub struct WCTls13Cipher {
-    key: [u8; 32],
+    key: Zeroizing<[u8; 32]>,
     iv: Iv,
 }
 
