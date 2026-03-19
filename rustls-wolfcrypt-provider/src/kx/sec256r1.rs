@@ -4,9 +4,10 @@ use core::mem;
 use core::ptr;
 use foreign_types::ForeignType;
 use wolfcrypt_rs::*;
+use zeroize::Zeroizing;
 
 pub struct KeyExchangeSecP256r1 {
-    priv_key_bytes: Box<[u8]>,
+    priv_key_bytes: Zeroizing<Box<[u8]>>,
     pub_key_bytes: Box<[u8]>,
 }
 
@@ -78,12 +79,18 @@ impl KeyExchangeSecP256r1 {
         pub_key_bytes[33..65].copy_from_slice(&pub_key_raw.qy);
 
         KeyExchangeSecP256r1 {
-            priv_key_bytes: Box::new(priv_key_raw),
+            priv_key_bytes: Zeroizing::new(Box::new(priv_key_raw)),
             pub_key_bytes: Box::new(pub_key_bytes),
         }
     }
 
-    pub fn derive_shared_secret(&self, peer_pub_key: &[u8]) -> Box<[u8]> {
+    pub fn derive_shared_secret(&self, peer_pub_key: &[u8]) -> Result<Box<[u8]>, rustls::Error> {
+        if peer_pub_key.len() != 65 {
+            return Err(rustls::Error::General(
+                "Invalid peer public key length".into(),
+            ));
+        }
+
         let mut priv_key: ecc_key = unsafe { mem::zeroed() };
         let priv_key_object = ECCKeyObject::new(&mut priv_key);
         let mut pub_key: ecc_key = unsafe { mem::zeroed() };
@@ -139,7 +146,7 @@ impl KeyExchangeSecP256r1 {
         };
         check_if_zero(ret).unwrap();
 
-        Box::new(out)
+        Ok(Box::new(out))
     }
 }
 
@@ -148,7 +155,7 @@ impl rustls::crypto::ActiveKeyExchange for KeyExchangeSecP256r1 {
         self: Box<Self>,
         peer_pub_key: &[u8],
     ) -> Result<rustls::crypto::SharedSecret, rustls::Error> {
-        let secret = self.derive_shared_secret(peer_pub_key);
+        let secret = self.derive_shared_secret(peer_pub_key)?;
         Ok(rustls::crypto::SharedSecret::from(&*secret))
     }
 
@@ -172,8 +179,8 @@ mod tests {
         let bob = Box::new(KeyExchangeSecP256r1::use_secp256r1());
 
         assert_eq!(
-            alice.derive_shared_secret(bob.pub_key()),
-            bob.derive_shared_secret(alice.pub_key()),
+            alice.derive_shared_secret(bob.pub_key()).unwrap(),
+            bob.derive_shared_secret(alice.pub_key()).unwrap(),
         )
     }
 }

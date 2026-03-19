@@ -3,10 +3,11 @@ use alloc::boxed::Box;
 use core::mem;
 use foreign_types::ForeignType;
 use wolfcrypt_rs::*;
+use zeroize::Zeroizing;
 
 pub struct KeyExchangeX25519 {
     pub_key_bytes: Box<[u8]>,
-    priv_key_bytes: Box<[u8]>,
+    priv_key_bytes: Zeroizing<Box<[u8]>>,
 }
 
 impl KeyExchangeX25519 {
@@ -48,7 +49,7 @@ impl KeyExchangeX25519 {
 
         KeyExchangeX25519 {
             pub_key_bytes: Box::new(pub_key_raw),
-            priv_key_bytes: Box::new(priv_key_raw),
+            priv_key_bytes: Zeroizing::new(Box::new(priv_key_raw)),
         }
     }
 

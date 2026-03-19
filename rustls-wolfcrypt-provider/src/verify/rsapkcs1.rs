@@ -1,5 +1,4 @@
 use crate::error::check_if_zero;
-use crate::error::*;
 use crate::types::*;
 use alloc::vec::Vec;
 use core::ffi::c_void;
@@ -70,10 +69,9 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
             )
         };
 
-        if let Err(WCError::Failure) = check_if_zero(ret) {
-            Err(InvalidSignature)
-        } else {
-            Ok(())
+        match check_if_zero(ret) {
+            Ok(()) => Ok(()),
+            Err(_) => Err(InvalidSignature),
         }
     }
 }
@@ -137,10 +135,9 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
             )
         };
 
-        if let Err(WCError::Failure) = check_if_zero(ret) {
-            Err(InvalidSignature)
-        } else {
-            Ok(())
+        match check_if_zero(ret) {
+            Ok(()) => Ok(()),
+            Err(_) => Err(InvalidSignature),
         }
     }
 }
@@ -204,10 +201,9 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha512Verify {
             )
         };
 
-        if let Err(WCError::Failure) = check_if_zero(ret) {
-            Err(InvalidSignature)
-        } else {
-            Ok(())
+        match check_if_zero(ret) {
+            Ok(()) => Ok(()),
+            Err(_) => Err(InvalidSignature),
         }
     }
 }

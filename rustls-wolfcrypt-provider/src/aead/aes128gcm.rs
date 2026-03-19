@@ -11,6 +11,7 @@ use rustls::crypto::cipher::{
     UnsupportedOperationError,
 };
 use rustls::{ConnectionTrafficSecrets, ContentType, ProtocolVersion};
+use zeroize::Zeroizing;
 
 use alloc::vec::Vec;
 use core::ptr;
@@ -30,7 +31,7 @@ impl Tls12AeadAlgorithm for Aes128Gcm {
 
         Box::new(WCTls12Encrypter {
             iv: iv_as_array.into(),
-            key: key_as_slice.to_vec(),
+            key: Zeroizing::new(key_as_slice.to_vec()),
         })
     }
 
@@ -45,7 +46,7 @@ impl Tls12AeadAlgorithm for Aes128Gcm {
 
         Box::new(WCTls12Decrypter {
             implicit_iv: iv_implicit_as_array,
-            key: key_as_slice.to_vec(),
+            key: Zeroizing::new(key_as_slice.to_vec()),
         })
     }
 
@@ -65,8 +66,8 @@ impl Tls12AeadAlgorithm for Aes128Gcm {
     ) -> Result<ConnectionTrafficSecrets, UnsupportedOperationError> {
         let mut iv_as_vec = vec![0u8; GCM_NONCE_LENGTH];
 
-        iv_as_vec.copy_from_slice(iv);
-        iv_as_vec.copy_from_slice(explicit);
+        iv_as_vec[..4].copy_from_slice(iv);
+        iv_as_vec[4..].copy_from_slice(explicit);
 
         Ok(ConnectionTrafficSecrets::Aes128Gcm {
             key,
@@ -80,12 +81,12 @@ impl Tls12AeadAlgorithm for Aes128Gcm {
 // We separate the structs for the implementation.
 pub struct WCTls12Encrypter {
     iv: Iv,
-    key: Vec<u8>,
+    key: Zeroizing<Vec<u8>>,
 }
 
 pub struct WCTls12Decrypter {
     implicit_iv: [u8; 4],
-    key: Vec<u8>,
+    key: Zeroizing<Vec<u8>>,
 }
 
 impl MessageEncrypter for WCTls12Encrypter {
@@ -237,14 +238,14 @@ impl MessageDecrypter for WCTls12Decrypter {
 impl Tls13AeadAlgorithm for Aes128Gcm {
     fn encrypter(&self, key: AeadKey, iv: Iv) -> Box<dyn MessageEncrypter> {
         Box::new(WCTls13Cipher {
-            key: key.as_ref().into(),
+            key: Zeroizing::new(key.as_ref().into()),
             iv,
         })
     }
 
     fn decrypter(&self, key: AeadKey, iv: Iv) -> Box<dyn MessageDecrypter> {
         Box::new(WCTls13Cipher {
-            key: key.as_ref().into(),
+            key: Zeroizing::new(key.as_ref().into()),
             iv,
         })
     }
@@ -263,7 +264,7 @@ impl Tls13AeadAlgorithm for Aes128Gcm {
 }
 
 pub struct WCTls13Cipher {
-    key: Vec<u8>,
+    key: Zeroizing<Vec<u8>>,
     iv: Iv,
 }
 

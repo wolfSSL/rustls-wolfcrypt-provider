@@ -86,10 +86,9 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
             )
         };
 
-        if let Err(WCError::Failure) = check_if_greater_than_zero(ret) {
-            Err(InvalidSignature)
-        } else {
-            Ok(())
+        match check_if_greater_than_zero(ret) {
+            Ok(()) => Ok(()),
+            Err(_) => Err(InvalidSignature),
         }
     }
 }
@@ -170,10 +169,9 @@ impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
             )
         };
 
-        if let Err(WCError::Failure) = check_if_greater_than_zero(ret) {
-            Err(InvalidSignature)
-        } else {
-            Ok(())
+        match check_if_greater_than_zero(ret) {
+            Ok(()) => Ok(()),
+            Err(_) => Err(InvalidSignature),
         }
     }
 }
@@ -254,10 +252,9 @@ impl SignatureVerificationAlgorithm for RsaPssSha512Verify {
             )
         };
 
-        if let Err(WCError::Failure) = check_if_greater_than_zero(ret) {
-            Err(InvalidSignature)
-        } else {
-            Ok(())
+        match check_if_greater_than_zero(ret) {
+            Ok(()) => Ok(()),
+            Err(_) => Err(InvalidSignature),
         }
     }
 }

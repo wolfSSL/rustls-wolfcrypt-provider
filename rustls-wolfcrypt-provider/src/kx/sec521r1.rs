@@ -4,9 +4,10 @@ use core::mem;
 use core::ptr;
 use foreign_types::ForeignType;
 use wolfcrypt_rs::*;
+use zeroize::Zeroizing;
 
 pub struct KeyExchangeSecP521r1 {
-    priv_key_bytes: Box<[u8]>,
+    priv_key_bytes: Zeroizing<Box<[u8]>>,
     pub_key_bytes: Box<[u8]>,
 }
 
@@ -81,12 +82,18 @@ impl KeyExchangeSecP521r1 {
         pub_key_bytes[67..133].copy_from_slice(&pub_key_raw.qy);
 
         KeyExchangeSecP521r1 {
-            priv_key_bytes: Box::new(priv_key_raw),
+            priv_key_bytes: Zeroizing::new(Box::new(priv_key_raw)),
             pub_key_bytes: Box::new(pub_key_bytes),
         }
     }
 
-    pub fn derive_shared_secret(&self, peer_pub_key: &[u8]) -> Box<[u8]> {
+    pub fn derive_shared_secret(&self, peer_pub_key: &[u8]) -> Result<Box<[u8]>, rustls::Error> {
+        if peer_pub_key.len() != 133 {
+            return Err(rustls::Error::General(
+                "Invalid peer public key length".into(),
+            ));
+        }
+
         let mut priv_key: ecc_key = unsafe { mem::zeroed() };
         let priv_key_object: ECCKeyObject = ECCKeyObject::new(&mut priv_key);
         let mut pub_key: ecc_key = unsafe { mem::zeroed() };
@@ -147,7 +154,7 @@ impl KeyExchangeSecP521r1 {
         };
         check_if_zero(ret).unwrap();
 
-        Box::new(out)
+        Ok(Box::new(out))
     }
 }
 
@@ -156,10 +163,7 @@ impl rustls::crypto::ActiveKeyExchange for KeyExchangeSecP521r1 {
         self: Box<Self>,
         peer_pub_key: &[u8],
     ) -> Result<rustls::crypto::SharedSecret, rustls::Error> {
-        // We derive the shared secret with our private key and
-        // the received public key.
-        let secret = self.derive_shared_secret(peer_pub_key);
-
+        let secret = self.derive_shared_secret(peer_pub_key)?;
         Ok(rustls::crypto::SharedSecret::from(&*secret))
     }
 
@@ -183,8 +187,8 @@ mod tests {
         let bob = Box::new(KeyExchangeSecP521r1::use_secp521r1());
 
         assert_eq!(
-            alice.derive_shared_secret(bob.pub_key().try_into().unwrap()),
-            bob.derive_shared_secret(alice.pub_key().try_into().unwrap()),
+            alice.derive_shared_secret(bob.pub_key()).unwrap(),
+            bob.derive_shared_secret(alice.pub_key()).unwrap(),
         )
     }
 }

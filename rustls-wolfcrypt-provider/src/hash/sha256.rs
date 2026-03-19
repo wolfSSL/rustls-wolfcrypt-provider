@@ -91,13 +91,21 @@ impl hash::Context for WCSha256Context {
 unsafe impl Sync for WCHasher256 {}
 unsafe impl Send for WCHasher256 {}
 impl Clone for WCHasher256 {
-    // Clone implementation.
-    // Returns a copy of the WCHasher256 struct.
     fn clone(&self) -> WCHasher256 {
-        WCHasher256 {
-            sha256_c_type: self.sha256_c_type,
+        let mut new_hasher = WCHasher256 {
+            sha256_c_type: unsafe { mem::zeroed() },
             hash: self.hash,
-        }
+        };
+        let ret = unsafe { wc_InitSha256(&mut new_hasher.sha256_c_type) };
+        check_if_zero(ret).unwrap();
+        let ret = unsafe {
+            wc_Sha256Copy(
+                &self.sha256_c_type as *const wc_Sha256 as *mut wc_Sha256,
+                &mut new_hasher.sha256_c_type,
+            )
+        };
+        check_if_zero(ret).unwrap();
+        new_hasher
     }
 }
 

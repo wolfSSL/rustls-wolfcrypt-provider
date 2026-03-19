@@ -31,15 +31,27 @@ const MGF1_SHA256: u32 = WC_MGF1SHA256;
 const MGF1_SHA384: u32 = WC_MGF1SHA384;
 const MGF1_SHA512: u32 = WC_MGF1SHA512;
 
+/// Owns a heap-allocated RsaKey along with the RsaKeyObject wrapper.
+/// The Box keeps the heap memory alive while RsaKeyObject holds the pointer.
+/// Fields are ordered so that rsa_key_object drops first (calling wc_FreeRsaKey
+/// to clean up wolfSSL internals), then _rsa_key_box drops to free the heap memory.
+#[derive(Debug)]
+struct OwnedRsaKey {
+    rsa_key_object: RsaKeyObject,
+    _rsa_key_box: Box<RsaKey>,
+}
+unsafe impl Send for OwnedRsaKey {}
+unsafe impl Sync for OwnedRsaKey {}
+
 #[derive(Clone, Debug)]
 pub struct RsaPrivateKey {
-    key: Arc<RsaKeyObject>,
+    key: Arc<OwnedRsaKey>,
     algo: SignatureAlgorithm,
 }
 
 impl RsaPrivateKey {
-    pub fn get_key(&self) -> Arc<RsaKeyObject> {
-        Arc::clone(&self.key)
+    pub fn get_rsa_key_object(&self) -> &RsaKeyObject {
+        &self.key.rsa_key_object
     }
 }
 
@@ -52,9 +64,8 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPrivateKey {
                 let pkcs8: &[u8] = der.secret_pkcs8_der();
                 let pkcs8_sz: word32 = pkcs8.len() as word32;
                 let mut ret;
-                let rsa_key_box = Box::new(unsafe { mem::zeroed::<RsaKey>() });
-                let rsa_key_ptr = Box::into_raw(rsa_key_box);
-                let rsa_key_object = unsafe { RsaKeyObject::from_ptr(rsa_key_ptr) };
+                let mut rsa_key_box = Box::new(unsafe { mem::zeroed::<RsaKey>() });
+                let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut *rsa_key_box) };
 
                 ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
                 check_if_zero(ret).unwrap();
@@ -73,7 +84,10 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPrivateKey {
                     .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 Ok(Self {
-                    key: Arc::new(rsa_key_object),
+                    key: Arc::new(OwnedRsaKey {
+                        rsa_key_object,
+                        _rsa_key_box: rsa_key_box,
+                    }),
                     algo: SignatureAlgorithm::RSA,
                 })
             }
@@ -81,9 +95,8 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPrivateKey {
                 let pkcs1: &[u8] = der.secret_pkcs1_der();
                 let pkcs1_sz: word32 = pkcs1.len() as word32;
                 let mut ret;
-                let rsa_key_box = Box::new(unsafe { mem::zeroed::<RsaKey>() });
-                let rsa_key_ptr = Box::into_raw(rsa_key_box);
-                let rsa_key_object = unsafe { RsaKeyObject::from_ptr(rsa_key_ptr) };
+                let mut rsa_key_box = Box::new(unsafe { mem::zeroed::<RsaKey>() });
+                let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut *rsa_key_box) };
 
                 ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
                 check_if_zero(ret).unwrap();
@@ -102,7 +115,10 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPrivateKey {
                     .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
 
                 Ok(Self {
-                    key: Arc::new(rsa_key_object),
+                    key: Arc::new(OwnedRsaKey {
+                        rsa_key_object,
+                        _rsa_key_box: rsa_key_box,
+                    }),
                     algo: SignatureAlgorithm::RSA,
                 })
             }
@@ -119,7 +135,7 @@ impl SigningKey for RsaPrivateKey {
         ALL_RSA_SCHEMES.iter().find_map(|&scheme| {
             if offered.contains(&scheme) {
                 Some(Box::new(RsaSigner {
-                    key: self.get_key(),
+                    key: Arc::clone(&self.key),
                     scheme,
                 }) as Box<dyn Signer>)
             } else {
@@ -135,24 +151,13 @@ impl SigningKey for RsaPrivateKey {
 
 #[derive(Clone, Debug)]
 pub struct RsaSigner {
-    key: Arc<RsaKeyObject>,
+    key: Arc<OwnedRsaKey>,
     scheme: SignatureScheme,
-}
-
-impl RsaSigner {
-    pub fn new(key: Arc<RsaKeyObject>, scheme: SignatureScheme) -> Self {
-        Self { key, scheme }
-    }
-
-    fn get_key(&self) -> Arc<RsaKeyObject> {
-        Arc::clone(&self.key)
-    }
 }
 
 impl Signer for RsaSigner {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
-        let rsa_key_arc = self.get_key();
-        let rsa_key_object = rsa_key_arc.as_ref();
+        let rsa_key_object = &self.key.rsa_key_object;
 
         // Prepare a random generator
         let mut rng: WC_RNG = unsafe { mem::zeroed() };

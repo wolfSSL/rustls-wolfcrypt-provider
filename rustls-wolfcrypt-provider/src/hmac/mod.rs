@@ -1,9 +1,9 @@
-use crate::{error::check_if_zero, types::*};
+use crate::error::check_if_zero;
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::mem;
-use foreign_types::ForeignType;
 use rustls::crypto;
 use wolfcrypt_rs::*;
+use zeroize::Zeroizing;
 
 #[derive(Clone, Copy)]
 pub enum WCShaHmac {
@@ -52,7 +52,7 @@ impl WCShaHmac {
 impl crypto::hmac::Hmac for WCShaHmac {
     fn with_key(&self, key: &[u8]) -> Box<dyn crypto::hmac::Key> {
         Box::new(WCHmacKey {
-            key: key.to_vec(),
+            key: Zeroizing::new(key.to_vec()),
             variant: *self,
         })
     }
@@ -63,7 +63,7 @@ impl crypto::hmac::Hmac for WCShaHmac {
 }
 
 struct WCHmacKey {
-    key: Vec<u8>,
+    key: Zeroizing<Vec<u8>>,
     variant: WCShaHmac,
 }
 
@@ -85,32 +85,36 @@ impl crypto::hmac::Key for WCHmacKey {
 }
 
 impl WCHmacKey {
-    fn hmac_init(&self) -> HmacObject {
-        let mut hmac_c_type: Hmac = unsafe { mem::zeroed() };
-        let hmac_object = unsafe { HmacObject::from_ptr(&mut hmac_c_type) };
+    fn hmac_init(&self) -> *mut Hmac {
+        let hmac_ptr = Box::into_raw(Box::new(unsafe { mem::zeroed::<Hmac>() }));
 
         let ret = unsafe {
             wc_HmacSetKey(
-                hmac_object.as_ptr(),
+                hmac_ptr,
                 self.variant.algorithm(),
                 self.key.as_ptr(),
                 self.key.len() as word32,
             )
         };
         check_if_zero(ret).unwrap();
-        hmac_object
+        hmac_ptr
     }
 
-    fn hmac_update(&self, hmac_object: HmacObject, input: &[u8]) {
-        let ret =
-            unsafe { wc_HmacUpdate(hmac_object.as_ptr(), input.as_ptr(), input.len() as word32) };
+    fn hmac_update(&self, hmac_ptr: *mut Hmac, input: &[u8]) {
+        let ret = unsafe { wc_HmacUpdate(hmac_ptr, input.as_ptr(), input.len() as word32) };
         check_if_zero(ret).unwrap();
     }
 
-    fn hmac_final(&self, hmac_object: HmacObject) -> Vec<u8> {
+    fn hmac_final(&self, hmac_ptr: *mut Hmac) -> Vec<u8> {
         let mut digest = vec![0u8; self.variant.digest_size()];
-        let ret = unsafe { wc_HmacFinal(hmac_object.as_ptr(), digest.as_mut_ptr()) };
+        let ret = unsafe { wc_HmacFinal(hmac_ptr, digest.as_mut_ptr()) };
         check_if_zero(ret).unwrap();
+
+        // Free the heap-allocated Hmac struct.
+        unsafe {
+            drop(Box::from_raw(hmac_ptr));
+        }
+
         digest
     }
 }

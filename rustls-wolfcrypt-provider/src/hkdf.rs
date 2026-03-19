@@ -7,6 +7,7 @@ use wolfcrypt_rs::*;
 
 use crate::error::check_if_zero;
 use crate::hmac::WCShaHmac;
+use zeroize::Zeroizing;
 
 pub struct WCHkdfUsingHmac(pub WCShaHmac);
 
@@ -43,7 +44,7 @@ impl RustlsHkdf for WCHkdfUsingHmac {
         check_if_zero(ret).unwrap();
 
         Box::new(WolfHkdfExpander::new(
-            extracted_key,
+            Zeroizing::new(extracted_key),
             self.0.hash_type().try_into().unwrap(),
             self.0.hash_len(),
         ))
@@ -54,7 +55,7 @@ impl RustlsHkdf for WCHkdfUsingHmac {
         okm: &rustls::crypto::tls13::OkmBlock,
     ) -> Box<dyn rustls::crypto::tls13::HkdfExpander> {
         Box::new(WolfHkdfExpander {
-            extracted_key: okm.as_ref().to_vec(),
+            extracted_key: Zeroizing::new(okm.as_ref().to_vec()),
             hash_type: self.0.hash_type().try_into().unwrap(),
             hash_len: self.0.hash_len(),
         })
@@ -85,7 +86,6 @@ impl RustlsHkdf for WCHkdfUsingHmac {
         check_if_zero(ret).unwrap();
 
         unsafe { wc_HmacFree(&mut hmac_ctx) };
-        check_if_zero(ret).unwrap();
 
         rustls::crypto::hmac::Tag::new(&hmac)
     }
@@ -93,13 +93,13 @@ impl RustlsHkdf for WCHkdfUsingHmac {
 
 /// Expander implementation that holds the extracted key material from HKDF extract phase
 struct WolfHkdfExpander {
-    extracted_key: Vec<u8>, // The pseudorandom key (PRK) output from HKDF-Extract
-    hash_type: i32,         // The wolfSSL hash algorithm identifier
-    hash_len: usize,        // Length of the hash function output
+    extracted_key: Zeroizing<Vec<u8>>, // The pseudorandom key (PRK) output from HKDF-Extract
+    hash_type: i32,                    // The wolfSSL hash algorithm identifier
+    hash_len: usize,                   // Length of the hash function output
 }
 
 impl WolfHkdfExpander {
-    fn new(extracted_key: Vec<u8>, hash_type: i32, hash_len: usize) -> Self {
+    fn new(extracted_key: Zeroizing<Vec<u8>>, hash_type: i32, hash_len: usize) -> Self {
         Self {
             extracted_key,
             hash_type,
@@ -120,7 +120,7 @@ impl tls13::HkdfExpander for WolfHkdfExpander {
             return Err(tls13::OutputLengthError);
         }
 
-        unsafe {
+        let ret = unsafe {
             wc_HKDF_Expand(
                 self.hash_type,
                 self.extracted_key.as_ptr(),
@@ -129,8 +129,9 @@ impl tls13::HkdfExpander for WolfHkdfExpander {
                 info_concat.len() as u32,
                 output.as_mut_ptr(),
                 output.len() as u32,
-            );
-        }
+            )
+        };
+        check_if_zero(ret).map_err(|_| tls13::OutputLengthError)?;
 
         Ok(())
     }

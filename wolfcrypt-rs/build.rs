@@ -62,17 +62,12 @@ fn generate_bindings() -> Result<()> {
         .clang_arg(format!("-I{}/", wolfssl_include_dir.to_str().unwrap()))
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
-        .map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to generate bindings"))?;
+        .map_err(|_| io::Error::other("Failed to generate bindings"))?;
 
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings
         .write_to_file(out_path.join("bindings.rs"))
-        .map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!("Couldn't write bindings: {}", e),
-            )
-        })
+        .map_err(|e| io::Error::other(format!("Couldn't write bindings: {}", e)))
 }
 
 /// Coordinates the complete setup process for WolfSSL.
@@ -109,13 +104,10 @@ fn download_wolfssl() -> Result<()> {
         .output()?;
 
     if !output.status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!(
-                "Failed to download: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ),
-        ));
+        return Err(io::Error::other(format!(
+            "Failed to download: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
     }
     println!("Download completed successfully.");
     Ok(())
@@ -131,13 +123,10 @@ fn unzip_wolfssl() -> Result<()> {
     let output = Command::new("unzip").arg(WOLFSSL_ZIP).output()?;
 
     if !output.status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!(
-                "Failed to unzip: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ),
-        ));
+        return Err(io::Error::other(format!(
+            "Failed to unzip: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
     }
     println!("Unzipping completed successfully.");
     Ok(())
@@ -198,14 +187,11 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<()> {
     let output = Command::new(cmd).args(args).output()?;
 
     if !output.status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!(
-                "Failed to execute {}: {}",
-                cmd,
-                String::from_utf8_lossy(&output.stderr)
-            ),
-        ));
+        return Err(io::Error::other(format!(
+            "Failed to execute {}: {}",
+            cmd,
+            String::from_utf8_lossy(&output.stderr)
+        )));
     }
     println!("{} completed successfully.", cmd);
     Ok(())

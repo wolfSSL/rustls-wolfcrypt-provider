@@ -1,16 +1,16 @@
-use crate::{error::check_if_zero, types::*};
+use crate::error::check_if_zero;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::mem;
-use foreign_types::ForeignType;
 use rustls::crypto;
+use zeroize::Zeroizing;
 use wolfcrypt_rs::*;
 
 pub struct WCSha384Hmac;
 
 impl crypto::hmac::Hmac for WCSha384Hmac {
     fn with_key(&self, key: &[u8]) -> Box<dyn crypto::hmac::Key> {
-        Box::new(WCHmac384Key { key: key.to_vec() })
+        Box::new(WCHmac384Key { key: Zeroizing::new(key.to_vec()) })
     }
 
     fn hash_output_len(&self) -> usize {
@@ -19,7 +19,7 @@ impl crypto::hmac::Hmac for WCSha384Hmac {
 }
 
 struct WCHmac384Key {
-    key: Vec<u8>,
+    key: Zeroizing<Vec<u8>>,
 }
 
 impl crypto::hmac::Key for WCHmac384Key {
@@ -46,15 +46,14 @@ impl crypto::hmac::Key for WCHmac384Key {
 }
 
 impl WCHmac384Key {
-    fn hmac_init(&self) -> HmacObject {
-        let mut hmac_c_type: wolfcrypt_rs::Hmac = unsafe { mem::zeroed() };
-        let hmac_object = unsafe { HmacObject::from_ptr(&mut hmac_c_type) };
+    fn hmac_init(&self) -> *mut wolfcrypt_rs::Hmac {
+        let hmac_ptr = Box::into_raw(Box::new(unsafe { mem::zeroed::<wolfcrypt_rs::Hmac>() }));
 
         // This function initializes an Hmac object, setting
         // its encryption type, key and HMAC length.
         let ret = unsafe {
             wc_HmacSetKey(
-                hmac_object.as_ptr(),
+                hmac_ptr,
                 WC_SHA384.try_into().unwrap(),
                 self.key.as_ptr(),
                 self.key.len() as word32,
@@ -62,28 +61,27 @@ impl WCHmac384Key {
         };
         check_if_zero(ret).unwrap();
 
-        hmac_object
+        hmac_ptr
     }
 
-    fn hmac_update(&self, hmac_object: HmacObject, input: &[u8]) {
-        // This function updates the message to authenticate using HMAC. It should be called after the
-        // Hmac object has been initialized with wc_HmacSetKey. This function may be called multiple
-        // times to update the message to hash. After calling wc_HmacUpdate as desired, one should call
-        // wc_HmacFinal to obtain the final authenticated message tag.
+    fn hmac_update(&self, hmac_ptr: *mut wolfcrypt_rs::Hmac, input: &[u8]) {
         let ret =
-            unsafe { wc_HmacUpdate(hmac_object.as_ptr(), input.as_ptr(), input.len() as word32) };
+            unsafe { wc_HmacUpdate(hmac_ptr, input.as_ptr(), input.len() as word32) };
 
         check_if_zero(ret).unwrap();
     }
 
-    fn hmac_final(&self, hmac_object: HmacObject) -> [u8; WC_SHA384_DIGEST_SIZE as usize] {
+    fn hmac_final(&self, hmac_ptr: *mut wolfcrypt_rs::Hmac) -> [u8; WC_SHA384_DIGEST_SIZE as usize] {
         let mut digest: [u8; WC_SHA384_DIGEST_SIZE as usize] =
-            [0; WC_SHA3_384_DIGEST_SIZE as usize];
+            [0; WC_SHA384_DIGEST_SIZE as usize];
 
         // This function computes the final hash of an Hmac object's message.
-        let ret = unsafe { wc_HmacFinal(hmac_object.as_ptr(), digest.as_mut_ptr()) };
+        let ret = unsafe { wc_HmacFinal(hmac_ptr, digest.as_mut_ptr()) };
 
         check_if_zero(ret).unwrap();
+
+        // Free the heap-allocated Hmac struct.
+        unsafe { drop(Box::from_raw(hmac_ptr)); }
 
         digest
     }
