@@ -67,8 +67,7 @@ fn import_rsa_key(
     let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut *rsa_key_box) };
 
     let ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
-    check_if_zero(ret)
-        .map_err(|_| rustls::Error::General("wc_InitRsaKey failed".into()))?;
+    check_if_zero(ret).map_err(|_| rustls::Error::General("wc_InitRsaKey failed".into()))?;
 
     let mut idx: u32 = 0;
 
@@ -93,12 +92,8 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPrivateKey {
 
     fn try_from(value: &PrivateKeyDer<'_>) -> Result<Self, Self::Error> {
         let (der_bytes, format) = match value {
-            PrivateKeyDer::Pkcs8(der) => {
-                (der.secret_pkcs8_der().to_vec(), RsaKeyFormat::Pkcs8)
-            }
-            PrivateKeyDer::Pkcs1(der) => {
-                (der.secret_pkcs1_der().to_vec(), RsaKeyFormat::Pkcs1)
-            }
+            PrivateKeyDer::Pkcs8(der) => (der.secret_pkcs8_der().to_vec(), RsaKeyFormat::Pkcs8),
+            PrivateKeyDer::Pkcs1(der) => (der.secret_pkcs1_der().to_vec(), RsaKeyFormat::Pkcs1),
             _ => {
                 return Err(rustls::Error::General(
                     "Unsupported private key format".into(),
