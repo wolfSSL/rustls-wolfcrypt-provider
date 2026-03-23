@@ -4,7 +4,7 @@
 
 use alloc::vec;
 use core::mem;
-use der::zeroize::Zeroize;
+use zeroize::Zeroizing;
 use foreign_types::ForeignType;
 
 use crate::error::check_if_zero;
