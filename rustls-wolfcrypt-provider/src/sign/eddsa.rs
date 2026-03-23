@@ -4,6 +4,7 @@ use alloc::boxed::Box;
 use alloc::format;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use core::fmt;
 use core::mem;
 use foreign_types::ForeignType;
 use rustls::pki_types::PrivateKeyDer;
@@ -15,11 +16,19 @@ use zeroize::Zeroizing;
 
 const ALL_EDDSA_SCHEMES: &[SignatureScheme] = &[SignatureScheme::ED25519];
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Ed25519PrivateKey {
     priv_key: Arc<Zeroizing<Vec<u8>>>,
     pub_key: Arc<Vec<u8>>,
     algo: SignatureAlgorithm,
+}
+
+impl fmt::Debug for Ed25519PrivateKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Ed25519PrivateKey")
+            .field("algo", &self.algo)
+            .finish_non_exhaustive()
+    }
 }
 
 impl TryFrom<&PrivateKeyDer<'_>> for Ed25519PrivateKey {
@@ -112,11 +121,19 @@ impl SigningKey for Ed25519PrivateKey {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Ed25519Signer {
     priv_key: Arc<Zeroizing<Vec<u8>>>,
     pub_key: Arc<Vec<u8>>,
     scheme: SignatureScheme,
+}
+
+impl fmt::Debug for Ed25519Signer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Ed25519Signer")
+            .field("scheme", &self.scheme)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Signer for Ed25519Signer {

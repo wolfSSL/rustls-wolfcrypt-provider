@@ -6,6 +6,7 @@ use alloc::format;
 use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
+use core::fmt;
 use core::mem;
 use core::ptr;
 use foreign_types::ForeignType;
@@ -19,13 +20,21 @@ use zeroize::Zeroizing;
 /// A unified ECDSA signing key that supports P-256, P-384, P-521.
 /// Internally, we store the raw private key bytes plus
 /// which scheme we should use (determined by WolfSSL after decode).
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct EcdsaSigningKey {
     /// Raw private key bytes exported from WolfSSL (`wc_ecc_export_private_only`)
     /// in big-endian format.
     key: Arc<Zeroizing<Vec<u8>>>,
     /// The signature scheme to use (e.g. ECDSA_NISTP256_SHA256).
     scheme: SignatureScheme,
+}
+
+impl fmt::Debug for EcdsaSigningKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EcdsaSigningKey")
+            .field("scheme", &self.scheme)
+            .finish_non_exhaustive()
+    }
 }
 
 impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKey {

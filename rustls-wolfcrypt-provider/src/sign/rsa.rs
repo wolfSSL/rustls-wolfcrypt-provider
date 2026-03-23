@@ -4,6 +4,7 @@ use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
+use core::fmt;
 use core::mem;
 use foreign_types::ForeignType;
 use rustls::pki_types::PrivateKeyDer;
@@ -39,12 +40,21 @@ enum RsaKeyFormat {
     Pkcs1,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct RsaPrivateKey {
     /// Raw DER-encoded private key bytes.
     der_bytes: Arc<Zeroizing<Vec<u8>>>,
     format: RsaKeyFormat,
     algo: SignatureAlgorithm,
+}
+
+impl fmt::Debug for RsaPrivateKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RsaPrivateKey")
+            .field("format", &self.format)
+            .field("algo", &self.algo)
+            .finish_non_exhaustive()
+    }
 }
 
 /// Import the stored DER bytes into a fresh RsaKey C struct.
@@ -128,11 +138,20 @@ impl SigningKey for RsaPrivateKey {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct RsaSigner {
     der_bytes: Arc<Zeroizing<Vec<u8>>>,
     format: RsaKeyFormat,
     scheme: SignatureScheme,
+}
+
+impl fmt::Debug for RsaSigner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RsaSigner")
+            .field("format", &self.format)
+            .field("scheme", &self.scheme)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Signer for RsaSigner {
