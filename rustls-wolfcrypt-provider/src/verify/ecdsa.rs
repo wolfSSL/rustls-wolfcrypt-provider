@@ -101,7 +101,7 @@ impl SignatureVerificationAlgorithm for EcdsaVerifier {
                 ptr::null_mut(),                        // Private "d" (optional)
                 curve_id,
             );
-            check_if_zero(ret).unwrap();
+            check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
             // This function returns the size of the digest (output) for a hash_type.
             // The returned size is used to make sure the output buffer is large enough.
@@ -118,7 +118,7 @@ impl SignatureVerificationAlgorithm for EcdsaVerifier {
                 digest.as_mut_ptr(),
                 digest_sz as word32,
             );
-            check_if_zero(ret).unwrap();
+            check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
             // Finally, verify the signature against the digest
             ret = wc_ecc_verify_hash(

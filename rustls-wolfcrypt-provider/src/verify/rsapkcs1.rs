@@ -34,7 +34,7 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
         let mut ret;
 
         ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
         let mut idx = 0;
         ret = unsafe {
@@ -45,7 +45,7 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
                 public_key.len() as word32,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
         let derefenced_rsa_key_c_type = unsafe { *(rsa_key_object.as_ptr()) };
 
@@ -100,7 +100,7 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
         let mut ret;
 
         ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
         let mut idx = 0;
         ret = unsafe {
@@ -111,7 +111,7 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
                 public_key.len() as word32,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
         let dereferenced_rsa_key_c_type = unsafe { *(rsa_key_object.as_ptr()) };
 
@@ -166,7 +166,7 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha512Verify {
         let mut ret;
 
         ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
         let mut idx = 0;
         ret = unsafe {
@@ -177,7 +177,7 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha512Verify {
                 public_key.len() as word32,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
         let dereferenced_rsa_key_c_type = unsafe { *(rsa_key_object.as_ptr()) };
 

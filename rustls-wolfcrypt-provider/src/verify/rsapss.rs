@@ -36,7 +36,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
         let mut ret;
 
         ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
         // This function returns the size of the digest (output) for a hash_type.
         // The returns size is used to make sure the output buffer
@@ -56,7 +56,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
                 digest_sz as word32,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
         let mut idx = 0;
         ret = unsafe {
@@ -67,7 +67,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
                 public_key.len() as word32,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
         // Verify the message signed with RSA-PSS.
         // In this case 'message' has been, supposedly,
@@ -119,7 +119,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
         let mut ret;
 
         ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
         // This function returns the size of the digest (output) for a hash_type.
         // The returns size is used to make sure the output buffer
@@ -139,7 +139,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
                 digest_sz as word32,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
         let mut idx = 0;
         ret = unsafe {
@@ -150,7 +150,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
                 public_key.len() as word32,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
         // Verify the message signed with RSA-PSS.
         // In this case 'message' has been, supposedly,
@@ -202,7 +202,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha512Verify {
         let mut ret;
 
         ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
         // This function returns the size of the digest (output) for a hash_type.
         // The returns size is used to make sure the output buffer
@@ -222,7 +222,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha512Verify {
                 digest_sz as word32,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
         let mut idx = 0;
         ret = unsafe {
@@ -233,7 +233,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha512Verify {
                 public_key.len() as word32,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
         // Verify the message signed with RSA-PSS.
         // In this case 'message' has been, supposedly,

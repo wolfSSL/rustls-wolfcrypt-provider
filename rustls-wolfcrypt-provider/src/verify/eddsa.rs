@@ -30,14 +30,14 @@ impl SignatureVerificationAlgorithm for Ed25519 {
             let mut stat: i32 = 0;
 
             ed25519_key_object.init();
-            check_if_zero(ret).unwrap();
+            check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
             ret = wc_ed25519_import_public(
                 public_key.as_ptr(),
                 public_key.len() as word32,
                 ed25519_key_object.as_ptr(),
             );
-            check_if_zero(ret).unwrap();
+            check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
             ret = wc_ed25519_verify_msg(
                 signature.as_ptr(),
