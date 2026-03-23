@@ -110,8 +110,8 @@ impl WCHmacKey {
         let ret = unsafe { wc_HmacFinal(hmac_ptr, digest.as_mut_ptr()) };
         check_if_zero(ret).unwrap();
 
-        // Free the heap-allocated Hmac struct.
         unsafe {
+            wc_HmacFree(hmac_ptr);
             drop(Box::from_raw(hmac_ptr));
         }
 

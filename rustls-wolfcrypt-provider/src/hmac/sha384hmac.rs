@@ -80,8 +80,10 @@ impl WCHmac384Key {
 
         check_if_zero(ret).unwrap();
 
-        // Free the heap-allocated Hmac struct.
-        unsafe { drop(Box::from_raw(hmac_ptr)); }
+        unsafe {
+            wc_HmacFree(hmac_ptr);
+            drop(Box::from_raw(hmac_ptr));
+        }
 
         digest
     }
