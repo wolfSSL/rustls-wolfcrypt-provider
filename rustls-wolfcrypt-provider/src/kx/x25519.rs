@@ -53,7 +53,13 @@ impl KeyExchangeX25519 {
         }
     }
 
-    pub fn derive_shared_secret(&self, peer_pub_key: &[u8]) -> Box<[u8]> {
+    pub fn derive_shared_secret(&self, peer_pub_key: &[u8]) -> Result<Box<[u8]>, rustls::Error> {
+        if peer_pub_key.len() != 32 {
+            return Err(rustls::Error::General(
+                "Invalid peer public key length".into(),
+            ));
+        }
+
         let mut ret;
         let endian: u32 = EC25519_LITTLE_ENDIAN;
         let mut pub_key_provided: curve25519_key = unsafe { mem::zeroed() };
@@ -66,7 +72,11 @@ impl KeyExchangeX25519 {
         // This function checks that a public key buffer holds a valid
         // Curve25519 key value given the endian ordering.
         ret = unsafe {
-            wc_curve25519_check_public(peer_pub_key.as_ptr(), 32, endian.try_into().unwrap())
+            wc_curve25519_check_public(
+                peer_pub_key.as_ptr(),
+                peer_pub_key.len() as word32,
+                endian.try_into().unwrap(),
+            )
         };
         check_if_zero(ret).unwrap();
 
@@ -78,7 +88,7 @@ impl KeyExchangeX25519 {
         ret = unsafe {
             wc_curve25519_import_public_ex(
                 peer_pub_key.as_ptr(),
-                32,
+                peer_pub_key.len() as word32,
                 &mut pub_key_provided,
                 endian.try_into().unwrap(),
             )
@@ -93,7 +103,7 @@ impl KeyExchangeX25519 {
         ret = unsafe {
             wc_curve25519_import_private_ex(
                 self.priv_key_bytes.as_ptr(),
-                32,
+                self.priv_key_bytes.len() as word32,
                 private_key_object.as_ptr(),
                 endian.try_into().unwrap(),
             )
@@ -113,7 +123,7 @@ impl KeyExchangeX25519 {
         };
         check_if_zero(ret).unwrap();
 
-        Box::new(out)
+        Ok(Box::new(out))
     }
 }
 
@@ -124,7 +134,7 @@ impl rustls::crypto::ActiveKeyExchange for KeyExchangeX25519 {
     ) -> Result<rustls::crypto::SharedSecret, rustls::Error> {
         // We derive the shared secret with our private key and
         // the received public key.
-        let secret = self.derive_shared_secret(peer_pub_key);
+        let secret = self.derive_shared_secret(peer_pub_key)?;
 
         Ok(rustls::crypto::SharedSecret::from(&*secret))
     }
@@ -149,8 +159,8 @@ mod tests {
         let bob = Box::new(KeyExchangeX25519::use_curve25519());
 
         assert_eq!(
-            alice.derive_shared_secret(bob.pub_key().try_into().unwrap()),
-            bob.derive_shared_secret(alice.pub_key().try_into().unwrap()),
+            alice.derive_shared_secret(bob.pub_key()).unwrap(),
+            bob.derive_shared_secret(alice.pub_key()).unwrap(),
         )
     }
 }
