@@ -12,6 +12,7 @@ use rustls::{SignatureAlgorithm, SignatureScheme};
 
 use core::ptr;
 use wolfcrypt_rs::*;
+use zeroize::Zeroizing;
 
 const ALL_RSA_SCHEMES: &[SignatureScheme] = &[
     SignatureScheme::RSA_PSS_SHA256,
@@ -31,101 +32,78 @@ const MGF1_SHA256: u32 = WC_MGF1SHA256;
 const MGF1_SHA384: u32 = WC_MGF1SHA384;
 const MGF1_SHA512: u32 = WC_MGF1SHA512;
 
-/// Owns a heap-allocated RsaKey along with the RsaKeyObject wrapper.
-/// The Box keeps the heap memory alive while RsaKeyObject holds the pointer.
-/// Fields are ordered so that rsa_key_object drops first (calling wc_FreeRsaKey
-/// to clean up wolfSSL internals), then _rsa_key_box drops to free the heap memory.
-#[derive(Debug)]
-struct OwnedRsaKey {
-    rsa_key_object: RsaKeyObject,
-    _rsa_key_box: Box<RsaKey>,
+/// Which DER format the stored key bytes are in.
+#[derive(Clone, Debug)]
+enum RsaKeyFormat {
+    Pkcs8,
+    Pkcs1,
 }
-unsafe impl Send for OwnedRsaKey {}
-unsafe impl Sync for OwnedRsaKey {}
 
 #[derive(Clone, Debug)]
 pub struct RsaPrivateKey {
-    key: Arc<OwnedRsaKey>,
+    /// Raw DER-encoded private key bytes.
+    der_bytes: Arc<Zeroizing<Vec<u8>>>,
+    format: RsaKeyFormat,
     algo: SignatureAlgorithm,
 }
 
-impl RsaPrivateKey {
-    pub fn get_rsa_key_object(&self) -> &RsaKeyObject {
-        &self.key.rsa_key_object
-    }
+/// Import the stored DER bytes into a fresh RsaKey C struct.
+/// Returns the boxed RsaKey (to keep memory alive) and the RsaKeyObject wrapper.
+fn import_rsa_key(
+    der_bytes: &[u8],
+    format: &RsaKeyFormat,
+) -> Result<(Box<RsaKey>, RsaKeyObject), rustls::Error> {
+    let mut rsa_key_box = Box::new(unsafe { mem::zeroed::<RsaKey>() });
+    let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut *rsa_key_box) };
+
+    let ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
+    check_if_zero(ret)
+        .map_err(|_| rustls::Error::General("wc_InitRsaKey failed".into()))?;
+
+    let mut idx: u32 = 0;
+
+    let decode_ret = match format {
+        RsaKeyFormat::Pkcs8 | RsaKeyFormat::Pkcs1 => unsafe {
+            wc_RsaPrivateKeyDecode(
+                der_bytes.as_ptr() as *mut u8,
+                &mut idx,
+                rsa_key_object.as_ptr(),
+                der_bytes.len() as word32,
+            )
+        },
+    };
+    check_if_zero(decode_ret)
+        .map_err(|_| rustls::Error::General("wc_RsaPrivateKeyDecode failed".into()))?;
+
+    Ok((rsa_key_box, rsa_key_object))
 }
 
 impl TryFrom<&PrivateKeyDer<'_>> for RsaPrivateKey {
     type Error = rustls::Error;
 
     fn try_from(value: &PrivateKeyDer<'_>) -> Result<Self, Self::Error> {
-        match value {
+        let (der_bytes, format) = match value {
             PrivateKeyDer::Pkcs8(der) => {
-                let pkcs8: &[u8] = der.secret_pkcs8_der();
-                let pkcs8_sz: word32 = pkcs8.len() as word32;
-                let mut ret;
-                let mut rsa_key_box = Box::new(unsafe { mem::zeroed::<RsaKey>() });
-                let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut *rsa_key_box) };
-
-                ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
-                check_if_zero(ret).unwrap();
-
-                let mut idx: u32 = 0;
-
-                ret = unsafe {
-                    wc_RsaPrivateKeyDecode(
-                        pkcs8.as_ptr() as *mut u8,
-                        &mut idx,
-                        rsa_key_object.as_ptr(),
-                        pkcs8_sz,
-                    )
-                };
-                check_if_zero(ret)
-                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
-
-                Ok(Self {
-                    key: Arc::new(OwnedRsaKey {
-                        rsa_key_object,
-                        _rsa_key_box: rsa_key_box,
-                    }),
-                    algo: SignatureAlgorithm::RSA,
-                })
+                (der.secret_pkcs8_der().to_vec(), RsaKeyFormat::Pkcs8)
             }
             PrivateKeyDer::Pkcs1(der) => {
-                let pkcs1: &[u8] = der.secret_pkcs1_der();
-                let pkcs1_sz: word32 = pkcs1.len() as word32;
-                let mut ret;
-                let mut rsa_key_box = Box::new(unsafe { mem::zeroed::<RsaKey>() });
-                let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut *rsa_key_box) };
-
-                ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
-                check_if_zero(ret).unwrap();
-
-                let mut idx: u32 = 0;
-
-                ret = unsafe {
-                    wc_RsaPrivateKeyDecode(
-                        pkcs1.as_ptr() as *mut u8,
-                        &mut idx,
-                        rsa_key_object.as_ptr(),
-                        pkcs1_sz,
-                    )
-                };
-                check_if_zero(ret)
-                    .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
-
-                Ok(Self {
-                    key: Arc::new(OwnedRsaKey {
-                        rsa_key_object,
-                        _rsa_key_box: rsa_key_box,
-                    }),
-                    algo: SignatureAlgorithm::RSA,
-                })
+                (der.secret_pkcs1_der().to_vec(), RsaKeyFormat::Pkcs1)
             }
-            _ => Err(rustls::Error::General(
-                "Unsupported private key format".into(),
-            )),
-        }
+            _ => {
+                return Err(rustls::Error::General(
+                    "Unsupported private key format".into(),
+                ))
+            }
+        };
+
+        // Validate that the key can be decoded before accepting it.
+        let (_rsa_key_box, _rsa_key_object) = import_rsa_key(&der_bytes, &format)?;
+
+        Ok(Self {
+            der_bytes: Arc::new(Zeroizing::new(der_bytes)),
+            format,
+            algo: SignatureAlgorithm::RSA,
+        })
     }
 }
 
@@ -135,7 +113,8 @@ impl SigningKey for RsaPrivateKey {
         ALL_RSA_SCHEMES.iter().find_map(|&scheme| {
             if offered.contains(&scheme) {
                 Some(Box::new(RsaSigner {
-                    key: Arc::clone(&self.key),
+                    der_bytes: Arc::clone(&self.der_bytes),
+                    format: self.format.clone(),
                     scheme,
                 }) as Box<dyn Signer>)
             } else {
@@ -151,13 +130,14 @@ impl SigningKey for RsaPrivateKey {
 
 #[derive(Clone, Debug)]
 pub struct RsaSigner {
-    key: Arc<OwnedRsaKey>,
+    der_bytes: Arc<Zeroizing<Vec<u8>>>,
+    format: RsaKeyFormat,
     scheme: SignatureScheme,
 }
 
 impl Signer for RsaSigner {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
-        let rsa_key_object = &self.key.rsa_key_object;
+        let (_rsa_key_box, rsa_key_object) = import_rsa_key(&self.der_bytes, &self.format)?;
 
         // Prepare a random generator
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
