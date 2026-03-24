@@ -26,18 +26,16 @@ impl SignatureVerificationAlgorithm for Ed25519 {
         unsafe {
             let mut ed25519_c_type: ed25519_key = mem::zeroed();
             let ed25519_key_object = ED25519KeyObject::from_ptr(&mut ed25519_c_type);
-            let mut ret = 0;
             let mut stat: i32 = 0;
 
             ed25519_key_object.init();
-            check_if_zero(ret).unwrap();
 
-            ret = wc_ed25519_import_public(
+            let mut ret = wc_ed25519_import_public(
                 public_key.as_ptr(),
                 public_key.len() as word32,
                 ed25519_key_object.as_ptr(),
             );
-            check_if_zero(ret).unwrap();
+            check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
             ret = wc_ed25519_verify_msg(
                 signature.as_ptr(),

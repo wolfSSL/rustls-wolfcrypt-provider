@@ -12,7 +12,7 @@ macro_rules! define_foreign_type {
             type CType = $c_type;
         }
 
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         pub struct $struct_name(NonNull<$c_type>);
         unsafe impl Sync for $struct_name {}
         unsafe impl Send for $struct_name {}
@@ -141,7 +141,7 @@ macro_rules! define_foreign_type_no_copy {
             type CType = $c_type;
         }
 
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         pub struct $struct_name(NonNull<$c_type>);
         unsafe impl Sync for $struct_name {}
         unsafe impl Send for $struct_name {}

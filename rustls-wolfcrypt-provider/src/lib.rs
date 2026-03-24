@@ -77,10 +77,9 @@ struct Provider;
 
 impl rustls::crypto::SecureRandom for Provider {
     fn fill(&self, bytes: &mut [u8]) -> Result<(), rustls::crypto::GetRandomFailed> {
-        if let Err(error::WCError::Failure) = random::wolfcrypt_random_buffer_generator(bytes) {
-            Err(rustls::crypto::GetRandomFailed)
-        } else {
-            Ok(())
+        match random::wolfcrypt_random_buffer_generator(bytes) {
+            Ok(()) => Ok(()),
+            Err(_) => Err(rustls::crypto::GetRandomFailed),
         }
     }
 }
