@@ -45,6 +45,7 @@ rustls-pemfile = { version = "2.2.0", default-features = false, features = ["std
 [features]
 default = []
 std = ["pkcs8/std", "rustls/std", "wolfcrypt-rs/std"]
+quic = []
 
 [profile.release]
 strip = true

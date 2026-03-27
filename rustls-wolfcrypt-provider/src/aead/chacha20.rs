@@ -134,6 +134,9 @@ impl MessageDecrypter for WCTls12Cipher {
         seq: u64,
     ) -> Result<InboundPlainMessage<'a>, rustls::Error> {
         let payload = &mut m.payload;
+        if payload.len() < CHACHAPOLY1305_OVERHEAD {
+            return Err(rustls::Error::DecryptError);
+        }
 
         // We substract the tag, so this len will only consider
         // the message that we are trying to decrypt.
@@ -161,7 +164,7 @@ impl MessageDecrypter for WCTls12Cipher {
                 payload[..message_len].as_mut_ptr(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| rustls::Error::DecryptError)?;
 
         // We extract the final result...
         payload.truncate(message_len);
@@ -277,6 +280,9 @@ impl MessageDecrypter for WCTls13Cipher {
         seq: u64,
     ) -> Result<InboundPlainMessage<'a>, rustls::Error> {
         let payload = &mut m.payload;
+        if payload.len() < CHACHAPOLY1305_OVERHEAD {
+            return Err(rustls::Error::DecryptError);
+        }
         let nonce = Nonce::new(&self.iv, seq);
         let aad = make_tls13_aad(payload.len());
         let mut auth_tag = [0u8; CHACHAPOLY1305_OVERHEAD];
@@ -303,7 +309,7 @@ impl MessageDecrypter for WCTls13Cipher {
                 payload[..message_len].as_mut_ptr(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| rustls::Error::DecryptError)?;
 
         // We extract the final result...
         payload.truncate(message_len);
