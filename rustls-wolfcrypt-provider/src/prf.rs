@@ -54,7 +54,7 @@ fn wc_prf(
         )
     };
 
-    check_if_zero(ret).unwrap();
+    check_if_zero(ret).map_err(|_| rustls::Error::General("wc_PRF_TLS failed".into()))?;
     Ok(())
 }
 
