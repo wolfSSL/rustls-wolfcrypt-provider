@@ -51,7 +51,7 @@ impl WCHasher384 {
     fn wchasher_init(&mut self) {
         // This function initializes SHA384. This is automatically called by wc_Sha384Hash.
         let ret = unsafe { wc_InitSha384(self.sha384_object.as_ptr()) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).expect("wc_InitSha384 failed");
     }
 
     fn wchasher_update(&mut self, data: &[u8]) {
@@ -60,14 +60,14 @@ impl WCHasher384 {
         // Hash the provided byte array of length len.
         // Can be called continually.
         let ret = unsafe { wc_Sha384Update(self.sha384_object.as_ptr(), data.as_ptr(), length) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).expect("wc_Sha384Update failed");
     }
 
     fn wchasher_final(&mut self) -> &[u8] {
         // Finalizes hashing of data. Result is placed into hash.
         // Resets state of the sha384 struct.
         let ret = unsafe { wc_Sha384Final(self.sha384_object.as_ptr(), self.hash.as_mut_ptr()) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).expect("wc_Sha384Final failed");
 
         &self.hash
     }
@@ -118,14 +118,14 @@ impl Clone for WCHasher384 {
         let mut new_storage = Box::new(unsafe { mem::zeroed::<wc_Sha384>() });
         let new_object = unsafe { Sha384Object::from_ptr(&mut *new_storage) };
         let ret = unsafe { wc_InitSha384(new_object.as_ptr()) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).expect("wc_InitSha384 failed in clone");
         let ret = unsafe {
             wc_Sha384Copy(
                 self.sha384_object.as_ptr(),
                 new_object.as_ptr(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).expect("wc_Sha384Copy failed");
         WCHasher384 {
             sha384_object: new_object,
             _sha384_storage: new_storage,

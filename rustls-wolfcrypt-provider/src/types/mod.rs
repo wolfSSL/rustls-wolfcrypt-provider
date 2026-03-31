@@ -41,7 +41,7 @@ macro_rules! define_foreign_type {
 
             /// Given an $init_function, it calls it with the object's ptr as argument.
             pub fn init(&self) {
-                unsafe { check_if_zero($init_function(self.as_ptr())).unwrap() }
+                unsafe { check_if_zero($init_function(self.as_ptr())).expect(concat!(stringify!($init_function), " failed")) }
             }
         }
     };

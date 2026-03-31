@@ -96,19 +96,19 @@ impl WCHmacKey {
                 self.key.len() as word32,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).expect("wc_HmacSetKey failed");
         hmac_ptr
     }
 
     fn hmac_update(&self, hmac_ptr: *mut Hmac, input: &[u8]) {
         let ret = unsafe { wc_HmacUpdate(hmac_ptr, input.as_ptr(), input.len() as word32) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).expect("wc_HmacUpdate failed");
     }
 
     fn hmac_final(&self, hmac_ptr: *mut Hmac) -> Vec<u8> {
         let mut digest = vec![0u8; self.variant.digest_size()];
         let ret = unsafe { wc_HmacFinal(hmac_ptr, digest.as_mut_ptr()) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).expect("wc_HmacFinal failed");
 
         unsafe {
             wc_HmacFree(hmac_ptr);

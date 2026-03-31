@@ -41,7 +41,7 @@ impl RustlsHkdf for WCHkdfUsingHmac {
                 extracted_key.as_mut_ptr(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).expect("wc_HKDF_Extract failed");
 
         Box::new(WolfHkdfExpander::new(
             Zeroizing::new(extracted_key),
@@ -77,13 +77,13 @@ impl RustlsHkdf for WCHkdfUsingHmac {
                 key.as_ref().len() as u32,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).expect("wc_HmacSetKey failed in hmac_sign");
 
         ret = unsafe { wc_HmacUpdate(&mut hmac_ctx, message.as_ptr(), message.len() as u32) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).expect("wc_HmacUpdate failed in hmac_sign");
 
         ret = unsafe { wc_HmacFinal(&mut hmac_ctx, hmac.as_mut_ptr()) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).expect("wc_HmacFinal failed in hmac_sign");
 
         unsafe { wc_HmacFree(&mut hmac_ctx) };
 
