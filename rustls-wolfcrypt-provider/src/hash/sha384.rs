@@ -1,19 +1,23 @@
 use alloc::boxed::Box;
 use core::mem;
+use foreign_types::ForeignType;
 use rustls::crypto::hash;
 use wolfcrypt_rs::*;
 
 use crate::error::check_if_zero;
+use crate::types::*;
 
 pub struct WCSha384;
 
 impl hash::Hash for WCSha384 {
     fn start(&self) -> Box<dyn hash::Context> {
-        let sha384_c_type: wc_Sha384 = unsafe { mem::zeroed() };
+        let mut sha384_storage = Box::new(unsafe { mem::zeroed::<wc_Sha384>() });
+        let sha384_object = unsafe { Sha384Object::from_ptr(&mut *sha384_storage) };
         let hash: [u8; WC_SHA384_DIGEST_SIZE as usize] = [0; WC_SHA384_DIGEST_SIZE as usize];
 
         let mut hasher = WCHasher384 {
-            sha384_c_type,
+            sha384_object,
+            _sha384_storage: sha384_storage,
             hash,
         };
 
@@ -38,14 +42,15 @@ impl hash::Hash for WCSha384 {
 }
 
 struct WCHasher384 {
-    sha384_c_type: wc_Sha384,
+    sha384_object: Sha384Object,
+    _sha384_storage: Box<wc_Sha384>,
     hash: [u8; WC_SHA384_DIGEST_SIZE as usize],
 }
 
 impl WCHasher384 {
     fn wchasher_init(&mut self) {
         // This function initializes SHA384. This is automatically called by wc_Sha384Hash.
-        let ret = unsafe { wc_InitSha384(&mut self.sha384_c_type) };
+        let ret = unsafe { wc_InitSha384(self.sha384_object.as_ptr()) };
         check_if_zero(ret).unwrap();
     }
 
@@ -54,14 +59,14 @@ impl WCHasher384 {
 
         // Hash the provided byte array of length len.
         // Can be called continually.
-        let ret = unsafe { wc_Sha384Update(&mut self.sha384_c_type, data.as_ptr(), length) };
+        let ret = unsafe { wc_Sha384Update(self.sha384_object.as_ptr(), data.as_ptr(), length) };
         check_if_zero(ret).unwrap();
     }
 
     fn wchasher_final(&mut self) -> &[u8] {
         // Finalizes hashing of data. Result is placed into hash.
         // Resets state of the sha384 struct.
-        let ret = unsafe { wc_Sha384Final(&mut self.sha384_c_type, self.hash.as_mut_ptr()) };
+        let ret = unsafe { wc_Sha384Final(self.sha384_object.as_ptr(), self.hash.as_mut_ptr()) };
         check_if_zero(ret).unwrap();
 
         &self.hash
@@ -110,19 +115,21 @@ unsafe impl Sync for WCHasher384 {}
 unsafe impl Send for WCHasher384 {}
 impl Clone for WCHasher384 {
     fn clone(&self) -> WCHasher384 {
-        let mut new_hasher = WCHasher384 {
-            sha384_c_type: unsafe { mem::zeroed() },
-            hash: self.hash,
-        };
-        let ret = unsafe { wc_InitSha384(&mut new_hasher.sha384_c_type) };
+        let mut new_storage = Box::new(unsafe { mem::zeroed::<wc_Sha384>() });
+        let new_object = unsafe { Sha384Object::from_ptr(&mut *new_storage) };
+        let ret = unsafe { wc_InitSha384(new_object.as_ptr()) };
         check_if_zero(ret).unwrap();
         let ret = unsafe {
             wc_Sha384Copy(
-                &self.sha384_c_type as *const wc_Sha384 as *mut wc_Sha384,
-                &mut new_hasher.sha384_c_type,
+                self.sha384_object.as_ptr(),
+                new_object.as_ptr(),
             )
         };
         check_if_zero(ret).unwrap();
-        new_hasher
+        WCHasher384 {
+            sha384_object: new_object,
+            _sha384_storage: new_storage,
+            hash: self.hash,
+        }
     }
 }
