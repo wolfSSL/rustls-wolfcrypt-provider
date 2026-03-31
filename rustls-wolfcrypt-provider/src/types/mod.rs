@@ -105,32 +105,6 @@ macro_rules! define_foreign_type_with_copy {
             }
         }
     };
-
-    ($struct_name:ident, $ref_name:ident, $c_type:ty, drop($drop_fn:ident)) => {
-        define_foreign_type_with_copy!($struct_name, $ref_name, $c_type);
-
-        /// Implements Drop trait for cryptographic types that require cleanup.
-        /// This safely frees memory and other resources when the type goes out of scope.
-        /// Any cleanup errors are logged but cannot be returned since this is Drop.
-        /// The unsafe block is needed for FFI calls to the underlying C functions.
-        impl Drop for $struct_name {
-            fn drop(&mut self) {
-                unsafe {
-                    let ret = $drop_fn(self.as_ptr());
-                    match check_if_zero(ret) {
-                        Err(err) => {
-                            error!(
-                                "Error while freeing resource in Drop for {}: {}",
-                                stringify!($struct_name),
-                                err
-                            );
-                        }
-                        Ok(()) => {}
-                    }
-                }
-            }
-        }
-    };
 }
 
 /// Like define_foreign_type_with_copy but without Copy (needed when Drop is implemented).
