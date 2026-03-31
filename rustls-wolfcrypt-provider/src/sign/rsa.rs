@@ -57,12 +57,26 @@ impl fmt::Debug for RsaPrivateKey {
     }
 }
 
+/// Owns both the heap-allocated RsaKey and its RsaKeyObject wrapper.
+/// Field drop order is reverse of declaration: `object` (which calls
+/// wc_FreeRsaKey) is dropped before `_storage` (which frees the heap
+/// memory), preventing use-after-free.
+struct OwnedRsaKey {
+    _storage: Box<RsaKey>,
+    object: RsaKeyObject,
+}
+
+impl OwnedRsaKey {
+    fn as_ptr(&self) -> *mut RsaKey {
+        self.object.as_ptr()
+    }
+}
+
 /// Import the stored DER bytes into a fresh RsaKey C struct.
-/// Returns the boxed RsaKey (to keep memory alive) and the RsaKeyObject wrapper.
 fn import_rsa_key(
     der_bytes: &[u8],
     format: &RsaKeyFormat,
-) -> Result<(Box<RsaKey>, RsaKeyObject), rustls::Error> {
+) -> Result<OwnedRsaKey, rustls::Error> {
     let mut rsa_key_box = Box::new(unsafe { mem::zeroed::<RsaKey>() });
     let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut *rsa_key_box) };
 
@@ -84,7 +98,10 @@ fn import_rsa_key(
     check_if_zero(decode_ret)
         .map_err(|_| rustls::Error::General("wc_RsaPrivateKeyDecode failed".into()))?;
 
-    Ok((rsa_key_box, rsa_key_object))
+    Ok(OwnedRsaKey {
+        _storage: rsa_key_box,
+        object: rsa_key_object,
+    })
 }
 
 impl TryFrom<&PrivateKeyDer<'_>> for RsaPrivateKey {
@@ -102,7 +119,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPrivateKey {
         };
 
         // Validate that the key can be decoded before accepting it.
-        let (_rsa_key_box, _rsa_key_object) = import_rsa_key(&der_bytes, &format)?;
+        let _rsa_key = import_rsa_key(&der_bytes, &format)?;
 
         Ok(Self {
             der_bytes: Arc::new(Zeroizing::new(der_bytes)),
@@ -151,7 +168,7 @@ impl fmt::Debug for RsaSigner {
 
 impl Signer for RsaSigner {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
-        let (_rsa_key_box, rsa_key_object) = import_rsa_key(&self.der_bytes, &self.format)?;
+        let rsa_key = import_rsa_key(&self.der_bytes, &self.format)?;
 
         // Prepare a random generator
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
@@ -218,7 +235,7 @@ impl Signer for RsaSigner {
                         sig_buf.len() as u32,
                         hash_ty,
                         mgf_ty.try_into().unwrap(),
-                        rsa_key_object.as_ptr(),
+                        rsa_key.as_ptr(),
                         rng_object.as_ptr(),
                     )
                 };
@@ -248,7 +265,7 @@ impl Signer for RsaSigner {
                 let mut sig_len: u32 = sig_buf.len() as u32;
 
                 // wc_SignatureGenerate will produce a PKCS#1 signature, including hashing.
-                let deref_rsa_key_c_type = unsafe { *(rsa_key_object.as_ptr()) };
+                let deref_rsa_key_c_type = unsafe { *(rsa_key.as_ptr()) };
                 let ret = unsafe {
                     wc_SignatureGenerate(
                         hash_ty,
@@ -257,7 +274,7 @@ impl Signer for RsaSigner {
                         message.len() as u32,
                         sig_buf.as_mut_ptr(),
                         &mut sig_len,
-                        rsa_key_object.as_ptr() as *const core::ffi::c_void,
+                        rsa_key.as_ptr() as *const core::ffi::c_void,
                         mem::size_of_val(&deref_rsa_key_c_type).try_into().unwrap(),
                         rng_object.as_ptr(),
                     )
@@ -269,7 +286,7 @@ impl Signer for RsaSigner {
                 let actual_sig_size = unsafe {
                     wc_SignatureGetSize(
                         wc_SignatureType_WC_SIGNATURE_TYPE_RSA_W_ENC,
-                        rsa_key_object.as_ptr() as *const core::ffi::c_void,
+                        rsa_key.as_ptr() as *const core::ffi::c_void,
                         mem::size_of_val(&deref_rsa_key_c_type).try_into().unwrap(),
                     )
                 };
