@@ -20,7 +20,7 @@ pub struct ECCPubKey {
 }
 
 impl KeyExchangeSecP384r1 {
-    pub fn use_secp384r1() -> Self {
+    pub fn use_secp384r1() -> Result<Self, rustls::Error> {
         let mut key: ecc_key = unsafe { mem::zeroed() };
         let key_object = ECCKeyObject::new(&mut key);
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
@@ -47,7 +47,8 @@ impl KeyExchangeSecP384r1 {
                 ecc_curve_id_ECC_SECP384R1,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_ecc_make_key_ex failed".into()))?;
 
         let mut priv_key_raw = [0u8; 48];
         let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
@@ -59,7 +60,8 @@ impl KeyExchangeSecP384r1 {
                 &mut priv_key_raw_len,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_ecc_export_private_only failed".into()))?;
 
         ret = unsafe {
             wc_ecc_export_public_raw(
@@ -70,7 +72,8 @@ impl KeyExchangeSecP384r1 {
                 &mut pub_key_raw.qy_len,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_ecc_export_public_raw failed".into()))?;
 
         // One byte prefix + 48 bytes X + 48 bytes Y
         let mut pub_key_bytes = [0x04; 97];
@@ -81,10 +84,10 @@ impl KeyExchangeSecP384r1 {
         // Copy Y coordinate into bytes 49-97
         pub_key_bytes[49..97].copy_from_slice(&pub_key_raw.qy);
 
-        KeyExchangeSecP384r1 {
+        Ok(KeyExchangeSecP384r1 {
             priv_key_bytes: Zeroizing::new(Box::new(priv_key_raw)),
             pub_key_bytes: Box::new(pub_key_bytes),
-        }
+        })
     }
 
     pub fn derive_shared_secret(&self, peer_pub_key: &[u8]) -> Result<Box<[u8]>, rustls::Error> {
@@ -187,8 +190,8 @@ mod tests {
 
     #[test]
     fn test_secp384r1_kx() {
-        let alice = Box::new(KeyExchangeSecP384r1::use_secp384r1());
-        let bob = Box::new(KeyExchangeSecP384r1::use_secp384r1());
+        let alice = Box::new(KeyExchangeSecP384r1::use_secp384r1().unwrap());
+        let bob = Box::new(KeyExchangeSecP384r1::use_secp384r1().unwrap());
 
         assert_eq!(
             alice.derive_shared_secret(bob.pub_key()).unwrap(),

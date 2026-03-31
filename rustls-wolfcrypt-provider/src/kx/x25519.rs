@@ -11,7 +11,7 @@ pub struct KeyExchangeX25519 {
 }
 
 impl KeyExchangeX25519 {
-    pub fn use_curve25519() -> Self {
+    pub fn use_curve25519() -> Result<Self, rustls::Error> {
         let mut key: curve25519_key = unsafe { mem::zeroed() };
         let key_object = Curve25519KeyObject::new(&mut key);
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
@@ -32,7 +32,8 @@ impl KeyExchangeX25519 {
         // This function generates a Curve25519 key using the given random number generator, rng,
         // of the size given (keysize), and stores it in the given curve25519_key structure.
         ret = unsafe { wc_curve25519_make_key(&mut rng, 32, key_object.as_ptr()) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_curve25519_make_key failed".into()))?;
 
         // Export curve25519 key pair. Big or little endian.
         ret = unsafe {
@@ -45,12 +46,13 @@ impl KeyExchangeX25519 {
                 endian.try_into().unwrap(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_curve25519_export_key_raw_ex failed".into()))?;
 
-        KeyExchangeX25519 {
+        Ok(KeyExchangeX25519 {
             pub_key_bytes: Box::new(pub_key_raw),
             priv_key_bytes: Zeroizing::new(Box::new(priv_key_raw)),
-        }
+        })
     }
 
     pub fn derive_shared_secret(&self, peer_pub_key: &[u8]) -> Result<Box<[u8]>, rustls::Error> {
@@ -159,8 +161,8 @@ mod tests {
 
     #[test]
     fn test_curve25519_kx() {
-        let alice = Box::new(KeyExchangeX25519::use_curve25519());
-        let bob = Box::new(KeyExchangeX25519::use_curve25519());
+        let alice = Box::new(KeyExchangeX25519::use_curve25519().unwrap());
+        let bob = Box::new(KeyExchangeX25519::use_curve25519().unwrap());
 
         assert_eq!(
             alice.derive_shared_secret(bob.pub_key()).unwrap(),

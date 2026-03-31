@@ -19,7 +19,7 @@ pub struct ECCPubKey {
 }
 
 impl KeyExchangeSecP521r1 {
-    pub fn use_secp521r1() -> Self {
+    pub fn use_secp521r1() -> Result<Self, rustls::Error> {
         let mut key: ecc_key = unsafe { mem::zeroed() };
         let key_object = ECCKeyObject::new(&mut key);
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
@@ -48,7 +48,8 @@ impl KeyExchangeSecP521r1 {
                 ecc_curve_id_ECC_SECP521R1,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_ecc_make_key_ex failed".into()))?;
 
         let mut priv_key_raw = [0u8; 66];
         let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
@@ -60,7 +61,8 @@ impl KeyExchangeSecP521r1 {
                 &mut priv_key_raw_len,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_ecc_export_private_only failed".into()))?;
 
         ret = unsafe {
             wc_ecc_export_public_raw(
@@ -71,7 +73,8 @@ impl KeyExchangeSecP521r1 {
                 &mut pub_key_raw.qy_len,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_ecc_export_public_raw failed".into()))?;
 
         let mut pub_key_bytes = [0x04; 133]; // One byte prefix + 66 bytes X + 66 bytes Y
 
@@ -81,10 +84,10 @@ impl KeyExchangeSecP521r1 {
         // Copy Y coordinate into bytes 67-133
         pub_key_bytes[67..133].copy_from_slice(&pub_key_raw.qy);
 
-        KeyExchangeSecP521r1 {
+        Ok(KeyExchangeSecP521r1 {
             priv_key_bytes: Zeroizing::new(Box::new(priv_key_raw)),
             pub_key_bytes: Box::new(pub_key_bytes),
-        }
+        })
     }
 
     pub fn derive_shared_secret(&self, peer_pub_key: &[u8]) -> Result<Box<[u8]>, rustls::Error> {
@@ -188,8 +191,8 @@ mod tests {
 
     #[test]
     fn test_secp521r1_kx() {
-        let alice = Box::new(KeyExchangeSecP521r1::use_secp521r1());
-        let bob = Box::new(KeyExchangeSecP521r1::use_secp521r1());
+        let alice = Box::new(KeyExchangeSecP521r1::use_secp521r1().unwrap());
+        let bob = Box::new(KeyExchangeSecP521r1::use_secp521r1().unwrap());
 
         assert_eq!(
             alice.derive_shared_secret(bob.pub_key()).unwrap(),
