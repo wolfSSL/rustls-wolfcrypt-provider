@@ -73,10 +73,7 @@ impl OwnedRsaKey {
 }
 
 /// Import the stored DER bytes into a fresh RsaKey C struct.
-fn import_rsa_key(
-    der_bytes: &[u8],
-    format: &RsaKeyFormat,
-) -> Result<OwnedRsaKey, rustls::Error> {
+fn import_rsa_key(der_bytes: &[u8], format: &RsaKeyFormat) -> Result<OwnedRsaKey, rustls::Error> {
     let mut rsa_key_box = Box::new(unsafe { mem::zeroed::<RsaKey>() });
     let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut *rsa_key_box) };
 

@@ -41,7 +41,10 @@ macro_rules! define_foreign_type {
 
             /// Given an $init_function, it calls it with the object's ptr as argument.
             pub fn init(&self) {
-                unsafe { check_if_zero($init_function(self.as_ptr())).expect(concat!(stringify!($init_function), " failed")) }
+                unsafe {
+                    check_if_zero($init_function(self.as_ptr()))
+                        .expect(concat!(stringify!($init_function), " failed"))
+                }
             }
         }
     };
@@ -203,5 +206,15 @@ define_foreign_type!(
 define_foreign_type_no_copy!(RsaKeyObject, RsaKeyObjectRef, RsaKey, drop(wc_FreeRsaKey));
 define_foreign_type_with_copy!(HmacObject, HmacObjectRef, wolfcrypt_rs::Hmac);
 define_foreign_type_no_copy!(AesObject, AesObjectRef, Aes, drop_void(wc_AesFree));
-define_foreign_type_no_copy!(Sha256Object, Sha256ObjectRef, wc_Sha256, drop_void(wc_Sha256Free));
-define_foreign_type_no_copy!(Sha384Object, Sha384ObjectRef, wc_Sha384, drop_void(wc_Sha384Free));
+define_foreign_type_no_copy!(
+    Sha256Object,
+    Sha256ObjectRef,
+    wc_Sha256,
+    drop_void(wc_Sha256Free)
+);
+define_foreign_type_no_copy!(
+    Sha384Object,
+    Sha384ObjectRef,
+    wc_Sha384,
+    drop_void(wc_Sha384Free)
+);

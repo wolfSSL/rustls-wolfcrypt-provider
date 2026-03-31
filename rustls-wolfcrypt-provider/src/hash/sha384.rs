@@ -119,12 +119,7 @@ impl Clone for WCHasher384 {
         let new_object = unsafe { Sha384Object::from_ptr(&mut *new_storage) };
         let ret = unsafe { wc_InitSha384(new_object.as_ptr()) };
         check_if_zero(ret).expect("wc_InitSha384 failed in clone");
-        let ret = unsafe {
-            wc_Sha384Copy(
-                self.sha384_object.as_ptr(),
-                new_object.as_ptr(),
-            )
-        };
+        let ret = unsafe { wc_Sha384Copy(self.sha384_object.as_ptr(), new_object.as_ptr()) };
         check_if_zero(ret).expect("wc_Sha384Copy failed");
         WCHasher384 {
             sha384_object: new_object,

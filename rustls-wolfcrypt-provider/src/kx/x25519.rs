@@ -112,8 +112,9 @@ impl KeyExchangeX25519 {
                 endian.try_into().unwrap(),
             )
         };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("Failed to import Curve25519 private key".into()))?;
+        check_if_zero(ret).map_err(|_| {
+            rustls::Error::General("Failed to import Curve25519 private key".into())
+        })?;
 
         // This function computes a shared secret key given a secret private key and
         // a received public key. Stores the generated secret in the buffer out.
@@ -126,8 +127,9 @@ impl KeyExchangeX25519 {
                 endian.try_into().unwrap(),
             )
         };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("Failed to compute Curve25519 shared secret".into()))?;
+        check_if_zero(ret).map_err(|_| {
+            rustls::Error::General("Failed to compute Curve25519 shared secret".into())
+        })?;
 
         Ok(Box::new(out))
     }

@@ -118,8 +118,7 @@ impl MessageEncrypter for WCTls12Encrypter {
 
         // Initialize Aes structure.
         ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
+        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
 
         // This function is used to set the key for AES GCM (Galois/Counter Mode).
         // It initializes an AES object with the given key.
@@ -130,8 +129,7 @@ impl MessageEncrypter for WCTls12Encrypter {
                 self.key.len() as word32,
             )
         };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("wc_AesGcmSetKey failed".into()))?;
+        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesGcmSetKey failed".into()))?;
 
         // This function encrypts the input message, held in the buffer in,
         // and stores the resulting cipher text in the output buffer out.
@@ -156,8 +154,7 @@ impl MessageEncrypter for WCTls12Encrypter {
                 aad.len() as word32,
             )
         };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("wc_AesGcmEncrypt failed".into()))?;
+        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesGcmEncrypt failed".into()))?;
 
         payload.extend_from_slice(&auth_tag);
 
@@ -197,8 +194,7 @@ impl MessageDecrypter for WCTls12Decrypter {
         let mut ret;
 
         ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
+        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
 
         ret = unsafe {
             wc_AesGcmSetKey(
@@ -207,8 +203,7 @@ impl MessageDecrypter for WCTls12Decrypter {
                 self.key.len() as word32,
             )
         };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("wc_AesGcmSetKey failed".into()))?;
+        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesGcmSetKey failed".into()))?;
 
         // Finally, we have everything to decrypt the message
         // from the payload.
@@ -231,8 +226,7 @@ impl MessageDecrypter for WCTls12Decrypter {
                 aad.len() as word32,
             )
         };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("wc_AesGcmDecrypt failed".into()))?;
+        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesGcmDecrypt failed".into()))?;
 
         payload.copy_within(payload_start..(payload_len - GCM_TAG_LENGTH), 0);
         payload.truncate(payload_len - ((payload_start) + GCM_TAG_LENGTH));
@@ -300,8 +294,7 @@ impl MessageEncrypter for WCTls13Cipher {
 
         // Initialize Aes structure.
         ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
+        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
 
         // This function is used to set the key for AES GCM (Galois/Counter Mode).
         // It initializes an AES object with the given key.
@@ -312,8 +305,7 @@ impl MessageEncrypter for WCTls13Cipher {
                 self.key.len() as word32,
             )
         };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("wc_AesGcmSetKey failed".into()))?;
+        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesGcmSetKey failed".into()))?;
 
         // This function encrypts the input message, held in the buffer in,
         // and stores the resulting cipher text in the output buffer out.
@@ -336,8 +328,7 @@ impl MessageEncrypter for WCTls13Cipher {
                 aad.len() as word32,
             )
         };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("wc_AesGcmEncrypt failed".into()))?;
+        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesGcmEncrypt failed".into()))?;
 
         // Finally, we add the authentication tag at the end of it
         // after the process of encryption is done.
@@ -373,8 +364,7 @@ impl MessageDecrypter for WCTls13Cipher {
         let mut ret;
 
         ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
+        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
 
         ret = unsafe {
             wc_AesGcmSetKey(
@@ -383,8 +373,7 @@ impl MessageDecrypter for WCTls13Cipher {
                 self.key.len() as word32,
             )
         };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("wc_AesGcmSetKey failed".into()))?;
+        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesGcmSetKey failed".into()))?;
 
         // Finally, we have everything to decrypt the message
         // from the payload.
@@ -402,8 +391,7 @@ impl MessageDecrypter for WCTls13Cipher {
                 aad.len() as word32,
             )
         };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("wc_AesGcmDecrypt failed".into()))?;
+        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesGcmDecrypt failed".into()))?;
 
         payload.truncate(message_len);
 

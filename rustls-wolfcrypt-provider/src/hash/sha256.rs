@@ -101,12 +101,7 @@ impl Clone for WCHasher256 {
         let new_object = unsafe { Sha256Object::from_ptr(&mut *new_storage) };
         let ret = unsafe { wc_InitSha256(new_object.as_ptr()) };
         check_if_zero(ret).expect("wc_InitSha256 failed in clone");
-        let ret = unsafe {
-            wc_Sha256Copy(
-                self.sha256_object.as_ptr(),
-                new_object.as_ptr(),
-            )
-        };
+        let ret = unsafe { wc_Sha256Copy(self.sha256_object.as_ptr(), new_object.as_ptr()) };
         check_if_zero(ret).expect("wc_Sha256Copy failed");
         WCHasher256 {
             sha256_object: new_object,
