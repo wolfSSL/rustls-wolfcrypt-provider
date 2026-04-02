@@ -1,5 +1,3 @@
 /rustls-wolfcrypt-provider/target
-/rustls-wolfcrypt-provider/Cargo.lock
 /wolfcrypt-rs/target
-/wolfcrypt-rs/Cargo.lock
 /wolfcrypt-rs/wolfssl-*/
