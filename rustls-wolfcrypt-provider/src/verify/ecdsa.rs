@@ -5,7 +5,7 @@ use core::ptr;
 use foreign_types::ForeignType;
 use rustls::pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerificationAlgorithm};
 use rustls::SignatureScheme;
-use webpki::alg_id;
+use rustls_pki_types::alg_id;
 use wolfcrypt_rs::*;
 
 /// A unified ECDSA verifier for P-256, P-384, and P-521.
