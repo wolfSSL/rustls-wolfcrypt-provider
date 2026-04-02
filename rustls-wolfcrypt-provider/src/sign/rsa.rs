@@ -58,12 +58,12 @@ impl fmt::Debug for RsaPrivateKey {
 }
 
 /// Owns both the heap-allocated RsaKey and its RsaKeyObject wrapper.
-/// Field drop order is reverse of declaration: `object` (which calls
-/// wc_FreeRsaKey) is dropped before `_storage` (which frees the heap
-/// memory), preventing use-after-free.
+/// Rust drops fields in declaration order: `object` (which calls
+/// wc_FreeRsaKey) is dropped first, then `_storage` frees the heap,
+/// preventing use-after-free.
 struct OwnedRsaKey {
-    _storage: Box<RsaKey>,
     object: RsaKeyObject,
+    _storage: Box<RsaKey>,
 }
 
 impl OwnedRsaKey {
@@ -96,8 +96,8 @@ fn import_rsa_key(der_bytes: &[u8], format: &RsaKeyFormat) -> Result<OwnedRsaKey
         .map_err(|_| rustls::Error::General("wc_RsaPrivateKeyDecode failed".into()))?;
 
     Ok(OwnedRsaKey {
-        _storage: rsa_key_box,
         object: rsa_key_object,
+        _storage: rsa_key_box,
     })
 }
 
