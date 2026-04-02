@@ -4,7 +4,6 @@ use sha2::{Digest, Sha256};
 use std::env;
 use std::fs;
 use std::io::{self, Read, Result};
-use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -32,7 +31,8 @@ fn main() {
 ///
 /// Returns `Ok(())` if successful, or an error if any step fails.
 fn run_build() -> Result<()> {
-    if fs::metadata(WOLFSSL_DIR).is_err() {
+    let prefix = install_prefix();
+    if fs::metadata(WOLFSSL_DIR).is_err() || fs::metadata(prefix.join("lib")).is_err() {
         setup_wolfssl()?;
     }
 
@@ -49,9 +49,14 @@ fn run_build() -> Result<()> {
 /// 4. Writes the bindings to a file
 ///
 /// Returns `Ok(())` if successful, or an error if binding generation fails.
+fn install_prefix() -> PathBuf {
+    PathBuf::from(env::var("OUT_DIR").unwrap()).join("wolfssl-install")
+}
+
 fn generate_bindings() -> Result<()> {
-    let wolfssl_lib_dir = Path::new("/opt/wolfssl-rs/lib/");
-    let wolfssl_include_dir = Path::new("/opt/wolfssl-rs/include/");
+    let prefix = install_prefix();
+    let wolfssl_lib_dir = prefix.join("lib");
+    let wolfssl_include_dir = prefix.join("include");
 
     println!(
         "cargo:rustc-link-search={}",
@@ -149,7 +154,7 @@ fn verify_download(path: &str, expected_sha256: &str) -> Result<()> {
 ///
 /// Returns `Ok(())` if extraction succeeds, or an error if it fails.
 fn unzip_wolfssl() -> Result<()> {
-    let output = Command::new("unzip").arg(WOLFSSL_ZIP).output()?;
+    let output = Command::new("unzip").arg("-o").arg(WOLFSSL_ZIP).output()?;
 
     if !output.status.success() {
         return Err(io::Error::other(format!(
@@ -186,6 +191,9 @@ fn build_wolfssl() -> Result<()> {
     env::set_current_dir(WOLFSSL_DIR)?;
     println!("Changed directory to {}.", WOLFSSL_DIR);
 
+    let prefix = install_prefix();
+    let prefix_arg = format!("--prefix={}", prefix.to_str().unwrap());
+
     run_command("./autogen.sh", &[])?;
     run_command(
         "./configure",
@@ -194,11 +202,11 @@ fn build_wolfssl() -> Result<()> {
             "--enable-all-crypto",
             "--enable-debug",
             "--disable-shared",
-            "--prefix=/opt/wolfssl-rs/",
+            &prefix_arg,
         ],
     )?;
     run_command("make", &[])?;
-    run_command("sudo", &["make", "install"])?;
+    run_command("make", &["install"])?;
 
     Ok(())
 }
