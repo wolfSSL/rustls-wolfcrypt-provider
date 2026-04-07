@@ -31,7 +31,7 @@ impl KeyExchangeX25519 {
 
         // This function generates a Curve25519 key using the given random number generator, rng,
         // of the size given (keysize), and stores it in the given curve25519_key structure.
-        ret = unsafe { wc_curve25519_make_key(&mut rng, 32, key_object.as_ptr()) };
+        ret = unsafe { wc_curve25519_make_key(rng_object.as_ptr(), 32, key_object.as_ptr()) };
         check_if_zero(ret)
             .map_err(|_| rustls::Error::General("wc_curve25519_make_key failed".into()))?;
 
@@ -92,7 +92,7 @@ impl KeyExchangeX25519 {
             wc_curve25519_import_public_ex(
                 peer_pub_key.as_ptr(),
                 peer_pub_key.len() as word32,
-                &mut pub_key_provided,
+                pub_key_provided_object.as_ptr(),
                 endian.try_into().unwrap(),
             )
         };
@@ -121,7 +121,7 @@ impl KeyExchangeX25519 {
         ret = unsafe {
             wc_curve25519_shared_secret_ex(
                 private_key_object.as_ptr(),
-                &mut pub_key_provided,
+                pub_key_provided_object.as_ptr(),
                 out.as_mut_ptr(),
                 &mut out_len,
                 endian.try_into().unwrap(),

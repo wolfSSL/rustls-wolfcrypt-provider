@@ -42,7 +42,7 @@ impl KeyExchangeSecP521r1 {
 
         ret = unsafe {
             wc_ecc_make_key_ex(
-                &mut rng,
+                rng_object.as_ptr(),
                 key_size,
                 key_object.as_ptr(),
                 ecc_curve_id_ECC_SECP521R1,
