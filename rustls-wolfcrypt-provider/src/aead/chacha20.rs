@@ -108,7 +108,8 @@ impl MessageEncrypter for WCTls12Cipher {
                 auth_tag.as_mut_ptr(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_ChaCha20Poly1305_Encrypt failed".into()))?;
 
         let mut output = PrefixedPayload::with_capacity(total_len);
 
@@ -161,7 +162,8 @@ impl MessageDecrypter for WCTls12Cipher {
                 payload[..message_len].as_mut_ptr(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_ChaCha20Poly1305_Decrypt failed".into()))?;
 
         // We extract the final result...
         payload.truncate(message_len);
@@ -252,7 +254,8 @@ impl MessageEncrypter for WCTls13Cipher {
                 auth_tag.as_mut_ptr(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_ChaCha20Poly1305_Encrypt failed".into()))?;
 
         // Finally, we add the authentication tag at the end of it
         // after the process of encryption is done.
@@ -303,7 +306,8 @@ impl MessageDecrypter for WCTls13Cipher {
                 payload[..message_len].as_mut_ptr(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_ChaCha20Poly1305_Decrypt failed".into()))?;
 
         // We extract the final result...
         payload.truncate(message_len);

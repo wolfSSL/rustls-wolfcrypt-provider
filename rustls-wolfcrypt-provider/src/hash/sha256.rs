@@ -1,6 +1,8 @@
 use crate::error::check_if_zero;
+use crate::types::*;
 use alloc::boxed::Box;
 use core::mem;
+use foreign_types::ForeignType;
 use rustls::crypto::hash;
 
 use wolfcrypt_rs::*;
@@ -9,11 +11,13 @@ pub struct WCSha256;
 
 impl hash::Hash for WCSha256 {
     fn start(&self) -> Box<dyn hash::Context> {
-        let sha256_c_type: wc_Sha256 = unsafe { mem::zeroed() };
+        let mut sha256_storage = Box::new(unsafe { mem::zeroed::<wc_Sha256>() });
+        let sha256_object = unsafe { Sha256Object::from_ptr(&mut *sha256_storage) };
         let hash: [u8; WC_SHA256_DIGEST_SIZE as usize] = [0; WC_SHA256_DIGEST_SIZE as usize];
 
         let mut hasher = WCHasher256 {
-            sha256_c_type,
+            sha256_object,
+            _sha256_storage: sha256_storage,
             hash,
         };
 
@@ -38,15 +42,16 @@ impl hash::Hash for WCSha256 {
 }
 
 struct WCHasher256 {
-    sha256_c_type: wc_Sha256,
+    sha256_object: Sha256Object,
+    _sha256_storage: Box<wc_Sha256>,
     hash: [u8; WC_SHA256_DIGEST_SIZE as usize],
 }
 
 impl WCHasher256 {
     fn wchasher_init(&mut self) {
         // This function initializes SHA256. This is automatically called by wc_Sha256Hash.
-        let ret = unsafe { wc_InitSha256(&mut self.sha256_c_type) };
-        check_if_zero(ret).unwrap();
+        let ret = unsafe { wc_InitSha256(self.sha256_object.as_ptr()) };
+        check_if_zero(ret).expect("wc_InitSha256 failed");
     }
 
     fn wchasher_update(&mut self, data: &[u8]) {
@@ -54,15 +59,15 @@ impl WCHasher256 {
 
         // Hash the provided byte array of length len.
         // Can be called continually.
-        let ret = unsafe { wc_Sha256Update(&mut self.sha256_c_type, data.as_ptr(), length) };
-        check_if_zero(ret).unwrap();
+        let ret = unsafe { wc_Sha256Update(self.sha256_object.as_ptr(), data.as_ptr(), length) };
+        check_if_zero(ret).expect("wc_Sha256Update failed");
     }
 
     fn wchasher_final(&mut self) -> &[u8] {
         // Finalizes hashing of data. Result is placed into hash.
         // Resets state of the sha256 struct.
-        let ret = unsafe { wc_Sha256Final(&mut self.sha256_c_type, self.hash.as_mut_ptr()) };
-        check_if_zero(ret).unwrap();
+        let ret = unsafe { wc_Sha256Final(self.sha256_object.as_ptr(), self.hash.as_mut_ptr()) };
+        check_if_zero(ret).expect("wc_Sha256Final failed");
 
         &self.hash
     }
@@ -92,20 +97,17 @@ unsafe impl Sync for WCHasher256 {}
 unsafe impl Send for WCHasher256 {}
 impl Clone for WCHasher256 {
     fn clone(&self) -> WCHasher256 {
-        let mut new_hasher = WCHasher256 {
-            sha256_c_type: unsafe { mem::zeroed() },
+        let mut new_storage = Box::new(unsafe { mem::zeroed::<wc_Sha256>() });
+        let new_object = unsafe { Sha256Object::from_ptr(&mut *new_storage) };
+        let ret = unsafe { wc_InitSha256(new_object.as_ptr()) };
+        check_if_zero(ret).expect("wc_InitSha256 failed in clone");
+        let ret = unsafe { wc_Sha256Copy(self.sha256_object.as_ptr(), new_object.as_ptr()) };
+        check_if_zero(ret).expect("wc_Sha256Copy failed");
+        WCHasher256 {
+            sha256_object: new_object,
+            _sha256_storage: new_storage,
             hash: self.hash,
-        };
-        let ret = unsafe { wc_InitSha256(&mut new_hasher.sha256_c_type) };
-        check_if_zero(ret).unwrap();
-        let ret = unsafe {
-            wc_Sha256Copy(
-                &self.sha256_c_type as *const wc_Sha256 as *mut wc_Sha256,
-                &mut new_hasher.sha256_c_type,
-            )
-        };
-        check_if_zero(ret).unwrap();
-        new_hasher
+        }
     }
 }
 

@@ -41,7 +41,10 @@ macro_rules! define_foreign_type {
 
             /// Given an $init_function, it calls it with the object's ptr as argument.
             pub fn init(&self) {
-                unsafe { check_if_zero($init_function(self.as_ptr())).unwrap() }
+                unsafe {
+                    check_if_zero($init_function(self.as_ptr()))
+                        .expect(concat!(stringify!($init_function), " failed"))
+                }
             }
         }
     };
@@ -102,32 +105,6 @@ macro_rules! define_foreign_type_with_copy {
 
             fn as_ptr(&self) -> *mut Self::CType {
                 self.0.as_ptr()
-            }
-        }
-    };
-
-    ($struct_name:ident, $ref_name:ident, $c_type:ty, drop($drop_fn:ident)) => {
-        define_foreign_type_with_copy!($struct_name, $ref_name, $c_type);
-
-        /// Implements Drop trait for cryptographic types that require cleanup.
-        /// This safely frees memory and other resources when the type goes out of scope.
-        /// Any cleanup errors are logged but cannot be returned since this is Drop.
-        /// The unsafe block is needed for FFI calls to the underlying C functions.
-        impl Drop for $struct_name {
-            fn drop(&mut self) {
-                unsafe {
-                    let ret = $drop_fn(self.as_ptr());
-                    match check_if_zero(ret) {
-                        Err(err) => {
-                            error!(
-                                "Error while freeing resource in Drop for {}: {}",
-                                stringify!($struct_name),
-                                err
-                            );
-                        }
-                        Ok(()) => {}
-                    }
-                }
             }
         }
     };
@@ -229,3 +206,15 @@ define_foreign_type!(
 define_foreign_type_no_copy!(RsaKeyObject, RsaKeyObjectRef, RsaKey, drop(wc_FreeRsaKey));
 define_foreign_type_with_copy!(HmacObject, HmacObjectRef, wolfcrypt_rs::Hmac);
 define_foreign_type_no_copy!(AesObject, AesObjectRef, Aes, drop_void(wc_AesFree));
+define_foreign_type_no_copy!(
+    Sha256Object,
+    Sha256ObjectRef,
+    wc_Sha256,
+    drop_void(wc_Sha256Free)
+);
+define_foreign_type_no_copy!(
+    Sha384Object,
+    Sha384ObjectRef,
+    wc_Sha384,
+    drop_void(wc_Sha384Free)
+);

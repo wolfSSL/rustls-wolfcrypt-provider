@@ -8,6 +8,7 @@ std = []
 
 [build-dependencies]
 bindgen = "0.71.1"
+sha2 = "0.11.0"
 
 [profile.release]
 strip = true

@@ -1,9 +1,9 @@
 extern crate bindgen;
 
+use sha2::{Digest, Sha256};
 use std::env;
 use std::fs;
-use std::io::{self, Result};
-use std::path::Path;
+use std::io::{self, Read, Result};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -11,6 +11,7 @@ use std::process::Command;
 const WOLFSSL_DIR: &str = "wolfssl-5.7.6-stable";
 const WOLFSSL_ZIP: &str = "wolfssl-5.7.6-stable.zip";
 const WOLFSSL_URL: &str = "https://github.com/wolfSSL/wolfssl/archive/refs/tags/v5.7.6-stable.zip";
+const WOLFSSL_SHA256: &str = "1aeb6e49222bb9d8cf012063f0dfc3f229084f24ce2b5740a2dcdb64d72b00bf";
 
 /// Entry point for the build script.
 /// Handles the main build process and exits with an error code if anything fails.
@@ -30,7 +31,8 @@ fn main() {
 ///
 /// Returns `Ok(())` if successful, or an error if any step fails.
 fn run_build() -> Result<()> {
-    if fs::metadata(WOLFSSL_DIR).is_err() {
+    let prefix = install_prefix();
+    if fs::metadata(WOLFSSL_DIR).is_err() || fs::metadata(prefix.join("lib")).is_err() {
         setup_wolfssl()?;
     }
 
@@ -47,9 +49,14 @@ fn run_build() -> Result<()> {
 /// 4. Writes the bindings to a file
 ///
 /// Returns `Ok(())` if successful, or an error if binding generation fails.
+fn install_prefix() -> PathBuf {
+    PathBuf::from(env::var("OUT_DIR").unwrap()).join("wolfssl-install")
+}
+
 fn generate_bindings() -> Result<()> {
-    let wolfssl_lib_dir = Path::new("/opt/wolfssl-rs/lib/");
-    let wolfssl_include_dir = Path::new("/opt/wolfssl-rs/include/");
+    let prefix = install_prefix();
+    let wolfssl_lib_dir = prefix.join("lib");
+    let wolfssl_include_dir = prefix.join("include");
 
     println!(
         "cargo:rustc-link-search={}",
@@ -82,6 +89,7 @@ fn generate_bindings() -> Result<()> {
 /// Returns `Ok(())` if all steps complete successfully, or an error if any step fails.
 fn setup_wolfssl() -> Result<()> {
     download_wolfssl()?;
+    verify_download(WOLFSSL_ZIP, WOLFSSL_SHA256)?;
     unzip_wolfssl()?;
     remove_zip()?;
     build_wolfssl()?;
@@ -113,6 +121,32 @@ fn download_wolfssl() -> Result<()> {
     Ok(())
 }
 
+/// Verifies the SHA-256 hash of a downloaded file against an expected value.
+///
+/// Returns `Ok(())` if the hash matches, or an error if it doesn't.
+fn verify_download(path: &str, expected_sha256: &str) -> Result<()> {
+    let mut file = fs::File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buf = [0u8; 8192];
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    let hash = hasher.finalize();
+    let hex: String = hash.iter().map(|b| format!("{:02x}", b)).collect();
+    if hex != expected_sha256 {
+        return Err(io::Error::other(format!(
+            "SHA-256 mismatch: expected {}, got {}",
+            expected_sha256, hex
+        )));
+    }
+    println!("SHA-256 verification passed.");
+    Ok(())
+}
+
 /// Extracts the downloaded WolfSSL archive.
 ///
 /// Uses the unzip command to extract the contents of the downloaded ZIP file.
@@ -120,7 +154,7 @@ fn download_wolfssl() -> Result<()> {
 ///
 /// Returns `Ok(())` if extraction succeeds, or an error if it fails.
 fn unzip_wolfssl() -> Result<()> {
-    let output = Command::new("unzip").arg(WOLFSSL_ZIP).output()?;
+    let output = Command::new("unzip").arg("-o").arg(WOLFSSL_ZIP).output()?;
 
     if !output.status.success() {
         return Err(io::Error::other(format!(
@@ -157,6 +191,9 @@ fn build_wolfssl() -> Result<()> {
     env::set_current_dir(WOLFSSL_DIR)?;
     println!("Changed directory to {}.", WOLFSSL_DIR);
 
+    let prefix = install_prefix();
+    let prefix_arg = format!("--prefix={}", prefix.to_str().unwrap());
+
     run_command("./autogen.sh", &[])?;
     run_command(
         "./configure",
@@ -165,11 +202,11 @@ fn build_wolfssl() -> Result<()> {
             "--enable-all-crypto",
             "--enable-debug",
             "--disable-shared",
-            "--prefix=/opt/wolfssl-rs/",
+            &prefix_arg,
         ],
     )?;
     run_command("make", &[])?;
-    run_command("sudo", &["make", "install"])?;
+    run_command("make", &["install"])?;
 
     Ok(())
 }

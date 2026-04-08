@@ -5,7 +5,7 @@ use core::ptr;
 use foreign_types::ForeignType;
 use rustls::pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerificationAlgorithm};
 use rustls::SignatureScheme;
-use webpki::alg_id;
+use rustls_pki_types::alg_id;
 use wolfcrypt_rs::*;
 
 /// A unified ECDSA verifier for P-256, P-384, and P-521.
@@ -57,6 +57,7 @@ impl SignatureVerificationAlgorithm for EcdsaVerifier {
         message: &[u8],
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
+        // Verify length of the public key before doing any slicing.
         unsafe {
             // Initialize WolfSSL ECC key
             let mut ecc_c_type: ecc_key = mem::zeroed();
@@ -85,6 +86,11 @@ impl SignatureVerificationAlgorithm for EcdsaVerifier {
                 ),
                 _ => return Err(InvalidSignature),
             };
+
+            let expected_len = 1 + 2 * skip_len;
+            if public_key.len() != expected_len {
+                return Err(InvalidSignature);
+            }
 
             /*
              * Skipping first byte because rustls uses this format:

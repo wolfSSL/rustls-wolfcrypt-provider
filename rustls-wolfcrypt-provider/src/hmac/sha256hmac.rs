@@ -60,7 +60,7 @@ impl WCHmac256Key {
                 self.key.len() as word32,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).expect("wc_HmacSetKey failed");
 
         hmac_ptr
     }
@@ -69,7 +69,7 @@ impl WCHmac256Key {
         let ret =
             unsafe { wc_HmacUpdate(hmac_ptr, input.as_ptr(), input.len() as word32) };
 
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).expect("wc_HmacUpdate failed");
     }
 
     fn hmac_final(&self, hmac_ptr: *mut Hmac) -> [u8; WC_SHA256_DIGEST_SIZE as usize] {
@@ -77,7 +77,7 @@ impl WCHmac256Key {
 
         // This function computes the final hash of an Hmac object's message.
         let ret = unsafe { wc_HmacFinal(hmac_ptr, digest.as_mut_ptr()) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).expect("wc_HmacFinal failed");
 
         unsafe {
             wc_HmacFree(hmac_ptr);

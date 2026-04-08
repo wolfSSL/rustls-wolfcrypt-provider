@@ -19,7 +19,7 @@ pub struct ECCPubKey {
 }
 
 impl KeyExchangeSecP256r1 {
-    pub fn use_secp256r1() -> Self {
+    pub fn use_secp256r1() -> Result<Self, rustls::Error> {
         let mut key: ecc_key = unsafe { mem::zeroed() };
         let key_object = ECCKeyObject::new(&mut key);
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
@@ -48,7 +48,8 @@ impl KeyExchangeSecP256r1 {
                 ecc_curve_id_ECC_SECP256R1,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_ecc_make_key_ex failed".into()))?;
 
         ret = unsafe {
             wc_ecc_export_private_only(
@@ -57,7 +58,8 @@ impl KeyExchangeSecP256r1 {
                 &mut priv_key_raw_len,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_ecc_export_private_only failed".into()))?;
 
         ret = unsafe {
             wc_ecc_export_public_raw(
@@ -68,7 +70,8 @@ impl KeyExchangeSecP256r1 {
                 &mut pub_key_raw.qy_len,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_ecc_export_public_raw failed".into()))?;
         // One byte prefix (0x04) + 32 bytes X coord + 32 bytes Y coord
         let mut pub_key_bytes = [0x04; 65];
 
@@ -78,10 +81,10 @@ impl KeyExchangeSecP256r1 {
         // Copy Y coordinate into bytes 33-64
         pub_key_bytes[33..65].copy_from_slice(&pub_key_raw.qy);
 
-        KeyExchangeSecP256r1 {
+        Ok(KeyExchangeSecP256r1 {
             priv_key_bytes: Zeroizing::new(Box::new(priv_key_raw)),
             pub_key_bytes: Box::new(pub_key_bytes),
-        }
+        })
     }
 
     pub fn derive_shared_secret(&self, peer_pub_key: &[u8]) -> Result<Box<[u8]>, rustls::Error> {
@@ -112,7 +115,8 @@ impl KeyExchangeSecP256r1 {
                 ecc_curve_id_ECC_SECP256R1,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("Failed to import ECC private key".into()))?;
 
         ret = unsafe {
             wc_ecc_import_unsigned(
@@ -123,15 +127,18 @@ impl KeyExchangeSecP256r1 {
                 ecc_curve_id_ECC_SECP256R1,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("Failed to import peer ECC public key".into()))?;
 
         rng_object.init();
 
         ret = unsafe { wc_ecc_set_rng(pub_key_object.as_ptr(), rng_object.as_ptr()) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("Failed to set RNG on public key".into()))?;
 
         ret = unsafe { wc_ecc_set_rng(priv_key_object.as_ptr(), rng_object.as_ptr()) };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("Failed to set RNG on private key".into()))?;
 
         let mut out = [0u8; 32];
         let mut out_len: word32 = out.len() as word32;
@@ -144,7 +151,8 @@ impl KeyExchangeSecP256r1 {
                 &mut out_len,
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("Failed to compute ECC shared secret".into()))?;
 
         Ok(Box::new(out))
     }
@@ -175,8 +183,8 @@ mod tests {
 
     #[test]
     fn test_secp256r1_kx() {
-        let alice = Box::new(KeyExchangeSecP256r1::use_secp256r1());
-        let bob = Box::new(KeyExchangeSecP256r1::use_secp256r1());
+        let alice = Box::new(KeyExchangeSecP256r1::use_secp256r1().unwrap());
+        let bob = Box::new(KeyExchangeSecP256r1::use_secp256r1().unwrap());
 
         assert_eq!(
             alice.derive_shared_secret(bob.pub_key()).unwrap(),

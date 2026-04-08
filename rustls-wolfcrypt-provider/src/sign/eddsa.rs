@@ -158,7 +158,9 @@ impl Signer for Ed25519Signer {
                 ed25519_key_object.as_ptr(),
             )
         };
-        check_if_zero(ret).unwrap();
+
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_ed25519_import_private_key failed".into()))?;
 
         ret = unsafe {
             wc_ed25519_sign_msg(

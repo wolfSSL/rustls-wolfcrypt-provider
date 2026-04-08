@@ -11,7 +11,7 @@ pub struct KeyExchangeX25519 {
 }
 
 impl KeyExchangeX25519 {
-    pub fn use_curve25519() -> Self {
+    pub fn use_curve25519() -> Result<Self, rustls::Error> {
         let mut key: curve25519_key = unsafe { mem::zeroed() };
         let key_object = Curve25519KeyObject::new(&mut key);
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
@@ -31,8 +31,9 @@ impl KeyExchangeX25519 {
 
         // This function generates a Curve25519 key using the given random number generator, rng,
         // of the size given (keysize), and stores it in the given curve25519_key structure.
-        ret = unsafe { wc_curve25519_make_key(&mut rng, 32, key_object.as_ptr()) };
-        check_if_zero(ret).unwrap();
+        ret = unsafe { wc_curve25519_make_key(rng_object.as_ptr(), 32, key_object.as_ptr()) };
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_curve25519_make_key failed".into()))?;
 
         // Export curve25519 key pair. Big or little endian.
         ret = unsafe {
@@ -45,12 +46,13 @@ impl KeyExchangeX25519 {
                 endian.try_into().unwrap(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_curve25519_export_key_raw_ex failed".into()))?;
 
-        KeyExchangeX25519 {
+        Ok(KeyExchangeX25519 {
             pub_key_bytes: Box::new(pub_key_raw),
             priv_key_bytes: Zeroizing::new(Box::new(priv_key_raw)),
-        }
+        })
     }
 
     pub fn derive_shared_secret(&self, peer_pub_key: &[u8]) -> Result<Box<[u8]>, rustls::Error> {
@@ -78,7 +80,8 @@ impl KeyExchangeX25519 {
                 endian.try_into().unwrap(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("Invalid Curve25519 public key".into()))?;
 
         // We initialize the curve25519 key object before we import the public key in it.
         pub_key_provided_object.init();
@@ -89,11 +92,12 @@ impl KeyExchangeX25519 {
             wc_curve25519_import_public_ex(
                 peer_pub_key.as_ptr(),
                 peer_pub_key.len() as word32,
-                &mut pub_key_provided,
+                pub_key_provided_object.as_ptr(),
                 endian.try_into().unwrap(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("Failed to import Curve25519 public key".into()))?;
 
         // We initialize the curve25519 key object before we import the private key in it.
         private_key_object.init();
@@ -108,20 +112,24 @@ impl KeyExchangeX25519 {
                 endian.try_into().unwrap(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| {
+            rustls::Error::General("Failed to import Curve25519 private key".into())
+        })?;
 
         // This function computes a shared secret key given a secret private key and
         // a received public key. Stores the generated secret in the buffer out.
         ret = unsafe {
             wc_curve25519_shared_secret_ex(
                 private_key_object.as_ptr(),
-                &mut pub_key_provided,
+                pub_key_provided_object.as_ptr(),
                 out.as_mut_ptr(),
                 &mut out_len,
                 endian.try_into().unwrap(),
             )
         };
-        check_if_zero(ret).unwrap();
+        check_if_zero(ret).map_err(|_| {
+            rustls::Error::General("Failed to compute Curve25519 shared secret".into())
+        })?;
 
         Ok(Box::new(out))
     }
@@ -155,8 +163,8 @@ mod tests {
 
     #[test]
     fn test_curve25519_kx() {
-        let alice = Box::new(KeyExchangeX25519::use_curve25519());
-        let bob = Box::new(KeyExchangeX25519::use_curve25519());
+        let alice = Box::new(KeyExchangeX25519::use_curve25519().unwrap());
+        let bob = Box::new(KeyExchangeX25519::use_curve25519().unwrap());
 
         assert_eq!(
             alice.derive_shared_secret(bob.pub_key()).unwrap(),

@@ -16,7 +16,7 @@ macro_rules! define_kx_group {
 
         impl crypto::SupportedKxGroup for $name {
             fn start(&self) -> Result<Box<dyn crypto::ActiveKeyExchange>, rustls::Error> {
-                Ok(Box::new(<$kx_type>::$kx_func()))
+                Ok(Box::new(<$kx_type>::$kx_func()?))
             }
 
             fn name(&self) -> rustls::NamedGroup {
