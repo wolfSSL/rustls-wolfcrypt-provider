@@ -74,7 +74,7 @@ fn generate_bindings() -> Result<()> {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings
         .write_to_file(out_path.join("bindings.rs"))
-        .map_err(|e| io::Error::other(format!("Couldn't write bindings: {}", e)))
+        .map_err(|e| io::Error::other(format!("Couldn't write bindings: {e}")))
 }
 
 /// Coordinates the complete setup process for WolfSSL.
