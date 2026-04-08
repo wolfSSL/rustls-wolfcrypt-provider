@@ -4,8 +4,8 @@
 
 use alloc::vec;
 use core::mem;
-use zeroize::Zeroizing;
 use foreign_types::ForeignType;
+use zeroize::Zeroizing;
 
 use crate::error::check_if_zero;
 use crate::types::{AesObject, ChaChaObject};
@@ -524,20 +524,14 @@ impl quic::Algorithm for KeyFactory {
 
 pub struct AesCipher {
     aes_object: AesObject,
-    key: Vec<u8>,
-}
-
-impl Drop for AesCipher {
-    fn drop(&mut self) {
-        self.key.zeroize();
-    }
+    key: Zeroizing<Vec<u8>>,
 }
 
 impl AesCipher {
     pub fn new() -> Result<Self, Error> {
         Ok(Self {
             aes_object: new_aes_object()?,
-            key: Vec::new(),
+            key: Zeroizing::new(Vec::new()),
         })
     }
 
@@ -557,7 +551,7 @@ impl AesCipher {
         };
         check_if_zero(ret)
             .map_err(|_| rustls::Error::General("Function AesSetKey failed".into()))?;
-        self.key = key.to_vec();
+        self.key = Zeroizing::new(key.to_vec());
         Ok(())
     }
 
@@ -665,16 +659,7 @@ impl AesCipher {
 
 pub struct ChaChaCipher {
     chacha_cipher: Option<ChaChaObject>,
-    key: Option<[u8; CHACHA_KEY_LEN]>, // In case of packet protection, no need to initiate a cipher
-}
-
-impl Drop for ChaChaCipher {
-    fn drop(&mut self) {
-        if let Some(key) = self.key.as_mut() {
-            key.zeroize();
-        }
-        self.key = None;
-    }
+    key: Option<Zeroizing<[u8; CHACHA_KEY_LEN]>>, // In case of packet protection, no need to initiate a cipher
 }
 
 impl ChaChaCipher {
@@ -686,7 +671,7 @@ impl ChaChaCipher {
             }),
             Some(key_bytes) => Ok(Self {
                 chacha_cipher: None,
-                key: Some(key_bytes),
+                key: Some(Zeroizing::new(key_bytes)),
             }),
         }
     }
@@ -704,10 +689,10 @@ impl ChaChaCipher {
             unsafe { wc_Chacha_SetKey(chacha_cipher.as_ptr(), key.as_ptr(), key.len() as word32) };
         check_if_zero(ret)
             .map_err(|_| rustls::Error::General("Function wc_Chacha_SetKey failed".into()))?;
-        self.key = Some(
-            key.try_into()
-                .map_err(|_| Error::General("Key must be exactly 32 bytes".into()))?,
-        );
+        self.key =
+            Some(Zeroizing::new(key.try_into().map_err(|_| {
+                Error::General("Key must be exactly 32 bytes".into())
+            })?));
         Ok(())
     }
 
