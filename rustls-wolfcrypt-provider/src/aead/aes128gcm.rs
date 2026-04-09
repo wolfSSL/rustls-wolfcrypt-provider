@@ -232,7 +232,6 @@ impl MessageDecrypter for WCTls12Decrypter {
 
         check_if_zero(ret).map_err(|_| rustls::Error::DecryptError)?;
 
-
         payload.copy_within(payload_start..(payload_len - GCM_TAG_LENGTH), 0);
         payload.truncate(payload_len - ((payload_start) + GCM_TAG_LENGTH));
 
@@ -401,7 +400,6 @@ impl MessageDecrypter for WCTls13Cipher {
         };
 
         check_if_zero(ret).map_err(|_| rustls::Error::DecryptError)?;
-
 
         payload.truncate(message_len);
 

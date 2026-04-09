@@ -315,7 +315,6 @@ impl MessageDecrypter for WCTls13Cipher {
 
         check_if_zero(ret).map_err(|_| rustls::Error::DecryptError)?;
 
-
         // We extract the final result...
         payload.truncate(message_len);
 

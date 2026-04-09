@@ -402,7 +402,6 @@ impl MessageDecrypter for WCTls13Cipher {
 
         check_if_zero(ret).map_err(|_| rustls::Error::DecryptError)?;
 
-
         payload.truncate(message_len);
 
         m.into_tls13_unpadded_message()
