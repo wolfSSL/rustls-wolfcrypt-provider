@@ -1,13 +1,13 @@
 use alloc::boxed::Box;
 use crypto::SupportedKxGroup;
 use rustls::crypto;
-
+use rustls::ffdhe_groups::FfdheGroup;
 mod sec256r1;
 mod sec384r1;
 mod sec521r1;
 mod x25519;
 
-pub const ALL_KX_GROUPS: &[&dyn SupportedKxGroup] = &[&X25519, &SecP256R1, &SecP384R1, &SecP521R1];
+pub const ALL_KX_GROUPS: &[&dyn SupportedKxGroup] = &[&X25519, &SECP256R1, &SECP384R1, &SECP521R1];
 
 macro_rules! define_kx_group {
     ($name:ident, $kx_type:ty, $kx_func:ident, $named_group:expr) => {
@@ -22,6 +22,10 @@ macro_rules! define_kx_group {
             fn name(&self) -> rustls::NamedGroup {
                 $named_group
             }
+
+            fn ffdhe_group(&self) -> Option<FfdheGroup<'static>> {
+                None
+            }
         }
     };
 }
@@ -34,19 +38,19 @@ define_kx_group!(
     rustls::NamedGroup::X25519
 );
 define_kx_group!(
-    SecP256R1,
+    SECP256R1,
     sec256r1::KeyExchangeSecP256r1,
     use_secp256r1,
     rustls::NamedGroup::secp256r1
 );
 define_kx_group!(
-    SecP384R1,
+    SECP384R1,
     sec384r1::KeyExchangeSecP384r1,
     use_secp384r1,
     rustls::NamedGroup::secp384r1
 );
 define_kx_group!(
-    SecP521R1,
+    SECP521R1,
     sec521r1::KeyExchangeSecP521r1,
     use_secp521r1,
     rustls::NamedGroup::secp521r1

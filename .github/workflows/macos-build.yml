@@ -16,6 +16,7 @@ jobs:
       - name: Install Build Prerequisites
         run: |
           brew install autoconf libtool automake
+          brew install go
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
@@ -58,4 +59,4 @@ jobs:
           cd wolfcrypt-rs
           cargo clippy -- -D warnings -A unnecessary-transmutes
           cd ../rustls-wolfcrypt-provider
-          cargo clippy -- -D warnings
+          cargo clippy --all-features -- -D warnings
