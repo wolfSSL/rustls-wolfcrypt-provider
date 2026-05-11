@@ -404,7 +404,7 @@ mod tests {
 
     #[test]
     fn ecdsa_sign_and_verify() {
-        let wolfcrypt_default_provider = rustls_wolfcrypt_provider::provider();
+        let wolfcrypt_default_provider = rustls_wolfcrypt_provider::default_provider();
 
         // Define schemes, curve IDs, and key sizes as tuples
         let test_configs = [
@@ -509,7 +509,7 @@ mod tests {
 
     #[test]
     fn eddsa_sign_and_verify() {
-        let wolfcrypt_default_provider = rustls_wolfcrypt_provider::provider();
+        let wolfcrypt_default_provider = rustls_wolfcrypt_provider::default_provider();
 
         // Initialize RNG and ECC key objects
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
@@ -578,7 +578,7 @@ mod tests {
     fn rsa_pss_sign_and_verify() {
         init_thread_pool();
 
-        let wolfcrypt_default_provider = rustls_wolfcrypt_provider::provider();
+        let wolfcrypt_default_provider = rustls_wolfcrypt_provider::default_provider();
         let schemes = [
             SignatureScheme::RSA_PSS_SHA256,
             SignatureScheme::RSA_PSS_SHA384,
@@ -669,7 +669,7 @@ mod tests {
     fn rsa_pkcs1_sign_and_verify() {
         init_thread_pool();
 
-        let wolfcrypt_default_provider = rustls_wolfcrypt_provider::provider();
+        let wolfcrypt_default_provider = rustls_wolfcrypt_provider::default_provider();
         let test_cases: Vec<_> = [
             SignatureScheme::RSA_PKCS1_SHA256,
             SignatureScheme::RSA_PKCS1_SHA384,

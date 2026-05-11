@@ -1,3 +1,4 @@
 /rustls-wolfcrypt-provider/target
 /wolfcrypt-rs/target
 /wolfcrypt-rs/wolfssl-*/
+/rustlsv0.23.35-test-workspace/

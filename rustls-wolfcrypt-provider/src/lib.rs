@@ -1,9 +1,8 @@
 #![cfg_attr(not(test), no_std)]
 
+extern crate alloc;
 #[cfg(test)]
 extern crate std;
-
-extern crate alloc;
 
 use alloc::boxed::Box;
 use alloc::sync::Arc;
@@ -13,7 +12,7 @@ use rustls::crypto::CryptoProvider;
 use rustls::pki_types::PrivateKeyDer;
 pub mod error;
 mod hkdf;
-mod kx;
+pub mod kx;
 mod prf;
 mod random;
 mod verify;
@@ -23,12 +22,16 @@ pub mod aead {
     pub mod aes128gcm;
     pub mod aes256gcm;
     pub mod chacha20;
+    #[cfg(feature = "quic")]
+    pub mod quic;
 }
 pub mod sign {
     pub mod ecdsa;
     pub mod eddsa;
     pub mod rsa;
 }
+#[cfg(feature = "quic")]
+use crate::aead::quic::KeyFactory;
 use crate::aead::{aes128gcm, aes256gcm, chacha20};
 
 pub mod hash {
@@ -50,7 +53,7 @@ type SigningAlgorithms = Vec<Box<SigningKeyFn>>;
 /*
  * Crypto provider struct that we populate with our own crypto backend (wolfcrypt).
  * */
-pub fn provider() -> CryptoProvider {
+pub fn default_provider() -> CryptoProvider {
     CryptoProvider {
         cipher_suites: ALL_CIPHER_SUITES.to_vec(),
         kx_groups: kx::ALL_KX_GROUPS.to_vec(),
@@ -110,16 +113,16 @@ impl rustls::crypto::KeyProvider for Provider {
     }
 }
 
-static ALL_CIPHER_SUITES: &[rustls::SupportedCipherSuite] = &[
-    TLS13_CHACHA20_POLY1305_SHA256,
-    TLS13_AES_128_GCM_SHA256,
+pub static ALL_CIPHER_SUITES: &[rustls::SupportedCipherSuite] = &[
     TLS13_AES_256_GCM_SHA384,
-    TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
-    TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+    TLS13_AES_128_GCM_SHA256,
+    TLS13_CHACHA20_POLY1305_SHA256,
     TLS12_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-    TLS12_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
-    TLS12_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+    TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+    TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
     TLS12_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+    TLS12_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+    TLS12_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
 ];
 
 static ALL_RSA_SCHEMES: &[rustls::SignatureScheme] = &[
@@ -147,7 +150,17 @@ pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
         },
         hkdf_provider: &WCHkdfUsingHmac(WCShaHmac::Sha256),
         aead_alg: &chacha20::Chacha20Poly1305,
+        #[cfg(not(feature = "quic"))]
         quic: None,
+        #[cfg(feature = "quic")]
+        quic: Some(&KeyFactory {
+            packet_algo: &aead::quic::CHACHA20_POLY1305,
+            header_algo: &aead::quic::CHACHA20,
+            // ref: <https://datatracker.ietf.org/doc/html/rfc9001#section-6.6>
+            confidentiality_limit: u64::MAX,
+            // ref: <https://datatracker.ietf.org/doc/html/rfc9001#section-6.6>
+            integrity_limit: 1 << 36,
+        }),
     });
 
 pub static TLS13_AES_128_GCM_SHA256: rustls::SupportedCipherSuite =
@@ -159,7 +172,17 @@ pub static TLS13_AES_128_GCM_SHA256: rustls::SupportedCipherSuite =
         },
         hkdf_provider: &WCHkdfUsingHmac(WCShaHmac::Sha256),
         aead_alg: &aes128gcm::Aes128Gcm,
+        #[cfg(not(feature = "quic"))]
         quic: None,
+        #[cfg(feature = "quic")]
+        quic: Some(&KeyFactory {
+            packet_algo: &aead::quic::AES_128_GCM,
+            header_algo: &aead::quic::AES_128,
+            // ref: <https://datatracker.ietf.org/doc/html/rfc9001#section-b.1.1>
+            confidentiality_limit: 1 << 23,
+            // ref: <https://datatracker.ietf.org/doc/html/rfc9001#section-b.1.2>
+            integrity_limit: 1 << 52,
+        }),
     });
 
 pub static TLS13_AES_256_GCM_SHA384: rustls::SupportedCipherSuite =
@@ -171,7 +194,17 @@ pub static TLS13_AES_256_GCM_SHA384: rustls::SupportedCipherSuite =
         },
         hkdf_provider: &WCHkdfUsingHmac(WCShaHmac::Sha384),
         aead_alg: &aes256gcm::Aes256Gcm,
+        #[cfg(not(feature = "quic"))]
         quic: None,
+        #[cfg(feature = "quic")]
+        quic: Some(&KeyFactory {
+            packet_algo: &aead::quic::AES_256_GCM,
+            header_algo: &aead::quic::AES_256,
+            // ref: <https://datatracker.ietf.org/doc/html/rfc9001#section-b.1.1>
+            confidentiality_limit: 1 << 23,
+            // ref: <https://datatracker.ietf.org/doc/html/rfc9001#section-b.1.2>
+            integrity_limit: 1 << 52,
+        }),
     });
 
 pub static TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =

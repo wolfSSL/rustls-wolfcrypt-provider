@@ -1,0 +1,125 @@
+[package]
+name = "tests"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.71"
+license = "Apache-2.0 OR ISC OR MIT"
+description = "TLS and QUIC tests"
+categories = ["network-programming", "cryptography"]
+autobenches = false
+autotests = false
+exclude = ["src/testdata", "tests/**"]
+build = "build.rs"
+
+[features]
+default = ["rustls/std"]
+
+aws-lc-rs = ["rustls/aws-lc-rs"] # Alias because Cargo features commonly use `-`
+aws_lc_rs = ["rustls/aws_lc_rs"]
+brotli = ["rustls/brotli"]
+custom-provider = []
+fips = ["rustls/fips"]
+logging = ["log", "rustls/log"]
+prefer-post-quantum = ["aws_lc_rs"]
+read_buf = ["rustversion", "std"]
+ring = ["rustls/ring"]
+std = ["rustls/std"]
+tls12 = []
+zlib = ["rustls/zlib"]
+wolfcrypt-provider = ["dep:rustls-wolfcrypt-provider", "rustls-wolfcrypt-provider/quic"]
+
+
+[build-dependencies]
+rustversion = { version = "1.0.6", optional = true }
+
+[dependencies]
+pki-types = { workspace = true }
+rustls = { path = "../rustls/rustls"}
+webpki = { workspace = true }
+log = { workspace = true, optional = true }
+time = "0.3.44"
+rcgen = "0.14.5"
+rustls-wolfcrypt-provider = {path = "../rustls-wolfcrypt-provider/rustls-wolfcrypt-provider", default-features = false, optional = true}
+
+
+[dev-dependencies]
+rustls-test = {workspace = true}
+rustls = { path = "../rustls/rustls" }
+macro_rules_attribute = { workspace = true }
+rustls-wolfcrypt-provider = {path = "../rustls-wolfcrypt-provider/rustls-wolfcrypt-provider", default-features = false}
+num-bigint = "0.4.6"
+x509-parser = "0.18.0"
+env_logger = "0.11.8"
+
+log = { workspace = true }
+base64 = { workspace = true }
+
+[[bench]]
+name = "benchmarks"
+path = "../rustls/rustls/benches/benchmarks.rs"
+harness = false
+required-features = ["ring"]
+
+[[example]]
+name = "test_ca"
+path = "../rustls/rustls/examples/internal/test_ca.rs"
+
+[[test]]
+name = "all_suites"
+path = "runners/all_test_suites.rs"
+
+
+[[test]]
+name = "api"
+path = "runners/api.rs"
+
+[[test]]
+name = "api_ffdhe"
+path = "runners/api_ffdhe.rs"
+required-features = ["tls12"]
+
+[[test]]
+name = "bogo"
+path = "bogo.rs"
+
+[[test]]
+name = "client_cert_verifier"
+path = "runners/client_cert_verifier.rs"
+
+[[test]]
+name = "ech"
+path = "ech.rs"
+
+[[test]]
+name = "key_log_file_env"
+path = "runners/key_log_file_env.rs"
+
+[[test]]
+name = "process_provider"
+path = "process_provider.rs"
+
+[[test]]
+name = "server_cert_verifier"
+path = "runners/server_cert_verifier.rs"
+
+[[test]]
+name = "unbuffered"
+path = "runners/unbuffered.rs"
+
+[package.metadata.docs.rs]
+# all non-default features except fips (cannot build on docs.rs environment)
+features = ["read_buf", "ring"]
+rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    # ---
+    "rustls_pki_types",
+    "rustls_pki_types::*",
+]
+
+[package.metadata.cargo-semver-checks.lints]
+enum_no_repr_variant_discriminant_changed = "warn"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(bench)", "cfg(coverage_nightly)", "cfg(read_buf)"] }

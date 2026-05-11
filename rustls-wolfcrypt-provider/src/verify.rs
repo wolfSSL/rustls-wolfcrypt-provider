@@ -13,6 +13,7 @@ pub static ALGORITHMS: WebPkiSupportedAlgorithms = WebPkiSupportedAlgorithms {
         RSA_PSS_SHA384,
         RSA_PKCS1_SHA256,
         RSA_PKCS1_SHA384,
+        RSA_PKCS1_SHA512,
         ECDSA_P256_SHA256,
         ECDSA_P384_SHA384,
         ECDSA_P521_SHA512,
