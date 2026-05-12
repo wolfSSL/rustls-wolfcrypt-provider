@@ -70,17 +70,17 @@ impl SignatureVerificationAlgorithm for EcdsaVerifier {
             // Determine curve, how many bytes to skip from public_key, and which hash to use
             let (curve_id, skip_len, wc_hash_type) = match self.scheme {
                 SignatureScheme::ECDSA_NISTP256_SHA256 => (
-                    ecc_curve_id_ECC_SECP256R1,
+                    ecc_curve_ids_ECC_SECP256R1,
                     32,
                     wc_HashType_WC_HASH_TYPE_SHA256,
                 ),
                 SignatureScheme::ECDSA_NISTP384_SHA384 => (
-                    ecc_curve_id_ECC_SECP384R1,
+                    ecc_curve_ids_ECC_SECP384R1,
                     48,
                     wc_HashType_WC_HASH_TYPE_SHA384,
                 ),
                 SignatureScheme::ECDSA_NISTP521_SHA512 => (
-                    ecc_curve_id_ECC_SECP521R1,
+                    ecc_curve_ids_ECC_SECP521R1,
                     66,
                     wc_HashType_WC_HASH_TYPE_SHA512,
                 ),

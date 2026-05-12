@@ -34,79 +34,52 @@ impl Ed25519PrivateKey {
     /// Extract ED25519 private and if available public key values from a PKCS#8 DER formatted key
     fn extract_key_pair(input_key: &[u8]) -> Result<([u8; 32], Option<[u8; 32]>), rustls::Error> {
         let mut public_key_raw: [u8; 32] = [0; ED25519_PUB_KEY_SIZE as usize];
-        let mut private_key_raw: [u8; 32] = [0; ED25519_KEY_SIZE as usize];
-        let mut skip_bytes: usize;
-        let mut key_sub_slice = input_key;
+        let mut private_key_raw: [u8; 64] = [0; ED25519_PRV_KEY_SIZE as usize];
+        let mut ed25519_c_type: ed25519_key = unsafe { mem::zeroed() };
+        let ed25519_key_object = ED25519KeyObject::new(&mut ed25519_c_type);
+        let mut idx: u32 = 0;
+        let mut private_key_raw_len: word32 = private_key_raw.len() as word32;
+        let mut public_key_raw_len: word32 = public_key_raw.len() as word32;
+        let mut ret: i32;
 
-        const SHORT_FORM_LEN_MAX: u8 = 127;
-        const TAG_SEQUENCE: u8 = 0x30;
-        const TAG_OCTET_SEQUENCE: u8 = 0x04;
-        const TAG_OPTIONAL_SET_OF_ATTRIBUTES: u8 = 0x80; //Implicit, context-specific, and primitive underlying type (SET OF)
-        const TAG_OPTIONAL_PUBLIC_KEY_BIT_STRING: u8 = 0x81; //Implicit, context-specific, and primitive underlying type (BIT STRING)
+        ed25519_key_object.init();
 
-        // The input key is encoded in PKCS#8 DER format with a structure as in
-        // https://www.rfc-editor.org/rfc/rfc5958.html
-        //
-        // AsymmetricKeyPackage ::= SEQUENCE SIZE (1..MAX) OF OneAsymmetricKey
+        ret = unsafe {
+            wc_Ed25519PrivateKeyDecode(
+                input_key.as_ptr(),
+                &mut idx,
+                ed25519_key_object.as_ptr(),
+                input_key.len() as u32,
+            )
+        };
 
-        // OneAsymmetricKey ::= SEQUENCE {
-        //     version                   Version,
-        //     privateKeyAlgorithm       PrivateKeyAlgorithmIdentifier,
-        //     privateKey                PrivateKey,
-        //     attributes            [0] Attributes OPTIONAL,
-        //     ...,
-        //     [[2: publicKey        [1] PublicKey OPTIONAL ]],
-        //     ...
-        //     }
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_Ed25519PrivateKeyDecode failed".into()))?;
 
-        // The key structure must begin with a SEQUENCE tag with at least 2 bytes length if short
-        // length format is used
-        if key_sub_slice[0] != TAG_SEQUENCE || key_sub_slice.len() < 2 {
-            return Err(rustls::Error::General(
-                "Faulty PKCS#8 ED25519 private key structure".into(),
-            ));
-        }
-        // Check which length format and skip tag and length encoding bytes
-        if key_sub_slice[1] > SHORT_FORM_LEN_MAX {
-            skip_bytes = (2 + (key_sub_slice[1] & 0x7F)) as usize;
+        ret = unsafe {
+            wc_ed25519_export_key(
+                ed25519_key_object.as_ptr(),
+                private_key_raw.as_mut_ptr(),
+                &mut private_key_raw_len,
+                public_key_raw.as_mut_ptr(),
+                &mut public_key_raw_len,
+            )
+        };
+
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("wc_ed25519_export_key failed: {ret}".into()))?;
+
+        // Check if optional public key value exists was exported or not.
+        // Also we return only the first 32 bytes, since wc_ed25519_export_key
+        // exports both the secret seed and the public key into one single
+        // array.
+        if public_key_raw != [0; 32] {
+            Ok((
+                private_key_raw[..32].try_into().unwrap(),
+                Some(public_key_raw),
+            ))
         } else {
-            skip_bytes = 2;
-        }
-
-        // Skip version (3 bytes), algorithm ID sequence (0x30 + length encoding bytes + 5 ID bytes),
-        skip_bytes += 3 + 7;
-        key_sub_slice = input_key.get(skip_bytes..).unwrap();
-
-        // Check if next bytes are 0x04, 0x22, 0x04, 0x20
-        if !matches!(
-            key_sub_slice,
-            [TAG_OCTET_SEQUENCE, 0x22, TAG_OCTET_SEQUENCE, 0x20, ..]
-        ) {
-            return Err(rustls::Error::General(
-                "Faulty PKCS#8 ED25519 private key structure".into(),
-            ));
-        }
-
-        // Copy private key value
-        skip_bytes += 4;
-        key_sub_slice = input_key.get(skip_bytes..).unwrap();
-        private_key_raw.copy_from_slice(&key_sub_slice[..ED25519_KEY_SIZE as usize]);
-        skip_bytes += ED25519_KEY_SIZE as usize;
-        key_sub_slice = input_key.get(skip_bytes..).unwrap();
-
-        // Check if optional SET OF attributes exists and skip
-        if key_sub_slice.first() == Some(&TAG_OPTIONAL_SET_OF_ATTRIBUTES) {
-            skip_bytes += (2 + (key_sub_slice[1])) as usize;
-            key_sub_slice = input_key.get(skip_bytes..).unwrap();
-        }
-
-        // Check if optional public key value exists. If exists, skip tag, length encoding byte,
-        // and bits-used byte
-        if key_sub_slice.first() == Some(&TAG_OPTIONAL_PUBLIC_KEY_BIT_STRING) {
-            public_key_raw.copy_from_slice(&key_sub_slice[3..(3 + ED25519_KEY_SIZE as usize)]);
-            Ok((private_key_raw, Some(public_key_raw)))
-        } else {
-            Ok((private_key_raw, None))
+            Ok((private_key_raw[..32].try_into().unwrap(), None))
         }
     }
 }

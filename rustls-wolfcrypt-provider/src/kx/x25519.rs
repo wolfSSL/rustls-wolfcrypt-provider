@@ -128,7 +128,9 @@ impl KeyExchangeX25519 {
             )
         };
         check_if_zero(ret).map_err(|_| {
-            rustls::Error::General("Failed to compute Curve25519 shared secret".into())
+            rustls::Error::General(alloc::format!(
+                "Failed to compute Curve25519 shared secret (ret = {ret})"
+            ))
         })?;
 
         Ok(Box::new(out))

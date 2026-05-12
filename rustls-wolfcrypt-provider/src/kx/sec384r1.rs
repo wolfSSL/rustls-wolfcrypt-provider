@@ -37,14 +37,14 @@ impl KeyExchangeSecP384r1 {
 
         rng_object.init();
 
-        let key_size = unsafe { wc_ecc_get_curve_size_from_id(ecc_curve_id_ECC_SECP384R1) };
+        let key_size = unsafe { wc_ecc_get_curve_size_from_id(ecc_curve_ids_ECC_SECP384R1) };
 
         ret = unsafe {
             wc_ecc_make_key_ex(
                 rng_object.as_ptr(),
                 key_size,
                 key_object.as_ptr(),
-                ecc_curve_id_ECC_SECP384R1,
+                ecc_curve_ids_ECC_SECP384R1,
             )
         };
         check_if_zero(ret)
@@ -115,7 +115,7 @@ impl KeyExchangeSecP384r1 {
                 ptr::null_mut(),
                 0,
                 priv_key_object.as_ptr(),
-                ecc_curve_id_ECC_SECP384R1,
+                ecc_curve_ids_ECC_SECP384R1,
             )
         };
         check_if_zero(ret)
@@ -131,7 +131,7 @@ impl KeyExchangeSecP384r1 {
                 peer_pub_key[1..49].as_ptr(),
                 peer_pub_key[49..].as_ptr(),
                 ptr::null_mut(),
-                ecc_curve_id_ECC_SECP384R1,
+                ecc_curve_ids_ECC_SECP384R1,
             )
         };
         check_if_zero(ret)

@@ -59,10 +59,10 @@ fn init_thread_pool() {
  * Starts background job for wolfssl server (localhost:4443).
  * */
 fn start_wolfssl_server(current_dir_string: String, tls_version: &str) -> Child {
-    if let Err(e) = env::set_current_dir("../wolfcrypt-rs/wolfssl-5.7.6-stable/") {
+    if let Err(e) = env::set_current_dir("../wolfcrypt-rs/wolfssl-5.9.1-stable/") {
         panic!("Error changing directory: {}", e);
     } else {
-        println!("Changed directory to wolfssl-5.7.6-stable.");
+        println!("Changed directory to wolfssl-5.9.1-stable.");
 
         Command::new("./examples/server/server")
             .arg("-d")
@@ -410,17 +410,17 @@ mod tests {
         let test_configs = [
             (
                 SignatureScheme::ECDSA_NISTP256_SHA256,
-                ecc_curve_id_ECC_SECP256R1,
+                ecc_curve_ids_ECC_SECP256R1,
                 32, // P256 key size
             ),
             (
                 SignatureScheme::ECDSA_NISTP384_SHA384,
-                ecc_curve_id_ECC_SECP384R1,
+                ecc_curve_ids_ECC_SECP384R1,
                 48, // P384 key size
             ),
             (
                 SignatureScheme::ECDSA_NISTP521_SHA512,
-                ecc_curve_id_ECC_SECP521R1,
+                ecc_curve_ids_ECC_SECP521R1,
                 66, // P521 key size
             ),
         ];
