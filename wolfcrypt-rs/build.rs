@@ -8,10 +8,10 @@ use std::path::PathBuf;
 use std::process::Command;
 
 /// Version-related constants for WolfSSL
-const WOLFSSL_DIR: &str = "wolfssl-5.7.6-stable";
-const WOLFSSL_ZIP: &str = "wolfssl-5.7.6-stable.zip";
-const WOLFSSL_URL: &str = "https://github.com/wolfSSL/wolfssl/archive/refs/tags/v5.7.6-stable.zip";
-const WOLFSSL_SHA256: &str = "1aeb6e49222bb9d8cf012063f0dfc3f229084f24ce2b5740a2dcdb64d72b00bf";
+const WOLFSSL_DIR: &str = "wolfssl-5.9.1-stable";
+const WOLFSSL_ZIP: &str = "wolfssl-5.9.1-stable.zip";
+const WOLFSSL_URL: &str = "https://github.com/wolfSSL/wolfssl/archive/refs/tags/v5.9.1-stable.zip";
+const WOLFSSL_SHA256: &str = "a91ccbf742391db95d5f1821273c59841f54a5306b9d2caea0cd7a8f2fbe0a5c";
 
 /// Entry point for the build script.
 /// Handles the main build process and exits with an error code if anything fails.

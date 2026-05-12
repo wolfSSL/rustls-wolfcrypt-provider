@@ -271,7 +271,7 @@ impl Signer for RsaSigner {
                         message.len() as u32,
                         sig_buf.as_mut_ptr(),
                         &mut sig_len,
-                        rsa_key.as_ptr() as *const core::ffi::c_void,
+                        rsa_key.as_ptr() as *mut core::ffi::c_void,
                         mem::size_of_val(&deref_rsa_key_c_type).try_into().unwrap(),
                         rng_object.as_ptr(),
                     )
