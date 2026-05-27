@@ -72,9 +72,23 @@ fn generate_bindings() -> Result<()> {
         .map_err(|_| io::Error::other("Failed to generate bindings"))?;
 
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let bindings_file = out_path.join("bindings.rs");
     bindings
-        .write_to_file(out_path.join("bindings.rs"))
-        .map_err(|e| io::Error::other(format!("Couldn't write bindings: {e}")))
+        .write_to_file(&bindings_file)
+        .map_err(|e| io::Error::other(format!("Couldn't write bindings: {e}")))?;
+
+    // wolfSSL only compiles wc_curve25519_set_rng when it builds the blinded,
+    // pure-C curve25519 implementation (WOLFSSL_CURVE25519_BLINDING, i.e. no asm
+    // backend). Detect it from the generated bindings and expose a cfg so the
+    // crate can pick the real call vs. a no-op. Declaring it with check-cfg
+    // keeps `-D warnings` (clippy) builds from failing on an unexpected cfg.
+    println!("cargo:rustc-check-cfg=cfg(curve25519_blinding)");
+    let generated = fs::read_to_string(&bindings_file)?;
+    if generated.contains("wc_curve25519_set_rng") {
+        println!("cargo:rustc-cfg=curve25519_blinding");
+    }
+
+    Ok(())
 }
 
 /// Coordinates the complete setup process for WolfSSL.
@@ -198,7 +212,6 @@ fn build_wolfssl() -> Result<()> {
     run_command(
         "./configure",
         &[
-            "--enable-all",
             "--enable-all-crypto",
             "--enable-debug",
             "--disable-shared",

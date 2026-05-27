@@ -1,6 +1,30 @@
 pub mod bindings;
 pub use bindings::*;
 
+/// Attach an RNG to a curve25519 key so the blinded scalar multiplication has
+/// entropy. wolfSSL only compiles wc_curve25519_set_rng when it builds the
+/// blinded, pure-C curve25519 implementation (WOLFSSL_CURVE25519_BLINDING,
+/// i.e. no asm backend). On asm builds the symbol is absent and blinding isn't
+/// used, so this becomes a no-op. The curve25519_blinding cfg is emitted by
+/// build.rs based on whether that symbol appears in the generated bindings.
+///
+/// # Safety
+/// key must point to an initialized curve25519_key, and rng to an
+/// initialized WC_RNG that outlives the following shared-secret call.
+#[cfg(curve25519_blinding)]
+pub unsafe fn curve25519_set_rng(key: *mut curve25519_key, rng: *mut WC_RNG) -> i32 {
+    wc_curve25519_set_rng(key, rng)
+}
+
+/// No-op variant: builds without curve25519 blinding don't attach an RNG.
+///
+/// # Safety
+/// Same contract as the blinding variant; the arguments are ignored.
+#[cfg(not(curve25519_blinding))]
+pub unsafe fn curve25519_set_rng(_key: *mut curve25519_key, _rng: *mut WC_RNG) -> i32 {
+    0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
