@@ -33,54 +33,64 @@ impl fmt::Debug for Ed25519PrivateKey {
 impl Ed25519PrivateKey {
     /// Extract ED25519 private and if available public key values from a PKCS#8 DER formatted key
     fn extract_key_pair(input_key: &[u8]) -> Result<([u8; 32], Option<[u8; 32]>), rustls::Error> {
-        let mut public_key_raw: [u8; 32] = [0; ED25519_PUB_KEY_SIZE as usize];
-        let mut private_key_raw: [u8; 64] = [0; ED25519_PRV_KEY_SIZE as usize];
-        let mut ed25519_c_type: ed25519_key = unsafe { mem::zeroed() };
-        let ed25519_key_object = ED25519KeyObject::new(&mut ed25519_c_type);
-        let mut idx: u32 = 0;
+        let mut private_key_raw: [u8; 32] = [0; ED25519_KEY_SIZE as usize];
         let mut private_key_raw_len: word32 = private_key_raw.len() as word32;
-        let mut public_key_raw_len: word32 = public_key_raw.len() as word32;
-        let mut ret: i32;
+        // Scratch buffer large enough for any public-key form wolfSSL may emit:
+        // a bare 32-byte point, a 33-byte prefixed point, or an uncompressed point.
+        let mut public_key_scratch: [u8; 65] = [0; 65];
+        let mut public_key_scratch_len: word32 = public_key_scratch.len() as word32;
+        let mut idx: word32 = 0;
 
-        ed25519_key_object.init();
-
-        ret = unsafe {
-            wc_Ed25519PrivateKeyDecode(
+        // Parse the PKCS#8 structure with wolfSSL's own ASN parser. This is the
+        // same parser wc_Ed25519PrivateKeyDecode uses internally, but calling it
+        // directly lets us normalise the public key before it is imported.
+        //
+        // For an RFC 5958 (PKCS#8 v2) key that embeds the optional public key,
+        // DecodeAsymKey returns the [1] field as a raw DER BIT STRING body: the
+        // 32-byte key prefixed by its "unused bits" 0x00 octet (33 bytes total).
+        // wc_Ed25519PrivateKeyDecode forwards those 33 bytes straight to
+        // wc_ed25519_import_public_ex, which only accepts 32 bytes, a 0x40-prefixed
+        // compressed point, or an 0x04 uncompressed point, so it fails with
+        // BAD_FUNC_ARG (-173). We strip the prefix ourselves instead.
+        let ret = unsafe {
+            DecodeAsymKey(
                 input_key.as_ptr(),
                 &mut idx,
-                ed25519_key_object.as_ptr(),
-                input_key.len() as u32,
-            )
-        };
-
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("wc_Ed25519PrivateKeyDecode failed".into()))?;
-
-        ret = unsafe {
-            wc_ed25519_export_key(
-                ed25519_key_object.as_ptr(),
+                input_key.len() as word32,
                 private_key_raw.as_mut_ptr(),
                 &mut private_key_raw_len,
-                public_key_raw.as_mut_ptr(),
-                &mut public_key_raw_len,
+                public_key_scratch.as_mut_ptr(),
+                &mut public_key_scratch_len,
+                Key_Sum_ED25519k as i32,
             )
         };
-
         check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("wc_ed25519_export_key failed: {ret}".into()))?;
+            .map_err(|_| rustls::Error::General("DecodeAsymKey (ED25519) failed".into()))?;
 
-        // Check if optional public key value exists was exported or not.
-        // Also we return only the first 32 bytes, since wc_ed25519_export_key
-        // exports both the secret seed and the public key into one single
-        // array.
-        if public_key_raw != [0; 32] {
-            Ok((
-                private_key_raw[..32].try_into().unwrap(),
-                Some(public_key_raw),
-            ))
-        } else {
-            Ok((private_key_raw[..32].try_into().unwrap(), None))
-        }
+        // Normalise the optional public key based on the length the parser reported.
+        let pub_key: Option<[u8; 32]> = match public_key_scratch_len {
+            // No embedded public key; the caller derives it from the private seed.
+            0 => None,
+            // Bare 32-byte public key.
+            len if len == ED25519_PUB_KEY_SIZE => Some(
+                public_key_scratch[..ED25519_PUB_KEY_SIZE as usize]
+                    .try_into()
+                    .unwrap(),
+            ),
+            // BIT STRING body: leading 0x00 "unused bits" octet + 32-byte key.
+            len if len == ED25519_PUB_KEY_SIZE + 1 && public_key_scratch[0] == 0x00 => Some(
+                public_key_scratch[1..1 + ED25519_PUB_KEY_SIZE as usize]
+                    .try_into()
+                    .unwrap(),
+            ),
+            _ => {
+                return Err(rustls::Error::General(
+                    "Unexpected ED25519 public key encoding".into(),
+                ))
+            }
+        };
+
+        Ok((private_key_raw, pub_key))
     }
 }
 
