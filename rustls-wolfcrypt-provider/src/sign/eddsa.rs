@@ -35,23 +35,28 @@ impl Ed25519PrivateKey {
     fn extract_key_pair(input_key: &[u8]) -> Result<([u8; 32], Option<[u8; 32]>), rustls::Error> {
         let mut private_key_raw: [u8; 32] = [0; ED25519_KEY_SIZE as usize];
         let mut private_key_raw_len: word32 = private_key_raw.len() as word32;
-        // Scratch buffer large enough for any public-key form wolfSSL may emit:
-        // a bare 32-byte point, a 33-byte prefixed point, or an uncompressed point.
-        let mut public_key_scratch: [u8; 65] = [0; 65];
+        // Scratch buffer for the optional embedded public key. DecodeAsymKey
+        // reports it either as the bare 32-byte key, or as the raw DER BIT STRING
+        // body (a leading 0x00 "unused bits" octet + the 32-byte key = 33 bytes),
+        // so 33 bytes is the largest form we ever need to hold here.
+        let mut public_key_scratch: [u8; ED25519_PUB_KEY_SIZE as usize + 1] =
+            [0; ED25519_PUB_KEY_SIZE as usize + 1];
         let mut public_key_scratch_len: word32 = public_key_scratch.len() as word32;
         let mut idx: word32 = 0;
 
         // Parse the PKCS#8 structure with wolfSSL's own ASN parser. This is the
         // same parser wc_Ed25519PrivateKeyDecode uses internally, but calling it
-        // directly lets us normalise the public key before it is imported.
+        // directly lets us normalise the embedded public key before it is imported.
         //
-        // For an RFC 5958 (PKCS#8 v2) key that embeds the optional public key,
-        // DecodeAsymKey returns the [1] field as a raw DER BIT STRING body: the
-        // 32-byte key prefixed by its "unused bits" 0x00 octet (33 bytes total).
-        // wc_Ed25519PrivateKeyDecode forwards those 33 bytes straight to
-        // wc_ed25519_import_public_ex, which only accepts 32 bytes, a 0x40-prefixed
-        // compressed point, or an 0x04 uncompressed point, so it fails with
-        // BAD_FUNC_ARG (-173). We strip the prefix ourselves instead.
+        // For an RFC 5958 (PKCS#8 v2) key that carries the optional public key,
+        // DecodeAsymKey hands back the [1] field as the raw DER BIT STRING body:
+        // a leading "unused bits" 0x00 octet followed by the 32-byte key (33 bytes
+        // total). wc_Ed25519PrivateKeyDecode passes that body verbatim to
+        // wc_ed25519_import_public_ex, which expects the key material itself,
+        // which is a bare 32-byte key (or a 0x40-prefixed 33-byte form).
+        // The 0x00-led 33-byte body matches neither, so it is rejected
+        // with BAD_FUNC_ARG (-173). So we strip the 0x00 octet here and
+        // hand on the bare 32-byte key instead.
         let ret = unsafe {
             DecodeAsymKey(
                 input_key.as_ptr(),
