@@ -75,13 +75,17 @@ impl Ed25519PrivateKey {
             len if len == ED25519_PUB_KEY_SIZE => Some(
                 public_key_scratch[..ED25519_PUB_KEY_SIZE as usize]
                     .try_into()
-                    .unwrap(),
+                    .map_err(|_| {
+                        rustls::Error::General("Unexpected ED25519 public key encoding".into())
+                    })?,
             ),
             // BIT STRING body: leading 0x00 "unused bits" octet + 32-byte key.
             len if len == ED25519_PUB_KEY_SIZE + 1 && public_key_scratch[0] == 0x00 => Some(
                 public_key_scratch[1..1 + ED25519_PUB_KEY_SIZE as usize]
                     .try_into()
-                    .unwrap(),
+                    .map_err(|_| {
+                        rustls::Error::General("Unexpected ED25519 public key encoding".into())
+                    })?,
             ),
             _ => {
                 return Err(rustls::Error::General(
