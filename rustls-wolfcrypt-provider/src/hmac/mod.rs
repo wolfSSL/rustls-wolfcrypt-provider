@@ -21,23 +21,23 @@ impl WCShaHmac {
 
     fn algorithm(&self) -> i32 {
         match self {
-            WCShaHmac::Sha256 => WC_SHA256.try_into().unwrap(),
-            WCShaHmac::Sha384 => WC_SHA384.try_into().unwrap(),
+            WCShaHmac::Sha256 => wc_HashType_WC_HASH_TYPE_SHA256.try_into().unwrap(),
+            WCShaHmac::Sha384 => wc_HashType_WC_HASH_TYPE_SHA384.try_into().unwrap(),
         }
     }
 
     pub fn new(hash_type: wc_HashType) -> Self {
         match hash_type {
-            WC_SHA256 => WCShaHmac::Sha256,
-            WC_SHA384 => WCShaHmac::Sha384,
+            wolfcrypt_rs::wc_HashType_WC_HASH_TYPE_SHA256 => WCShaHmac::Sha256,
+            wolfcrypt_rs::wc_HashType_WC_HASH_TYPE_SHA384 => WCShaHmac::Sha384,
             _ => panic!("Unsupported hash type"),
         }
     }
 
     pub fn hash_type(&self) -> wc_HashType {
         match self {
-            WCShaHmac::Sha256 => WC_SHA256,
-            WCShaHmac::Sha384 => WC_SHA384,
+            WCShaHmac::Sha256 => wc_HashType_WC_HASH_TYPE_SHA256,
+            WCShaHmac::Sha384 => wc_HashType_WC_HASH_TYPE_SHA384,
         }
     }
 

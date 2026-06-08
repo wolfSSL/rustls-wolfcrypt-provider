@@ -243,12 +243,12 @@ fn hash_message_for_scheme(
     }
 }
 
-/// Converts a rustls `SignatureScheme` to the WolfSSL curve id (ecc_curve_id_ECC_...).
+/// Converts a rustls `SignatureScheme` to the WolfSSL curve id (ecc_curve_ids_ECC_...).
 fn scheme_to_curve_id(scheme: SignatureScheme) -> Result<i32, &'static str> {
     match scheme {
-        SignatureScheme::ECDSA_NISTP256_SHA256 => Ok(ecc_curve_id_ECC_SECP256R1),
-        SignatureScheme::ECDSA_NISTP384_SHA384 => Ok(ecc_curve_id_ECC_SECP384R1),
-        SignatureScheme::ECDSA_NISTP521_SHA512 => Ok(ecc_curve_id_ECC_SECP521R1),
+        SignatureScheme::ECDSA_NISTP256_SHA256 => Ok(ecc_curve_ids_ECC_SECP256R1),
+        SignatureScheme::ECDSA_NISTP384_SHA384 => Ok(ecc_curve_ids_ECC_SECP384R1),
+        SignatureScheme::ECDSA_NISTP521_SHA512 => Ok(ecc_curve_ids_ECC_SECP521R1),
         _ => Err("Not an ECDSA_NISTPxxx_SHAxxx scheme"),
     }
 }

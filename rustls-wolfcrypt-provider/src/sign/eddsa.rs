@@ -33,81 +33,73 @@ impl fmt::Debug for Ed25519PrivateKey {
 impl Ed25519PrivateKey {
     /// Extract ED25519 private and if available public key values from a PKCS#8 DER formatted key
     fn extract_key_pair(input_key: &[u8]) -> Result<([u8; 32], Option<[u8; 32]>), rustls::Error> {
-        let mut public_key_raw: [u8; 32] = [0; ED25519_PUB_KEY_SIZE as usize];
         let mut private_key_raw: [u8; 32] = [0; ED25519_KEY_SIZE as usize];
-        let mut skip_bytes: usize;
-        let mut key_sub_slice = input_key;
+        let mut private_key_raw_len: word32 = private_key_raw.len() as word32;
+        // Scratch buffer for the optional embedded public key. DecodeAsymKey
+        // reports it either as the bare 32-byte key, or as the raw DER BIT STRING
+        // body (a leading 0x00 "unused bits" octet + the 32-byte key = 33 bytes),
+        // so 33 bytes is the largest form we ever need to hold here.
+        let mut public_key_scratch: [u8; ED25519_PUB_KEY_SIZE as usize + 1] =
+            [0; ED25519_PUB_KEY_SIZE as usize + 1];
+        let mut public_key_scratch_len: word32 = public_key_scratch.len() as word32;
+        let mut idx: word32 = 0;
 
-        const SHORT_FORM_LEN_MAX: u8 = 127;
-        const TAG_SEQUENCE: u8 = 0x30;
-        const TAG_OCTET_SEQUENCE: u8 = 0x04;
-        const TAG_OPTIONAL_SET_OF_ATTRIBUTES: u8 = 0x80; //Implicit, context-specific, and primitive underlying type (SET OF)
-        const TAG_OPTIONAL_PUBLIC_KEY_BIT_STRING: u8 = 0x81; //Implicit, context-specific, and primitive underlying type (BIT STRING)
-
-        // The input key is encoded in PKCS#8 DER format with a structure as in
-        // https://www.rfc-editor.org/rfc/rfc5958.html
+        // Parse the PKCS#8 structure with wolfSSL's own ASN parser. This is the
+        // same parser wc_Ed25519PrivateKeyDecode uses internally, but calling it
+        // directly lets us normalise the embedded public key before it is imported.
         //
-        // AsymmetricKeyPackage ::= SEQUENCE SIZE (1..MAX) OF OneAsymmetricKey
+        // For an RFC 5958 (PKCS#8 v2) key that carries the optional public key,
+        // DecodeAsymKey hands back the [1] field as the raw DER BIT STRING body:
+        // a leading "unused bits" 0x00 octet followed by the 32-byte key (33 bytes
+        // total). wc_Ed25519PrivateKeyDecode passes that body verbatim to
+        // wc_ed25519_import_public_ex, which expects the key material itself,
+        // which is a bare 32-byte key (or a 0x40-prefixed 33-byte form).
+        // The 0x00-led 33-byte body matches neither, so it is rejected
+        // with BAD_FUNC_ARG (-173). So we strip the 0x00 octet here and
+        // hand on the bare 32-byte key instead.
+        let ret = unsafe {
+            DecodeAsymKey(
+                input_key.as_ptr(),
+                &mut idx,
+                input_key.len() as word32,
+                private_key_raw.as_mut_ptr(),
+                &mut private_key_raw_len,
+                public_key_scratch.as_mut_ptr(),
+                &mut public_key_scratch_len,
+                Key_Sum_ED25519k as i32,
+            )
+        };
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("DecodeAsymKey (ED25519) failed".into()))?;
 
-        // OneAsymmetricKey ::= SEQUENCE {
-        //     version                   Version,
-        //     privateKeyAlgorithm       PrivateKeyAlgorithmIdentifier,
-        //     privateKey                PrivateKey,
-        //     attributes            [0] Attributes OPTIONAL,
-        //     ...,
-        //     [[2: publicKey        [1] PublicKey OPTIONAL ]],
-        //     ...
-        //     }
+        // Normalise the optional public key based on the length the parser reported.
+        let pub_key: Option<[u8; 32]> = match public_key_scratch_len {
+            // No embedded public key; the caller derives it from the private seed.
+            0 => None,
+            // Bare 32-byte public key.
+            len if len == ED25519_PUB_KEY_SIZE => Some(
+                public_key_scratch[..ED25519_PUB_KEY_SIZE as usize]
+                    .try_into()
+                    .map_err(|_| {
+                        rustls::Error::General("Unexpected ED25519 public key encoding".into())
+                    })?,
+            ),
+            // BIT STRING body: leading 0x00 "unused bits" octet + 32-byte key.
+            len if len == ED25519_PUB_KEY_SIZE + 1 && public_key_scratch[0] == 0x00 => Some(
+                public_key_scratch[1..1 + ED25519_PUB_KEY_SIZE as usize]
+                    .try_into()
+                    .map_err(|_| {
+                        rustls::Error::General("Unexpected ED25519 public key encoding".into())
+                    })?,
+            ),
+            _ => {
+                return Err(rustls::Error::General(
+                    "Unexpected ED25519 public key encoding".into(),
+                ))
+            }
+        };
 
-        // The key structure must begin with a SEQUENCE tag with at least 2 bytes length if short
-        // length format is used
-        if key_sub_slice[0] != TAG_SEQUENCE || key_sub_slice.len() < 2 {
-            return Err(rustls::Error::General(
-                "Faulty PKCS#8 ED25519 private key structure".into(),
-            ));
-        }
-        // Check which length format and skip tag and length encoding bytes
-        if key_sub_slice[1] > SHORT_FORM_LEN_MAX {
-            skip_bytes = (2 + (key_sub_slice[1] & 0x7F)) as usize;
-        } else {
-            skip_bytes = 2;
-        }
-
-        // Skip version (3 bytes), algorithm ID sequence (0x30 + length encoding bytes + 5 ID bytes),
-        skip_bytes += 3 + 7;
-        key_sub_slice = input_key.get(skip_bytes..).unwrap();
-
-        // Check if next bytes are 0x04, 0x22, 0x04, 0x20
-        if !matches!(
-            key_sub_slice,
-            [TAG_OCTET_SEQUENCE, 0x22, TAG_OCTET_SEQUENCE, 0x20, ..]
-        ) {
-            return Err(rustls::Error::General(
-                "Faulty PKCS#8 ED25519 private key structure".into(),
-            ));
-        }
-
-        // Copy private key value
-        skip_bytes += 4;
-        key_sub_slice = input_key.get(skip_bytes..).unwrap();
-        private_key_raw.copy_from_slice(&key_sub_slice[..ED25519_KEY_SIZE as usize]);
-        skip_bytes += ED25519_KEY_SIZE as usize;
-        key_sub_slice = input_key.get(skip_bytes..).unwrap();
-
-        // Check if optional SET OF attributes exists and skip
-        if key_sub_slice.first() == Some(&TAG_OPTIONAL_SET_OF_ATTRIBUTES) {
-            skip_bytes += (2 + (key_sub_slice[1])) as usize;
-            key_sub_slice = input_key.get(skip_bytes..).unwrap();
-        }
-
-        // Check if optional public key value exists. If exists, skip tag, length encoding byte,
-        // and bits-used byte
-        if key_sub_slice.first() == Some(&TAG_OPTIONAL_PUBLIC_KEY_BIT_STRING) {
-            public_key_raw.copy_from_slice(&key_sub_slice[3..(3 + ED25519_KEY_SIZE as usize)]);
-            Ok((private_key_raw, Some(public_key_raw)))
-        } else {
-            Ok((private_key_raw, None))
-        }
+        Ok((private_key_raw, pub_key))
     }
 }
 

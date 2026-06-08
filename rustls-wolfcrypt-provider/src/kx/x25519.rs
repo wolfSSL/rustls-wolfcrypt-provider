@@ -116,6 +116,21 @@ impl KeyExchangeX25519 {
             rustls::Error::General("Failed to import Curve25519 private key".into())
         })?;
 
+        // When wolfSSL is built with curve25519 blinding (pure-C builds, e.g.
+        // Apple Silicon where no asm backend is selected), the shared-secret
+        // scalar multiplication draws random values to blind the private
+        // scalar. An imported key has no RNG attached, so we must supply one;
+        // otherwise wc_curve25519_shared_secret_ex returns BAD_FUNC_ARG (-173).
+        // On non-blinding (asm) builds curve25519_set_rng is a no-op.
+        let mut rng: WC_RNG = unsafe { mem::zeroed() };
+        let rng_object = WCRngObject::new(&mut rng);
+        rng_object.init();
+
+        ret = unsafe { curve25519_set_rng(private_key_object.as_ptr(), rng_object.as_ptr()) };
+        check_if_zero(ret).map_err(|_| {
+            rustls::Error::General("Failed to set RNG on Curve25519 private key".into())
+        })?;
+
         // This function computes a shared secret key given a secret private key and
         // a received public key. Stores the generated secret in the buffer out.
         ret = unsafe {
@@ -128,7 +143,9 @@ impl KeyExchangeX25519 {
             )
         };
         check_if_zero(ret).map_err(|_| {
-            rustls::Error::General("Failed to compute Curve25519 shared secret".into())
+            rustls::Error::General(alloc::format!(
+                "Failed to compute Curve25519 shared secret (ret = {ret})"
+            ))
         })?;
 
         Ok(Box::new(out))
