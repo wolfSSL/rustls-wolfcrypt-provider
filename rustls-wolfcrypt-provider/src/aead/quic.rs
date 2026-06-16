@@ -8,6 +8,7 @@ use foreign_types::ForeignType;
 use zeroize::Zeroizing;
 
 use crate::error::check_if_zero;
+use crate::alloc::string::ToString;
 use crate::types::{AesObject, ChaChaObject};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -560,6 +561,9 @@ impl AesCipher {
 
     pub fn encrypt_sample(&self, sample: &[u8]) -> Result<Vec<u8>, Error> {
         let mut out_block = vec![0; TAG_LEN];
+        if sample.len() < SAMPLE_LEN {
+            return Err(Error::General("Invalid sample length".to_string()));
+        }
 
         let ret = unsafe {
             wc_AesEncryptDirect(
@@ -713,6 +717,10 @@ impl ChaChaCipher {
 
         let mut out = vec![0; TAG_LEN];
 
+        if sample.len() < SAMPLE_LEN {
+            return Err(Error::General("Invalid sample length".to_string()));
+        }
+
         let (ctr, nonce) = sample.split_at(4);
         let ctr = u32::from_le_bytes(
             ctr.try_into()
@@ -777,6 +785,9 @@ impl ChaChaCipher {
             Error::General("Key is none. Generate a key before decryption".into())
         })?;
         let mut auth_tag = [0u8; TAG_LEN];
+        if payload.len() < TAG_LEN {
+            return Err(rustls::Error::DecryptError);
+        }
         let message_len = payload.len() - TAG_LEN;
         auth_tag.copy_from_slice(&payload[message_len..]);
 
