@@ -3,6 +3,7 @@ use crate::types::*;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec;
+use alloc::format;
 use alloc::vec::Vec;
 use core::fmt;
 use core::mem;
@@ -287,6 +288,8 @@ impl Signer for RsaSigner {
                         mem::size_of_val(&deref_rsa_key_c_type).try_into().unwrap(),
                     )
                 };
+                check_if_greater_than_zero(actual_sig_size)
+                    .map_err(|_| rustls::Error::General(format!("wc_SignatureGetSize failed: {ret}")))?;
 
                 let mut sig_vec = sig_buf.to_vec();
                 // Truncate to the size returned by wc_SignatureGetSize or the updated `sig_len`.
