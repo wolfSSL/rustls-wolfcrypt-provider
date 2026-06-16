@@ -173,7 +173,7 @@ impl MessageDecrypter for WCTls12Decrypter {
         seq: u64,
     ) -> Result<InboundPlainMessage<'a>, rustls::Error> {
         let payload = &mut m.payload;
-        if payload.len() < GCM_TAG_LENGTH {
+        if payload.len() < (GCM_NONCE_LENGTH - 4) + GCM_TAG_LENGTH {
             return Err(rustls::Error::DecryptError);
         }
         let payload_len = payload.len();
