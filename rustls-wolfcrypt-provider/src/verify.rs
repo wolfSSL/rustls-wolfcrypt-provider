@@ -11,6 +11,7 @@ pub static ALGORITHMS: WebPkiSupportedAlgorithms = WebPkiSupportedAlgorithms {
     all: &[
         RSA_PSS_SHA256,
         RSA_PSS_SHA384,
+        RSA_PSS_SHA512,
         RSA_PKCS1_SHA256,
         RSA_PKCS1_SHA384,
         RSA_PKCS1_SHA512,
@@ -18,8 +19,6 @@ pub static ALGORITHMS: WebPkiSupportedAlgorithms = WebPkiSupportedAlgorithms {
         ECDSA_P384_SHA384,
         ECDSA_P521_SHA512,
         ED25519,
-        RSA_PSS_SHA512,
-        RSA_PKCS1_SHA512,
     ],
     mapping: &[
         (SignatureScheme::RSA_PSS_SHA256, &[RSA_PSS_SHA256]),
