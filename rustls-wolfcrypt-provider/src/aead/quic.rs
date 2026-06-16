@@ -457,6 +457,9 @@ impl quic::PacketKey for PacketKey {
         payload: &'a mut [u8],
     ) -> Result<&'a [u8], Error> {
         let payload_len = payload.len();
+        if payload_len < TAG_LEN {
+            return Err(rustls::Error::DecryptError);
+        }
         let aad = header;
         let nonce = Nonce::new(&self.iv, packet_number).0;
         (self.algorithm.decrypt)(&self.packet_cipher, &nonce, aad, payload)?;
@@ -616,6 +619,9 @@ impl AesCipher {
     }
     pub fn decrypt(&self, nonce: &[u8], aad: &[u8], payload: &mut [u8]) -> Result<(), Error> {
         let mut auth_tag = [0u8; TAG_LEN];
+        if payload.len() < TAG_LEN {
+            return Err(rustls::Error::DecryptError);
+        }
         let message_len = payload.len() - TAG_LEN;
         auth_tag.copy_from_slice(&payload[message_len..]);
 
