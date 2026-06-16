@@ -1,6 +1,8 @@
 use crate::error::check_if_zero;
+use crate::types::HmacObject;
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::mem;
+use foreign_types::ForeignType;
 use rustls::crypto;
 use wolfcrypt_rs::*;
 use zeroize::Zeroizing;
@@ -69,13 +71,16 @@ struct WCHmacKey {
 
 impl crypto::hmac::Key for WCHmacKey {
     fn sign_concat(&self, first: &[u8], middle: &[&[u8]], last: &[u8]) -> crypto::hmac::Tag {
-        let hmac_object = self.hmac_init();
-        self.hmac_update(hmac_object, first);
+        let mut hmac_c_type: Hmac = unsafe { mem::zeroed() };
+        let hmac_object = unsafe { HmacObject::from_ptr(&mut hmac_c_type) };
+
+        self.hmac_init(&hmac_object);
+        self.hmac_update(&hmac_object, first);
         for m in middle {
-            self.hmac_update(hmac_object, m)
+            self.hmac_update(&hmac_object, m)
         }
-        self.hmac_update(hmac_object, last);
-        let digest = self.hmac_final(hmac_object);
+        self.hmac_update(&hmac_object, last);
+        let digest = self.hmac_final(&hmac_object);
         crypto::hmac::Tag::new(&digest)
     }
 
@@ -85,40 +90,28 @@ impl crypto::hmac::Key for WCHmacKey {
 }
 
 impl WCHmacKey {
-    fn hmac_init(&self) -> *mut Hmac {
-        let hmac_ptr = Box::into_raw(Box::new(unsafe { mem::zeroed::<Hmac>() }));
-
+    fn hmac_init(&self, hmac_object: &HmacObject) {
         let ret = unsafe {
             wc_HmacSetKey(
-                hmac_ptr,
+                hmac_object.as_ptr(),
                 self.variant.algorithm(),
                 self.key.as_ptr(),
                 self.key.len() as word32,
             )
         };
-
-        if check_if_zero(ret).is_err() {
-            unsafe { drop(Box::from_raw(hmac_ptr)) };
-            panic!("wc_HmacSetKey failed");
-        }
-
-        hmac_ptr
+        check_if_zero(ret).expect("wc_HmacSetKey failed");
     }
 
-    fn hmac_update(&self, hmac_ptr: *mut Hmac, input: &[u8]) {
-        let ret = unsafe { wc_HmacUpdate(hmac_ptr, input.as_ptr(), input.len() as word32) };
+    fn hmac_update(&self, hmac_object: &HmacObject, input: &[u8]) {
+        let ret =
+            unsafe { wc_HmacUpdate(hmac_object.as_ptr(), input.as_ptr(), input.len() as word32) };
         check_if_zero(ret).expect("wc_HmacUpdate failed");
     }
 
-    fn hmac_final(&self, hmac_ptr: *mut Hmac) -> Vec<u8> {
+    fn hmac_final(&self, hmac_object: &HmacObject) -> Vec<u8> {
         let mut digest = vec![0u8; self.variant.digest_size()];
-        let ret = unsafe { wc_HmacFinal(hmac_ptr, digest.as_mut_ptr()) };
+        let ret = unsafe { wc_HmacFinal(hmac_object.as_ptr(), digest.as_mut_ptr()) };
         check_if_zero(ret).expect("wc_HmacFinal failed");
-
-        unsafe {
-            wc_HmacFree(hmac_ptr);
-            drop(Box::from_raw(hmac_ptr));
-        }
 
         digest
     }
