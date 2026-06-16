@@ -140,7 +140,7 @@ impl tls13::HkdfExpander for WolfHkdfExpander {
     fn expand_block(&self, info: &[&[u8]]) -> tls13::OkmBlock {
         let mut output = vec![0u8; self.hash_len];
         self.expand_slice(info, &mut output)
-            .expect("expand_block failed");
+            .expect("HKDF-Expand failed during TLS 1.3 key derivation");
         tls13::OkmBlock::new(&output)
     }
 
