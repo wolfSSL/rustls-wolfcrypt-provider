@@ -527,14 +527,24 @@ impl quic::Algorithm for KeyFactory {
 }
 
 pub struct AesCipher {
-    aes_object: AesObject,
+    aes_object: mem::ManuallyDrop<AesObject>,
     key: Zeroizing<Vec<u8>>,
+}
+
+impl Drop for AesCipher {
+    fn drop(&mut self) {
+        unsafe {
+            let ptr = self.aes_object.as_ptr();
+            wc_AesFree(ptr);
+            drop(Box::from_raw(ptr));
+        }
+    }
 }
 
 impl AesCipher {
     pub fn new() -> Result<Self, Error> {
         Ok(Self {
-            aes_object: new_aes_object()?,
+            aes_object: mem::ManuallyDrop::new(new_aes_object()?),
             key: Zeroizing::new(Vec::new()),
         })
     }
@@ -670,6 +680,14 @@ impl AesCipher {
 pub struct ChaChaCipher {
     chacha_cipher: Option<ChaChaObject>,
     key: Option<Zeroizing<[u8; CHACHA_KEY_LEN]>>, // In case of packet protection, no need to initiate a cipher
+}
+
+impl Drop for ChaChaCipher {
+    fn drop(&mut self) {
+        if let Some(obj) = &self.chacha_cipher {
+            unsafe { drop(Box::from_raw(obj.as_ptr())) };
+        }
+    }
 }
 
 impl ChaChaCipher {
@@ -823,7 +841,10 @@ fn new_aes_object() -> Result<AesObject, Error> {
 
     // Initialize Aes structure.
     let ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
-    check_if_zero(ret).map_err(|_| rustls::Error::General("Function AesInit failed".into()))?;
+    if check_if_zero(ret).is_err() {
+        unsafe { drop(Box::from_raw(aes_object.as_ptr())) };
+        return Err(rustls::Error::General("Function AesInit failed".into()));
+    }
     Ok(aes_object)
 }
 
