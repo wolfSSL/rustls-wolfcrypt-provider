@@ -153,16 +153,17 @@ impl MessageDecrypter for WCTls12Cipher {
         // to an authentication generated with the inAAD (arbitrary length additional authentication data).
         // Note: If the generated authentication tag does not match the supplied
         // authentication tag, the text is not decrypted.
+        let buf_ptr = payload[..message_len].as_mut_ptr();
         let ret = unsafe {
             wc_ChaCha20Poly1305_Decrypt(
                 self.key.as_ptr(),
                 nonce.0.as_ptr(),
                 aad.as_ptr(),
                 aad.len() as word32,
-                payload[..message_len].as_ptr(), // we decrypt only the payload, we don't include the tag.
+                buf_ptr as *const u8, // we decrypt only the payload, we don't include the tag.
                 message_len as word32,
                 auth_tag.as_ptr(),
-                payload[..message_len].as_mut_ptr(),
+                buf_ptr,
             )
         };
 
@@ -245,15 +246,16 @@ impl MessageEncrypter for WCTls13Cipher {
         // and stores the generated authentication tag in the output buffer, outAuthTag.
         // We need to also need to include for the encoding type, apparently, hence the + 1
         // otherwise the rustls returns EoF.
+        let buf_ptr = payload.as_mut()[..m.payload.len() + 1].as_mut_ptr();
         let ret = unsafe {
             wc_ChaCha20Poly1305_Encrypt(
                 self.key.as_ptr(),
                 nonce.0.as_ptr(),
                 aad.as_ptr(),
                 aad.len() as word32,
-                payload.as_ref()[..m.payload.len() + 1].as_ptr(),
+                buf_ptr as *const u8,
                 (m.payload.len() + 1) as word32,
-                payload.as_mut()[..m.payload.len() + 1].as_mut_ptr(),
+                buf_ptr,
                 auth_tag.as_mut_ptr(),
             )
         };
@@ -298,6 +300,7 @@ impl MessageDecrypter for WCTls13Cipher {
         // to an authentication generated with the inAAD (arbitrary length additional authentication data).
         // Note: If the generated authentication tag does not match the supplied
         // authentication tag, the text is not decrypted.
+        let buf_ptr = payload[..message_len].as_mut_ptr();
         let ret = unsafe {
             wc_ChaCha20Poly1305_Decrypt(
                 self.key.as_ptr(),
@@ -306,10 +309,10 @@ impl MessageDecrypter for WCTls13Cipher {
                 aad.len() as word32,
                 // [..message_len] since we want to exclude the
                 // the auth_tag.
-                payload[..message_len].as_ptr(),
+                buf_ptr as *const u8,
                 message_len as word32,
                 auth_tag.as_ptr(),
-                payload[..message_len].as_mut_ptr(),
+                buf_ptr,
             )
         };
 
