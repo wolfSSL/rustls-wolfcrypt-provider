@@ -84,33 +84,8 @@ macro_rules! define_foreign_type {
     };
 }
 
-macro_rules! define_foreign_type_with_copy {
-    ($struct_name:ident, $ref_name:ident, $c_type:ty) => {
-        pub struct $ref_name(Opaque);
-        unsafe impl ForeignTypeRef for $ref_name {
-            type CType = $c_type;
-        }
-
-        #[derive(Debug, Clone, Copy)]
-        pub struct $struct_name(NonNull<$c_type>);
-        unsafe impl Sync for $struct_name {}
-        unsafe impl Send for $struct_name {}
-        unsafe impl ForeignType for $struct_name {
-            type CType = $c_type;
-            type Ref = $ref_name;
-
-            unsafe fn from_ptr(ptr: *mut Self::CType) -> Self {
-                Self(NonNull::new_unchecked(ptr))
-            }
-
-            fn as_ptr(&self) -> *mut Self::CType {
-                self.0.as_ptr()
-            }
-        }
-    };
-}
-
-/// Like define_foreign_type_with_copy but without Copy (needed when Drop is implemented).
+/// Defines a foreign type without Copy (needed when Drop is implemented, so the
+/// resource is freed exactly once).
 macro_rules! define_foreign_type_no_copy {
     ($struct_name:ident, $ref_name:ident, $c_type:ty) => {
         pub struct $ref_name(Opaque);
