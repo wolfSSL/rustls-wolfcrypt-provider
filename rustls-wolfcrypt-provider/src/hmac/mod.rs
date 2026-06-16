@@ -96,7 +96,12 @@ impl WCHmacKey {
                 self.key.len() as word32,
             )
         };
-        check_if_zero(ret).expect("wc_HmacSetKey failed");
+
+        if check_if_zero(ret).is_err() {
+            unsafe { drop(Box::from_raw(hmac_ptr)) };
+            panic!("wc_HmacSetKey failed");
+        }
+
         hmac_ptr
     }
 
