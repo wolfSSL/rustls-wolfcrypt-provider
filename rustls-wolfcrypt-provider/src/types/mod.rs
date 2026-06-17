@@ -40,11 +40,10 @@ macro_rules! define_foreign_type {
             }
 
             /// Given an $init_function, it calls it with the object's ptr as argument.
-            pub fn init(&self) {
-                unsafe {
-                    check_if_zero($init_function(self.as_ptr()))
-                        .expect(concat!(stringify!($init_function), " failed"))
-                }
+            /// Returns the result so callers can propagate an init failure instead of
+            /// panicking (e.g. so a failed wc_InitRng surfaces as a recoverable error).
+            pub fn init(&self) -> WCResult {
+                unsafe { check_if_zero($init_function(self.as_ptr())) }
             }
         }
     };

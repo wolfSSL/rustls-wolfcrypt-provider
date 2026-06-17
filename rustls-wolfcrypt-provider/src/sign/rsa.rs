@@ -171,7 +171,9 @@ impl Signer for RsaSigner {
         // Prepare a random generator
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
         let rng_object = WCRngObject::new(&mut rng);
-        rng_object.init();
+        rng_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
 
         // Allocate enough space for the signature
         let mut sig_buf = [0u8; MAX_RSA_SIG_SIZE];

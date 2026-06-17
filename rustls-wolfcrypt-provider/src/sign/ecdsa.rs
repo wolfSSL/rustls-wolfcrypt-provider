@@ -59,7 +59,9 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKey {
         let mut ecc_c_type: ecc_key = unsafe { mem::zeroed() };
         let ecc_key_object = ECCKeyObject::new(&mut ecc_c_type);
 
-        ecc_key_object.init();
+        ecc_key_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_ecc_init failed".into()))?;
 
         let mut idx: u32 = 0;
         let ret = unsafe {
@@ -137,11 +139,15 @@ impl Signer for EcdsaSigningKey {
 
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
         let rng_object: WCRngObject = WCRngObject::new(&mut rng);
-        rng_object.init();
+        rng_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
 
         let mut ecc_c_type: ecc_key = unsafe { mem::zeroed() };
         let ecc_key_object = ECCKeyObject::new(&mut ecc_c_type);
-        ecc_key_object.init();
+        ecc_key_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_ecc_init failed".into()))?;
 
         let curve_id = scheme_to_curve_id(self.scheme)
             .map_err(|e| rustls::Error::General(format!("scheme_to_curve_id unsupported: {e}")))?;

@@ -33,10 +33,14 @@ impl KeyExchangeSecP521r1 {
         };
 
         // We initiliaze the key pair.
-        key_object.init();
+        key_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_ecc_init failed".into()))?;
 
         // We initiliaze the rng object.
-        rng_object.init();
+        rng_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
 
         let key_size = unsafe { wc_ecc_get_curve_size_from_id(ecc_curve_ids_ECC_SECP521R1) };
 
@@ -106,9 +110,13 @@ impl KeyExchangeSecP521r1 {
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
         let rng_object: WCRngObject = WCRngObject::new(&mut rng);
 
-        priv_key_object.init();
+        priv_key_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_ecc_init failed".into()))?;
 
-        pub_key_object.init();
+        pub_key_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_ecc_init failed".into()))?;
 
         ret = unsafe {
             wc_ecc_import_private_key_ex(
@@ -139,7 +147,9 @@ impl KeyExchangeSecP521r1 {
         check_if_zero(ret)
             .map_err(|_| rustls::Error::General("Failed to import peer ECC public key".into()))?;
 
-        rng_object.init();
+        rng_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
 
         ret = unsafe { wc_ecc_set_rng(pub_key_object.as_ptr(), rng_object.as_ptr()) };
         check_if_zero(ret)

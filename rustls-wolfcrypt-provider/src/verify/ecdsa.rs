@@ -62,7 +62,7 @@ impl SignatureVerificationAlgorithm for EcdsaVerifier {
             // Initialize WolfSSL ECC key
             let mut ecc_c_type: ecc_key = mem::zeroed();
             let ecc_key_object = ECCKeyObject::from_ptr(&mut ecc_c_type);
-            ecc_key_object.init();
+            ecc_key_object.init().map_err(|_| InvalidSignature)?;
 
             let mut ret;
             let mut stat: i32 = 0;
