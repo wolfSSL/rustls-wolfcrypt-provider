@@ -16,6 +16,9 @@ use zeroize::Zeroizing;
 
 const ALL_EDDSA_SCHEMES: &[SignatureScheme] = &[SignatureScheme::ED25519];
 
+/// An ED25519 private key with its optional embedded public key.
+type Ed25519KeyPair = (Zeroizing<Vec<u8>>, Option<[u8; 32]>);
+
 #[derive(Clone)]
 pub struct Ed25519PrivateKey {
     priv_key: Arc<Zeroizing<Vec<u8>>>,
@@ -32,9 +35,7 @@ impl fmt::Debug for Ed25519PrivateKey {
 }
 impl Ed25519PrivateKey {
     /// Extract ED25519 private and if available public key values from a PKCS#8 DER formatted key
-    fn extract_key_pair(
-        input_key: &[u8],
-    ) -> Result<(Zeroizing<Vec<u8>>, Option<[u8; 32]>), rustls::Error> {
+    fn extract_key_pair(input_key: &[u8]) -> Result<Ed25519KeyPair, rustls::Error> {
         let mut private_key_raw: Zeroizing<Vec<u8>> =
             Zeroizing::new(alloc::vec![0u8; ED25519_KEY_SIZE as usize]);
         let mut private_key_raw_len: word32 = private_key_raw.len() as word32;
