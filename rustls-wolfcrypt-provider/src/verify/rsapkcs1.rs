@@ -47,8 +47,6 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
         };
         check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
-        let derefenced_rsa_key_c_type = unsafe { *(rsa_key_object.as_ptr()) };
-
         // Verify the message signed with RSA-PSS.
         // In this case 'message' has been, supposedly,
         // been signed by 'signature'.
@@ -63,7 +61,7 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
                 signature.as_ptr(),
                 signature.len() as word32,
                 rsa_key_object.as_ptr() as *mut c_void,
-                mem::size_of_val(&derefenced_rsa_key_c_type)
+                mem::size_of::<RsaKey>()
                     .try_into()
                     .unwrap(),
             )
@@ -113,8 +111,6 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
         };
         check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
-        let dereferenced_rsa_key_c_type = unsafe { *(rsa_key_object.as_ptr()) };
-
         // Verify the message signed with RSA-PSS.
         // In this case 'message' has been, supposedly,
         // been signed by 'signature'.
@@ -129,7 +125,7 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
                 signature.as_ptr(),
                 signature.len() as word32,
                 rsa_key_object.as_ptr() as *mut c_void,
-                mem::size_of_val(&dereferenced_rsa_key_c_type)
+                mem::size_of::<RsaKey>()
                     .try_into()
                     .unwrap(),
             )
@@ -179,8 +175,6 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha512Verify {
         };
         check_if_zero(ret).map_err(|_| InvalidSignature)?;
 
-        let dereferenced_rsa_key_c_type = unsafe { *(rsa_key_object.as_ptr()) };
-
         // Verify the message signed with RSA-PSS.
         // In this case 'message' has been, supposedly,
         // been signed by 'signature'.
@@ -195,7 +189,7 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha512Verify {
                 signature.as_ptr(),
                 signature.len() as word32,
                 rsa_key_object.as_ptr() as *mut c_void,
-                mem::size_of_val(&dereferenced_rsa_key_c_type)
+                mem::size_of::<RsaKey>()
                     .try_into()
                     .unwrap(),
             )

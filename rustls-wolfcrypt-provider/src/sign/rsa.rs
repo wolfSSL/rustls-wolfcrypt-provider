@@ -265,7 +265,6 @@ impl Signer for RsaSigner {
                 let mut sig_len: u32 = sig_buf.len() as u32;
 
                 // wc_SignatureGenerate will produce a PKCS#1 signature, including hashing.
-                let deref_rsa_key_c_type = unsafe { *(rsa_key.as_ptr()) };
                 let ret = unsafe {
                     wc_SignatureGenerate(
                         hash_ty,
@@ -275,7 +274,7 @@ impl Signer for RsaSigner {
                         sig_buf.as_mut_ptr(),
                         &mut sig_len,
                         rsa_key.as_ptr() as *mut core::ffi::c_void,
-                        mem::size_of_val(&deref_rsa_key_c_type).try_into().unwrap(),
+                        mem::size_of::<RsaKey>().try_into().unwrap(),
                         rng_object.as_ptr(),
                     )
                 };
@@ -287,7 +286,7 @@ impl Signer for RsaSigner {
                     wc_SignatureGetSize(
                         wc_SignatureType_WC_SIGNATURE_TYPE_RSA_W_ENC,
                         rsa_key.as_ptr() as *const core::ffi::c_void,
-                        mem::size_of_val(&deref_rsa_key_c_type).try_into().unwrap(),
+                        mem::size_of::<RsaKey>().try_into().unwrap(),
                     )
                 };
                 check_if_greater_than_zero(actual_sig_size)
