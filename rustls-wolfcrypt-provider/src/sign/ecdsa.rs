@@ -165,10 +165,6 @@ impl Signer for EcdsaSigningKey {
         check_if_zero(ret)
             .map_err(|_| rustls::Error::General("wc_ecc_import_private_key_ex failed".into()))?;
 
-        let ret =
-            unsafe { wc_ecc_set_curve(ecc_key_object.as_ptr(), self.key.len() as i32, curve_id) };
-        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_ecc_set_curve failed".into()))?;
-
         let mut sig = [0u8; ECC_MAX_SIG_SIZE as usize];
         let mut sig_sz: word32 = sig.len() as word32;
 
