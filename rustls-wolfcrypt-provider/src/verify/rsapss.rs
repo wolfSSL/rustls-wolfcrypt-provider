@@ -43,6 +43,10 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
         // provided to wc_Hash is large enough.
         let digest_sz = unsafe { wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA256) };
 
+        if digest_sz <= 0 {
+            return Err(InvalidSignature)
+        }
+
         // This function performs a hash on the provided data buffer and
         // returns it in the hash buffer provided.
         // In this case we hash with Sha256 (RSA_PSS_SHA256).
@@ -126,6 +130,10 @@ impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
         // provided to wc_Hash is large enough.
         let digest_sz = unsafe { wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA384) };
 
+        if digest_sz <= 0 {
+            return Err(InvalidSignature)
+        }
+
         // This function performs a hash on the provided data buffer and
         // returns it in the hash buffer provided.
         // In this case we hash with Sha384 (RSA_PSS_SHA384).
@@ -208,6 +216,10 @@ impl SignatureVerificationAlgorithm for RsaPssSha512Verify {
         // The returns size is used to make sure the output buffer
         // provided to wc_Hash is large enough.
         let digest_sz = unsafe { wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA512) };
+
+        if digest_sz <= 0 {
+            return Err(InvalidSignature)
+        }
 
         // This function performs a hash on the provided data buffer and
         // returns it in the hash buffer provided.

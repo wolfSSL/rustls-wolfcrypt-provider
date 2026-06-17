@@ -113,6 +113,10 @@ impl SignatureVerificationAlgorithm for EcdsaVerifier {
             // The returned size is used to make sure the output buffer is large enough.
             let digest_sz = wc_HashGetDigestSize(wc_hash_type);
 
+            if digest_sz <= 0 {
+                return Err(InvalidSignature)
+            }
+
             // This function performs a hash on the provided data buffer and
             // returns it in the hash buffer provided.
             // We hash the message since it's not pre-hashed.
