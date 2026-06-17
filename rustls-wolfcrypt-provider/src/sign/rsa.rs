@@ -106,9 +106,9 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPrivateKey {
     type Error = rustls::Error;
 
     fn try_from(value: &PrivateKeyDer<'_>) -> Result<Self, Self::Error> {
-        let (der_bytes, format) = match value {
-            PrivateKeyDer::Pkcs8(der) => (der.secret_pkcs8_der().to_vec(), RsaKeyFormat::Pkcs8),
-            PrivateKeyDer::Pkcs1(der) => (der.secret_pkcs1_der().to_vec(), RsaKeyFormat::Pkcs1),
+        let (der_bytes, format): (Zeroizing<Vec<u8>>, RsaKeyFormat) = match value {
+            PrivateKeyDer::Pkcs8(der) => (Zeroizing::new(der.secret_pkcs8_der().to_vec()), RsaKeyFormat::Pkcs8),
+            PrivateKeyDer::Pkcs1(der) => (Zeroizing::new(der.secret_pkcs1_der().to_vec()), RsaKeyFormat::Pkcs1),
             _ => {
                 return Err(rustls::Error::General(
                     "Unsupported private key format".into(),
@@ -120,7 +120,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPrivateKey {
         let _rsa_key = import_rsa_key(&der_bytes, &format)?;
 
         Ok(Self {
-            der_bytes: Arc::new(Zeroizing::new(der_bytes)),
+            der_bytes: Arc::new(der_bytes),
             format,
             algo: SignatureAlgorithm::RSA,
         })
