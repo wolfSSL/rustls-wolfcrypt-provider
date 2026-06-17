@@ -80,7 +80,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKey {
             ));
         }
 
-        let mut priv_key_bytes = vec![0u8; key_size as usize];
+        let mut priv_key_bytes = Zeroizing::new(vec![0u8; key_size as usize]);
         let mut priv_key_bytes_len = priv_key_bytes.len() as word32;
 
         let ret = unsafe {
@@ -99,7 +99,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKey {
             curve_id_to_scheme(key_size).map_err(|e| rustls::Error::General(e.to_string()))?;
 
         Ok(Self {
-            key: Arc::new(Zeroizing::new(priv_key_bytes)),
+            key: Arc::new(priv_key_bytes),
             scheme,
         })
     }
