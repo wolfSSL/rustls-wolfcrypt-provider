@@ -51,7 +51,8 @@ impl KeyExchangeSecP521r1 {
         check_if_zero(ret)
             .map_err(|_| rustls::Error::General("wc_ecc_make_key_ex failed".into()))?;
 
-        let mut priv_key_raw = [0u8; 66];
+        let mut priv_key_raw: Zeroizing<Box<[u8]>> =
+            Zeroizing::new(alloc::vec![0u8; 66].into_boxed_slice());
         let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
 
         ret = unsafe {
@@ -85,7 +86,7 @@ impl KeyExchangeSecP521r1 {
         pub_key_bytes[67..133].copy_from_slice(&pub_key_raw.qy);
 
         Ok(KeyExchangeSecP521r1 {
-            priv_key_bytes: Zeroizing::new(Box::new(priv_key_raw)),
+            priv_key_bytes: priv_key_raw,
             pub_key_bytes: Box::new(pub_key_bytes),
         })
     }

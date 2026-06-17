@@ -37,7 +37,8 @@ impl KeyExchangeSecP256r1 {
 
         let key_size = unsafe { wc_ecc_get_curve_size_from_id(ecc_curve_ids_ECC_SECP256R1) };
 
-        let mut priv_key_raw = [0u8; 32];
+        let mut priv_key_raw: Zeroizing<Box<[u8]>> =
+            Zeroizing::new(alloc::vec![0u8; 32].into_boxed_slice());
         let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
 
         ret = unsafe {
@@ -82,7 +83,7 @@ impl KeyExchangeSecP256r1 {
         pub_key_bytes[33..65].copy_from_slice(&pub_key_raw.qy);
 
         Ok(KeyExchangeSecP256r1 {
-            priv_key_bytes: Zeroizing::new(Box::new(priv_key_raw)),
+            priv_key_bytes: priv_key_raw,
             pub_key_bytes: Box::new(pub_key_bytes),
         })
     }

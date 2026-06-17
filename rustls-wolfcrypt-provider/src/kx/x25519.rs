@@ -19,7 +19,10 @@ impl KeyExchangeX25519 {
         let mut ret;
         let mut pub_key_raw: [u8; 32] = [0; 32];
         let mut pub_key_raw_len: word32 = pub_key_raw.len() as word32;
-        let mut priv_key_raw: [u8; 32] = [0; 32];
+        // Export the private key straight into a zeroizing heap buffer so the
+        // raw secret never lives in an un-wiped stack array.
+        let mut priv_key_raw: Zeroizing<Box<[u8]>> =
+            Zeroizing::new(alloc::vec![0u8; 32].into_boxed_slice());
         let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
         let endian: u32 = EC25519_LITTLE_ENDIAN;
 
@@ -51,7 +54,7 @@ impl KeyExchangeX25519 {
 
         Ok(KeyExchangeX25519 {
             pub_key_bytes: Box::new(pub_key_raw),
-            priv_key_bytes: Zeroizing::new(Box::new(priv_key_raw)),
+            priv_key_bytes: priv_key_raw,
         })
     }
 
