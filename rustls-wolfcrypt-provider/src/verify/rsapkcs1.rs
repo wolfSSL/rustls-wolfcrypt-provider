@@ -61,9 +61,7 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
                 signature.as_ptr(),
                 signature.len() as word32,
                 rsa_key_object.as_ptr() as *mut c_void,
-                mem::size_of::<RsaKey>()
-                    .try_into()
-                    .unwrap(),
+                mem::size_of::<RsaKey>().try_into().unwrap(),
             )
         };
 
@@ -125,9 +123,7 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
                 signature.as_ptr(),
                 signature.len() as word32,
                 rsa_key_object.as_ptr() as *mut c_void,
-                mem::size_of::<RsaKey>()
-                    .try_into()
-                    .unwrap(),
+                mem::size_of::<RsaKey>().try_into().unwrap(),
             )
         };
 
@@ -189,9 +185,7 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha512Verify {
                 signature.as_ptr(),
                 signature.len() as word32,
                 rsa_key_object.as_ptr() as *mut c_void,
-                mem::size_of::<RsaKey>()
-                    .try_into()
-                    .unwrap(),
+                mem::size_of::<RsaKey>().try_into().unwrap(),
             )
         };
 

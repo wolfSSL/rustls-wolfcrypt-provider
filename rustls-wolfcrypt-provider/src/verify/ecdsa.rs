@@ -114,7 +114,7 @@ impl SignatureVerificationAlgorithm for EcdsaVerifier {
             let digest_sz = wc_HashGetDigestSize(wc_hash_type);
 
             if digest_sz <= 0 {
-                return Err(InvalidSignature)
+                return Err(InvalidSignature);
             }
 
             // This function performs a hash on the provided data buffer and

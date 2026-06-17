@@ -1,9 +1,9 @@
 use crate::error::*;
 use crate::types::*;
 use alloc::boxed::Box;
+use alloc::format;
 use alloc::sync::Arc;
 use alloc::vec;
-use alloc::format;
 use alloc::vec::Vec;
 use core::fmt;
 use core::mem;
@@ -107,8 +107,14 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPrivateKey {
 
     fn try_from(value: &PrivateKeyDer<'_>) -> Result<Self, Self::Error> {
         let (der_bytes, format): (Zeroizing<Vec<u8>>, RsaKeyFormat) = match value {
-            PrivateKeyDer::Pkcs8(der) => (Zeroizing::new(der.secret_pkcs8_der().to_vec()), RsaKeyFormat::Pkcs8),
-            PrivateKeyDer::Pkcs1(der) => (Zeroizing::new(der.secret_pkcs1_der().to_vec()), RsaKeyFormat::Pkcs1),
+            PrivateKeyDer::Pkcs8(der) => (
+                Zeroizing::new(der.secret_pkcs8_der().to_vec()),
+                RsaKeyFormat::Pkcs8,
+            ),
+            PrivateKeyDer::Pkcs1(der) => (
+                Zeroizing::new(der.secret_pkcs1_der().to_vec()),
+                RsaKeyFormat::Pkcs1,
+            ),
             _ => {
                 return Err(rustls::Error::General(
                     "Unsupported private key format".into(),
@@ -289,8 +295,9 @@ impl Signer for RsaSigner {
                         mem::size_of::<RsaKey>().try_into().unwrap(),
                     )
                 };
-                check_if_greater_than_zero(actual_sig_size)
-                    .map_err(|_| rustls::Error::General(format!("wc_SignatureGetSize failed: {ret}")))?;
+                check_if_greater_than_zero(actual_sig_size).map_err(|_| {
+                    rustls::Error::General(format!("wc_SignatureGetSize failed: {ret}"))
+                })?;
 
                 let mut sig_vec = sig_buf.to_vec();
                 // Truncate to the size returned by wc_SignatureGetSize or the updated `sig_len`.

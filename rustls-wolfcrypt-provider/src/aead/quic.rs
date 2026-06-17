@@ -7,8 +7,8 @@ use core::mem;
 use foreign_types::ForeignType;
 use zeroize::Zeroizing;
 
-use crate::error::check_if_zero;
 use crate::alloc::string::ToString;
+use crate::error::check_if_zero;
 use crate::types::{AesObject, ChaChaObject};
 use alloc::boxed::Box;
 use alloc::vec::Vec;

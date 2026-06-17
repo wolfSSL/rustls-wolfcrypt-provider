@@ -44,7 +44,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
         let digest_sz = unsafe { wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA256) };
 
         if digest_sz <= 0 {
-            return Err(InvalidSignature)
+            return Err(InvalidSignature);
         }
 
         // This function performs a hash on the provided data buffer and
@@ -131,7 +131,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
         let digest_sz = unsafe { wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA384) };
 
         if digest_sz <= 0 {
-            return Err(InvalidSignature)
+            return Err(InvalidSignature);
         }
 
         // This function performs a hash on the provided data buffer and
@@ -218,7 +218,7 @@ impl SignatureVerificationAlgorithm for RsaPssSha512Verify {
         let digest_sz = unsafe { wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA512) };
 
         if digest_sz <= 0 {
-            return Err(InvalidSignature)
+            return Err(InvalidSignature);
         }
 
         // This function performs a hash on the provided data buffer and

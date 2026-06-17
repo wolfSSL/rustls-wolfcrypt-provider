@@ -82,7 +82,8 @@ impl RustlsHkdf for WCHkdfUsingHmac {
         };
         check_if_zero(ret).expect("wc_HmacSetKey failed in hmac_sign");
 
-        ret = unsafe { wc_HmacUpdate(hmac_object.as_ptr(), message.as_ptr(), message.len() as u32) };
+        ret =
+            unsafe { wc_HmacUpdate(hmac_object.as_ptr(), message.as_ptr(), message.len() as u32) };
         check_if_zero(ret).expect("wc_HmacUpdate failed in hmac_sign");
 
         ret = unsafe { wc_HmacFinal(hmac_object.as_ptr(), hmac.as_mut_ptr()) };
