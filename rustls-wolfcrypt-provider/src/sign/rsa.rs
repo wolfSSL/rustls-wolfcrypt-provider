@@ -296,7 +296,7 @@ impl Signer for RsaSigner {
                     )
                 };
                 check_if_greater_than_zero(actual_sig_size).map_err(|_| {
-                    rustls::Error::General(format!("wc_SignatureGetSize failed: {ret}"))
+                    rustls::Error::General(format!("wc_SignatureGetSize failed: {actual_sig_size}"))
                 })?;
 
                 let mut sig_vec = sig_buf.to_vec();
