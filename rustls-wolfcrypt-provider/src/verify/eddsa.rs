@@ -28,7 +28,7 @@ impl SignatureVerificationAlgorithm for Ed25519 {
             let ed25519_key_object = ED25519KeyObject::from_ptr(&mut ed25519_c_type);
             let mut stat: i32 = 0;
 
-            ed25519_key_object.init();
+            ed25519_key_object.init().map_err(|_| InvalidSignature)?;
 
             let mut ret = wc_ed25519_import_public(
                 public_key.as_ptr(),

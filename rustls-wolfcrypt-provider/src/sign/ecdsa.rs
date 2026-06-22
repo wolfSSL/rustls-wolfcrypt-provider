@@ -59,7 +59,9 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKey {
         let mut ecc_c_type: ecc_key = unsafe { mem::zeroed() };
         let ecc_key_object = ECCKeyObject::new(&mut ecc_c_type);
 
-        ecc_key_object.init();
+        ecc_key_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_ecc_init failed".into()))?;
 
         let mut idx: u32 = 0;
         let ret = unsafe {
@@ -80,7 +82,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKey {
             ));
         }
 
-        let mut priv_key_bytes = vec![0u8; key_size as usize];
+        let mut priv_key_bytes = Zeroizing::new(vec![0u8; key_size as usize]);
         let mut priv_key_bytes_len = priv_key_bytes.len() as word32;
 
         let ret = unsafe {
@@ -99,7 +101,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKey {
             curve_id_to_scheme(key_size).map_err(|e| rustls::Error::General(e.to_string()))?;
 
         Ok(Self {
-            key: Arc::new(Zeroizing::new(priv_key_bytes)),
+            key: Arc::new(priv_key_bytes),
             scheme,
         })
     }
@@ -137,11 +139,15 @@ impl Signer for EcdsaSigningKey {
 
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
         let rng_object: WCRngObject = WCRngObject::new(&mut rng);
-        rng_object.init();
+        rng_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
 
         let mut ecc_c_type: ecc_key = unsafe { mem::zeroed() };
         let ecc_key_object = ECCKeyObject::new(&mut ecc_c_type);
-        ecc_key_object.init();
+        ecc_key_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_ecc_init failed".into()))?;
 
         let curve_id = scheme_to_curve_id(self.scheme)
             .map_err(|e| rustls::Error::General(format!("scheme_to_curve_id unsupported: {e}")))?;
@@ -158,10 +164,6 @@ impl Signer for EcdsaSigningKey {
         };
         check_if_zero(ret)
             .map_err(|_| rustls::Error::General("wc_ecc_import_private_key_ex failed".into()))?;
-
-        let ret =
-            unsafe { wc_ecc_set_curve(ecc_key_object.as_ptr(), self.key.len() as i32, curve_id) };
-        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_ecc_set_curve failed".into()))?;
 
         let mut sig = [0u8; ECC_MAX_SIG_SIZE as usize];
         let mut sig_sz: word32 = sig.len() as word32;

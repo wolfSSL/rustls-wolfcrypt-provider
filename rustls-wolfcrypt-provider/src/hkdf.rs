@@ -2,11 +2,13 @@ use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::mem;
+use foreign_types::ForeignType;
 use rustls::crypto::tls13::{self, Hkdf as RustlsHkdf};
 use wolfcrypt_rs::*;
 
 use crate::error::check_if_zero;
 use crate::hmac::WCShaHmac;
+use crate::types::HmacObject;
 use zeroize::Zeroizing;
 
 pub struct WCHkdfUsingHmac(pub WCShaHmac);
@@ -67,11 +69,12 @@ impl RustlsHkdf for WCHkdfUsingHmac {
         message: &[u8],
     ) -> rustls::crypto::hmac::Tag {
         let mut hmac = vec![0u8; self.0.hash_len()];
-        let mut hmac_ctx = unsafe { mem::zeroed() };
+        let mut hmac_c_type: Hmac = unsafe { mem::zeroed() };
+        let hmac_object = unsafe { HmacObject::from_ptr(&mut hmac_c_type) };
 
         let mut ret = unsafe {
             wc_HmacSetKey(
-                &mut hmac_ctx,
+                hmac_object.as_ptr(),
                 self.0.hash_type().try_into().unwrap(),
                 key.as_ref().as_ptr(),
                 key.as_ref().len() as u32,
@@ -79,13 +82,12 @@ impl RustlsHkdf for WCHkdfUsingHmac {
         };
         check_if_zero(ret).expect("wc_HmacSetKey failed in hmac_sign");
 
-        ret = unsafe { wc_HmacUpdate(&mut hmac_ctx, message.as_ptr(), message.len() as u32) };
+        ret =
+            unsafe { wc_HmacUpdate(hmac_object.as_ptr(), message.as_ptr(), message.len() as u32) };
         check_if_zero(ret).expect("wc_HmacUpdate failed in hmac_sign");
 
-        ret = unsafe { wc_HmacFinal(&mut hmac_ctx, hmac.as_mut_ptr()) };
+        ret = unsafe { wc_HmacFinal(hmac_object.as_ptr(), hmac.as_mut_ptr()) };
         check_if_zero(ret).expect("wc_HmacFinal failed in hmac_sign");
-
-        unsafe { wc_HmacFree(&mut hmac_ctx) };
 
         rustls::crypto::hmac::Tag::new(&hmac)
     }
@@ -139,7 +141,7 @@ impl tls13::HkdfExpander for WolfHkdfExpander {
     fn expand_block(&self, info: &[&[u8]]) -> tls13::OkmBlock {
         let mut output = vec![0u8; self.hash_len];
         self.expand_slice(info, &mut output)
-            .expect("expand_block failed");
+            .expect("HKDF-Expand failed during TLS 1.3 key derivation");
         tls13::OkmBlock::new(&output)
     }
 

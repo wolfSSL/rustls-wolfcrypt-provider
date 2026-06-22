@@ -19,15 +19,22 @@ impl KeyExchangeX25519 {
         let mut ret;
         let mut pub_key_raw: [u8; 32] = [0; 32];
         let mut pub_key_raw_len: word32 = pub_key_raw.len() as word32;
-        let mut priv_key_raw: [u8; 32] = [0; 32];
+        // Export the private key straight into a zeroizing heap buffer so the
+        // raw secret never lives in an un-wiped stack array.
+        let mut priv_key_raw: Zeroizing<Box<[u8]>> =
+            Zeroizing::new(alloc::vec![0u8; 32].into_boxed_slice());
         let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
         let endian: u32 = EC25519_LITTLE_ENDIAN;
 
         // We initialize the curve25519 key object.
-        key_object.init();
+        key_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_curve25519_init failed".into()))?;
 
         // We initialize the rng object.
-        rng_object.init();
+        rng_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
 
         // This function generates a Curve25519 key using the given random number generator, rng,
         // of the size given (keysize), and stores it in the given curve25519_key structure.
@@ -51,7 +58,7 @@ impl KeyExchangeX25519 {
 
         Ok(KeyExchangeX25519 {
             pub_key_bytes: Box::new(pub_key_raw),
-            priv_key_bytes: Zeroizing::new(Box::new(priv_key_raw)),
+            priv_key_bytes: priv_key_raw,
         })
     }
 
@@ -84,7 +91,9 @@ impl KeyExchangeX25519 {
             .map_err(|_| rustls::Error::General("Invalid Curve25519 public key".into()))?;
 
         // We initialize the curve25519 key object before we import the public key in it.
-        pub_key_provided_object.init();
+        pub_key_provided_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_curve25519_init failed".into()))?;
 
         // This function imports a public key from the given input buffer
         // and stores it in the curve25519_key structure.
@@ -100,7 +109,9 @@ impl KeyExchangeX25519 {
             .map_err(|_| rustls::Error::General("Failed to import Curve25519 public key".into()))?;
 
         // We initialize the curve25519 key object before we import the private key in it.
-        private_key_object.init();
+        private_key_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_curve25519_init failed".into()))?;
 
         // This function imports a private key from the given input buffer
         // and stores it in the the curve25519_key structure.
@@ -124,7 +135,9 @@ impl KeyExchangeX25519 {
         // On non-blinding (asm) builds curve25519_set_rng is a no-op.
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
         let rng_object = WCRngObject::new(&mut rng);
-        rng_object.init();
+        rng_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
 
         ret = unsafe { curve25519_set_rng(private_key_object.as_ptr(), rng_object.as_ptr()) };
         check_if_zero(ret).map_err(|_| {

@@ -46,6 +46,7 @@ jobs:
           cd rustls-wolfcrypt-provider
           make build
           make test
+          make test-quic
 
       - name: Check formatting
         run: |

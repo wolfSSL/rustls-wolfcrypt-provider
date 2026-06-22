@@ -7,6 +7,7 @@ use core::mem;
 use foreign_types::ForeignType;
 use zeroize::Zeroizing;
 
+use crate::alloc::string::ToString;
 use crate::error::check_if_zero;
 use crate::types::{AesObject, ChaChaObject};
 use alloc::boxed::Box;
@@ -457,6 +458,9 @@ impl quic::PacketKey for PacketKey {
         payload: &'a mut [u8],
     ) -> Result<&'a [u8], Error> {
         let payload_len = payload.len();
+        if payload_len < TAG_LEN {
+            return Err(rustls::Error::DecryptError);
+        }
         let aad = header;
         let nonce = Nonce::new(&self.iv, packet_number).0;
         (self.algorithm.decrypt)(&self.packet_cipher, &nonce, aad, payload)?;
@@ -523,47 +527,52 @@ impl quic::Algorithm for KeyFactory {
 }
 
 pub struct AesCipher {
-    aes_object: AesObject,
     key: Zeroizing<Vec<u8>>,
 }
 
 impl AesCipher {
     pub fn new() -> Result<Self, Error> {
         Ok(Self {
-            aes_object: new_aes_object()?,
             key: Zeroizing::new(Vec::new()),
         })
     }
 
-    /// It initializes an AES cipher with the given key.
+    /// Stores the key used to (re)initialize a fresh AES context on each call.
     pub fn set_key(&mut self, key: &[u8]) -> Result<(), Error> {
         if key.len() != AES_256_KEY_LEN && key.len() != AES_128_KEY_LEN {
             return Err(Error::General("Invalid key length".into()));
         }
-        let ret = unsafe {
-            wc_AesSetKey(
-                self.aes_object.as_ptr(),
-                key.as_ptr(),
-                key.len() as word32,
-                ptr::null_mut(),
-                0,
-            )
-        };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("Function AesSetKey failed".into()))?;
         self.key = Zeroizing::new(key.to_vec());
         Ok(())
     }
 
     pub fn encrypt_sample(&self, sample: &[u8]) -> Result<Vec<u8>, Error> {
         let mut out_block = vec![0; TAG_LEN];
+        if sample.len() < SAMPLE_LEN {
+            return Err(Error::General("Invalid sample length".to_string()));
+        }
 
-        let ret = unsafe {
-            wc_AesEncryptDirect(
-                self.aes_object.as_ptr(),
-                out_block.as_mut_ptr(),
-                sample.as_ptr(),
+        // Use a fresh AES context per call so &self never mutates shared state.
+        let mut aes_c_type: Aes = unsafe { mem::zeroed() };
+        let aes_object = unsafe { AesObject::from_ptr(&mut aes_c_type) };
+
+        let mut ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
+        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
+
+        ret = unsafe {
+            wc_AesSetKey(
+                aes_object.as_ptr(),
+                self.key.as_ptr(),
+                self.key.len() as word32,
+                ptr::null_mut(),
+                0,
             )
+        };
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("Function AesSetKey failed".into()))?;
+
+        ret = unsafe {
+            wc_AesEncryptDirect(aes_object.as_ptr(), out_block.as_mut_ptr(), sample.as_ptr())
         };
         check_if_zero(ret).map_err(|_| rustls::Error::EncryptError)?;
 
@@ -577,12 +586,18 @@ impl AesCipher {
         payload: &mut [u8],
     ) -> Result<Tag, Error> {
         let mut auth_tag = vec![0u8; TAG_LEN];
-        let mut ret;
+
+        // Use a fresh AES context per call so &self never mutates shared state.
+        let mut aes_c_type: Aes = unsafe { mem::zeroed() };
+        let aes_object = unsafe { AesObject::from_ptr(&mut aes_c_type) };
+
+        let mut ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
+        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
 
         // Prepare aes_object for encryption
         ret = unsafe {
             wc_AesGcmSetKey(
-                self.aes_object.as_ptr(),
+                aes_object.as_ptr(),
                 self.key.as_ptr(),
                 self.key.len() as word32,
             )
@@ -598,7 +613,7 @@ impl AesCipher {
 
         ret = unsafe {
             wc_AesGcmEncrypt(
-                self.aes_object.as_ptr(),
+                aes_object.as_ptr(),
                 payload.as_mut_ptr(),
                 payload.as_ptr(),
                 payload.as_ref().len() as word32,
@@ -616,15 +631,23 @@ impl AesCipher {
     }
     pub fn decrypt(&self, nonce: &[u8], aad: &[u8], payload: &mut [u8]) -> Result<(), Error> {
         let mut auth_tag = [0u8; TAG_LEN];
+        if payload.len() < TAG_LEN {
+            return Err(rustls::Error::DecryptError);
+        }
         let message_len = payload.len() - TAG_LEN;
         auth_tag.copy_from_slice(&payload[message_len..]);
 
-        let mut ret;
+        // Use a fresh AES context per call so &self never mutates shared state.
+        let mut aes_c_type: Aes = unsafe { mem::zeroed() };
+        let aes_object = unsafe { AesObject::from_ptr(&mut aes_c_type) };
+
+        let mut ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
+        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
 
         // Prepare aes_object for decryption
         ret = unsafe {
             wc_AesGcmSetKey(
-                self.aes_object.as_ptr(),
+                aes_object.as_ptr(),
                 self.key.as_ptr(),
                 self.key.len() as word32,
             )
@@ -636,7 +659,7 @@ impl AesCipher {
         // from the payload.
         ret = unsafe {
             wc_AesGcmDecrypt(
-                self.aes_object.as_ptr(),
+                aes_object.as_ptr(),
                 payload[..message_len].as_mut_ptr(),
                 payload[..message_len].as_ptr(),
                 payload[..message_len]
@@ -658,37 +681,20 @@ impl AesCipher {
 }
 
 pub struct ChaChaCipher {
-    chacha_cipher: Option<ChaChaObject>,
-    key: Option<Zeroizing<[u8; CHACHA_KEY_LEN]>>, // In case of packet protection, no need to initiate a cipher
+    key: Option<Zeroizing<[u8; CHACHA_KEY_LEN]>>,
 }
 
 impl ChaChaCipher {
     pub fn new(key: Option<[u8; CHACHA_KEY_LEN]>) -> Result<Self, Error> {
-        match key {
-            None => Ok(Self {
-                chacha_cipher: Some(new_chacha_object()?),
-                key: None,
-            }),
-            Some(key_bytes) => Ok(Self {
-                chacha_cipher: None,
-                key: Some(Zeroizing::new(key_bytes)),
-            }),
-        }
+        Ok(Self {
+            key: key.map(Zeroizing::new),
+        })
     }
 
     fn set_key(&mut self, key: &[u8]) -> Result<(), Error> {
         if key.len() != CHACHA_KEY_LEN {
             return Err(Error::General("Invalid key length".into()));
         }
-
-        let chacha_cipher = self.chacha_cipher.as_ref().ok_or_else(|| {
-            Error::General("Cipher is none. Create a cipher object before setting key".into())
-        })?;
-        //Set key for ChaCha object
-        let ret =
-            unsafe { wc_Chacha_SetKey(chacha_cipher.as_ptr(), key.as_ptr(), key.len() as word32) };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("Function wc_Chacha_SetKey failed".into()))?;
         self.key =
             Some(Zeroizing::new(key.try_into().map_err(|_| {
                 Error::General("Key must be exactly 32 bytes".into())
@@ -701,11 +707,15 @@ impl ChaChaCipher {
     }
 
     pub fn encrypt_sample(&self, sample: &[u8]) -> Result<Vec<u8>, Error> {
-        let chacha_cipher = self.chacha_cipher.as_ref().ok_or_else(|| {
+        let chacha_key = self.key.as_ref().ok_or_else(|| {
             Error::General("Cipher is none. Create a cipher object before encryption".into())
         })?;
 
         let mut out = vec![0; TAG_LEN];
+
+        if sample.len() < SAMPLE_LEN {
+            return Err(Error::General("Invalid sample length".to_string()));
+        }
 
         let (ctr, nonce) = sample.split_at(4);
         let ctr = u32::from_le_bytes(
@@ -713,15 +723,30 @@ impl ChaChaCipher {
                 .map_err(|_| rustls::Error::General("Function try_into() failed".into()))?,
         );
 
+        // Use a fresh ChaCha context per call so &self never mutates shared state.
+        let mut chacha_c_type: ChaCha = unsafe { mem::zeroed() };
+        let chacha_object = unsafe { ChaChaObject::from_ptr(&mut chacha_c_type) };
+
+        //Set key for ChaCha object
+        let mut ret = unsafe {
+            wc_Chacha_SetKey(
+                chacha_object.as_ptr(),
+                chacha_key.as_ptr(),
+                chacha_key.len() as word32,
+            )
+        };
+        check_if_zero(ret)
+            .map_err(|_| rustls::Error::General("Function wc_Chacha_SetKey failed".into()))?;
+
         //Set IV for ChaCha object
-        let mut ret = unsafe { wc_Chacha_SetIV(chacha_cipher.as_ptr(), nonce.as_ptr(), ctr) };
+        ret = unsafe { wc_Chacha_SetIV(chacha_object.as_ptr(), nonce.as_ptr(), ctr) };
         check_if_zero(ret)
             .map_err(|_| rustls::Error::General("Function wc_Chacha_SetIV failed".into()))?;
 
         //Encrypt sample
         ret = unsafe {
             wc_Chacha_Process(
-                chacha_cipher.as_ptr(),
+                chacha_object.as_ptr(),
                 out.as_mut_ptr(),
                 [0; TAG_LEN].as_ptr(),
                 TAG_LEN as word32,
@@ -771,6 +796,9 @@ impl ChaChaCipher {
             Error::General("Key is none. Generate a key before decryption".into())
         })?;
         let mut auth_tag = [0u8; TAG_LEN];
+        if payload.len() < TAG_LEN {
+            return Err(rustls::Error::DecryptError);
+        }
         let message_len = payload.len() - TAG_LEN;
         auth_tag.copy_from_slice(&payload[message_len..]);
 
@@ -797,26 +825,6 @@ impl ChaChaCipher {
         check_if_zero(ret).map_err(|_| rustls::Error::DecryptError)?;
         Ok(())
     }
-}
-
-fn new_aes_object() -> Result<AesObject, Error> {
-    let aes_c_type_box = Box::new(unsafe { mem::zeroed::<Aes>() });
-    let aes_c_type_ptr = Box::into_raw(aes_c_type_box);
-    let aes_object = unsafe { AesObject::from_ptr(aes_c_type_ptr) };
-
-    // Initialize Aes structure.
-    let ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
-    check_if_zero(ret).map_err(|_| rustls::Error::General("Function AesInit failed".into()))?;
-    Ok(aes_object)
-}
-
-fn new_chacha_object() -> Result<ChaChaObject, Error> {
-    //Create ChaCha object
-    let chacha_c_typ_box = Box::new(unsafe { mem::zeroed::<ChaCha>() });
-    let chacha_c_typ_ptr = Box::into_raw(chacha_c_typ_box);
-    let chacha_object = unsafe { ChaChaObject::from_ptr(chacha_c_typ_ptr) };
-
-    Ok(chacha_object)
 }
 
 #[cfg(test)]

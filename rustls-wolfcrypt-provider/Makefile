@@ -1,6 +1,10 @@
 .PHONY: test
-test: 
+test:
 	@cargo test
+
+.PHONY: test-quic
+test-quic:
+	@cargo test --features quic
 
 .PHONY: build
 build:

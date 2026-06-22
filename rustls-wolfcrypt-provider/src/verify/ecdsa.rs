@@ -62,7 +62,7 @@ impl SignatureVerificationAlgorithm for EcdsaVerifier {
             // Initialize WolfSSL ECC key
             let mut ecc_c_type: ecc_key = mem::zeroed();
             let ecc_key_object = ECCKeyObject::from_ptr(&mut ecc_c_type);
-            ecc_key_object.init();
+            ecc_key_object.init().map_err(|_| InvalidSignature)?;
 
             let mut ret;
             let mut stat: i32 = 0;
@@ -112,6 +112,10 @@ impl SignatureVerificationAlgorithm for EcdsaVerifier {
             // This function returns the size of the digest (output) for a hash_type.
             // The returned size is used to make sure the output buffer is large enough.
             let digest_sz = wc_HashGetDigestSize(wc_hash_type);
+
+            if digest_sz <= 0 {
+                return Err(InvalidSignature);
+            }
 
             // This function performs a hash on the provided data buffer and
             // returns it in the hash buffer provided.

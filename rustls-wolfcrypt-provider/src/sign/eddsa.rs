@@ -16,6 +16,9 @@ use zeroize::Zeroizing;
 
 const ALL_EDDSA_SCHEMES: &[SignatureScheme] = &[SignatureScheme::ED25519];
 
+/// An ED25519 private key with its optional embedded public key.
+type Ed25519KeyPair = (Zeroizing<Vec<u8>>, Option<[u8; 32]>);
+
 #[derive(Clone)]
 pub struct Ed25519PrivateKey {
     priv_key: Arc<Zeroizing<Vec<u8>>>,
@@ -32,8 +35,9 @@ impl fmt::Debug for Ed25519PrivateKey {
 }
 impl Ed25519PrivateKey {
     /// Extract ED25519 private and if available public key values from a PKCS#8 DER formatted key
-    fn extract_key_pair(input_key: &[u8]) -> Result<([u8; 32], Option<[u8; 32]>), rustls::Error> {
-        let mut private_key_raw: [u8; 32] = [0; ED25519_KEY_SIZE as usize];
+    fn extract_key_pair(input_key: &[u8]) -> Result<Ed25519KeyPair, rustls::Error> {
+        let mut private_key_raw: Zeroizing<Vec<u8>> =
+            Zeroizing::new(alloc::vec![0u8; ED25519_KEY_SIZE as usize]);
         let mut private_key_raw_len: word32 = private_key_raw.len() as word32;
         // Scratch buffer for the optional embedded public key. DecodeAsymKey
         // reports it either as the bare 32-byte key, or as the raw DER BIT STRING
@@ -126,7 +130,9 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed25519PrivateKey {
                     let ed25519_key_object = ED25519KeyObject::new(&mut ed25519_c_type);
                     // This function initiliazes an ed25519_key object for
                     // using it to sign a message.
-                    ed25519_key_object.init();
+                    ed25519_key_object
+                        .init()
+                        .map_err(|_| rustls::Error::General("wc_ed25519_init failed".into()))?;
 
                     ret = unsafe {
                         wc_ed25519_import_private_only(
@@ -150,7 +156,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed25519PrivateKey {
                 }
 
                 Ok(Self {
-                    priv_key: Arc::new(Zeroizing::new(priv_key_raw.to_vec())),
+                    priv_key: Arc::new(priv_key_raw),
                     pub_key: Arc::new(match pub_option {
                         Some(pub_value) => pub_value.to_vec(),
                         None => pub_key_raw.to_vec(),
@@ -212,7 +218,9 @@ impl Signer for Ed25519Signer {
         let mut ed25519_c_type: ed25519_key = unsafe { mem::zeroed() };
         let ed25519_key_object = ED25519KeyObject::new(&mut ed25519_c_type);
 
-        ed25519_key_object.init();
+        ed25519_key_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_ed25519_init failed".into()))?;
 
         ret = unsafe {
             wc_ed25519_import_private_key(

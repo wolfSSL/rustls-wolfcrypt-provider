@@ -140,12 +140,15 @@ impl MessageEncrypter for WCTls12Encrypter {
         // 8 bytes.
         let payload_start = GCM_NONCE_LENGTH - 4;
         let payload_end = m.payload.len() + (GCM_NONCE_LENGTH - 4);
+        let buf = &mut payload.as_mut()[payload_start..payload_end];
+        let buf_len = buf.len() as word32;
+        let buf_ptr = buf.as_mut_ptr();
         ret = unsafe {
             wc_AesGcmEncrypt(
                 aes_object.as_ptr(),
-                payload.as_mut()[payload_start..payload_end].as_mut_ptr(),
-                payload.as_ref()[payload_start..payload_end].as_ptr(),
-                payload.as_ref()[payload_start..payload_end].len() as word32,
+                buf_ptr,
+                buf_ptr as *const u8,
+                buf_len,
                 nonce.as_ptr(),
                 nonce.len() as word32,
                 auth_tag.as_mut_ptr(),
@@ -173,7 +176,7 @@ impl MessageDecrypter for WCTls12Decrypter {
         seq: u64,
     ) -> Result<InboundPlainMessage<'a>, rustls::Error> {
         let payload = &mut m.payload;
-        if payload.len() < GCM_TAG_LENGTH {
+        if payload.len() < (GCM_NONCE_LENGTH - 4) + GCM_TAG_LENGTH {
             return Err(rustls::Error::DecryptError);
         }
         let payload_len = payload.len();
@@ -212,15 +215,15 @@ impl MessageDecrypter for WCTls12Decrypter {
         // from the payload.
         let payload_start = GCM_NONCE_LENGTH - 4;
         let payload_end = payload_len - GCM_TAG_LENGTH;
+        let buf = &mut payload[payload_start..payload_end];
+        let buf_len = buf.len() as word32;
+        let buf_ptr = buf.as_mut_ptr();
         ret = unsafe {
             wc_AesGcmDecrypt(
                 aes_object.as_ptr(),
-                payload[payload_start..payload_end].as_mut_ptr(),
-                payload[payload_start..payload_end].as_ptr(),
-                payload[payload_start..payload_end]
-                    .len()
-                    .try_into()
-                    .unwrap(),
+                buf_ptr,
+                buf_ptr as *const u8,
+                buf_len,
                 nonce.as_ptr(),
                 nonce.len() as word32,
                 auth_tag.as_ptr(),
@@ -318,12 +321,15 @@ impl MessageEncrypter for WCTls13Cipher {
         // authIn, into the authentication tag, authTag.
         // Apparently we need to also need to include for the encoding type into the encrypted
         // payload, hence the + 1 otherwise the rustls returns EoF.
+        let buf = &mut payload.as_mut()[..payload_len + 1];
+        let buf_len = buf.len() as word32;
+        let buf_ptr = buf.as_mut_ptr();
         ret = unsafe {
             wc_AesGcmEncrypt(
                 aes_object.as_ptr(),
-                payload.as_mut()[..payload_len + 1].as_mut_ptr(),
-                payload.as_ref()[..payload_len + 1].as_ptr(),
-                payload.as_ref()[..payload_len + 1].len() as word32,
+                buf_ptr,
+                buf_ptr as *const u8,
+                buf_len,
                 nonce.0.as_ptr(),
                 nonce.0.len() as word32,
                 auth_tag.as_mut_ptr(),
@@ -384,12 +390,15 @@ impl MessageDecrypter for WCTls13Cipher {
 
         // Finally, we have everything to decrypt the message
         // from the payload.
+        let buf = &mut payload[..message_len];
+        let buf_len = buf.len() as word32;
+        let buf_ptr = buf.as_mut_ptr();
         ret = unsafe {
             wc_AesGcmDecrypt(
                 aes_object.as_ptr(),
-                payload[..message_len].as_mut_ptr(),
-                payload[..message_len].as_ptr(),
-                payload[..message_len].len().try_into().unwrap(),
+                buf_ptr,
+                buf_ptr as *const u8,
+                buf_len,
                 nonce.0.as_ptr(),
                 nonce.0.len() as word32,
                 auth_tag.as_ptr(),

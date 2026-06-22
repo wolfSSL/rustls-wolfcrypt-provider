@@ -13,7 +13,9 @@ pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) -> WCResult {
     // rng->drbg (deterministic random bit generator) allocated
     // (should be deallocated with wc_FreeRng).
     // This is a blocking operation.
-    rng_object.init();
+    // Propagate an init failure (e.g. transient OS entropy/DRBG seeding error)
+    // instead of panicking, so SecureRandom::fill can surface GetRandomFailed.
+    rng_object.init()?;
 
     // Copies a sz bytes of pseudorandom data to output.
     // Will reseed rng if needed (blocking).

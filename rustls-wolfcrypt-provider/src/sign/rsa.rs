@@ -1,6 +1,7 @@
 use crate::error::*;
 use crate::types::*;
 use alloc::boxed::Box;
+use alloc::format;
 use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -105,9 +106,15 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPrivateKey {
     type Error = rustls::Error;
 
     fn try_from(value: &PrivateKeyDer<'_>) -> Result<Self, Self::Error> {
-        let (der_bytes, format) = match value {
-            PrivateKeyDer::Pkcs8(der) => (der.secret_pkcs8_der().to_vec(), RsaKeyFormat::Pkcs8),
-            PrivateKeyDer::Pkcs1(der) => (der.secret_pkcs1_der().to_vec(), RsaKeyFormat::Pkcs1),
+        let (der_bytes, format): (Zeroizing<Vec<u8>>, RsaKeyFormat) = match value {
+            PrivateKeyDer::Pkcs8(der) => (
+                Zeroizing::new(der.secret_pkcs8_der().to_vec()),
+                RsaKeyFormat::Pkcs8,
+            ),
+            PrivateKeyDer::Pkcs1(der) => (
+                Zeroizing::new(der.secret_pkcs1_der().to_vec()),
+                RsaKeyFormat::Pkcs1,
+            ),
             _ => {
                 return Err(rustls::Error::General(
                     "Unsupported private key format".into(),
@@ -119,7 +126,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPrivateKey {
         let _rsa_key = import_rsa_key(&der_bytes, &format)?;
 
         Ok(Self {
-            der_bytes: Arc::new(Zeroizing::new(der_bytes)),
+            der_bytes: Arc::new(der_bytes),
             format,
             algo: SignatureAlgorithm::RSA,
         })
@@ -170,7 +177,9 @@ impl Signer for RsaSigner {
         // Prepare a random generator
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
         let rng_object = WCRngObject::new(&mut rng);
-        rng_object.init();
+        rng_object
+            .init()
+            .map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
 
         // Allocate enough space for the signature
         let mut sig_buf = [0u8; MAX_RSA_SIG_SIZE];
@@ -262,7 +271,6 @@ impl Signer for RsaSigner {
                 let mut sig_len: u32 = sig_buf.len() as u32;
 
                 // wc_SignatureGenerate will produce a PKCS#1 signature, including hashing.
-                let deref_rsa_key_c_type = unsafe { *(rsa_key.as_ptr()) };
                 let ret = unsafe {
                     wc_SignatureGenerate(
                         hash_ty,
@@ -272,7 +280,7 @@ impl Signer for RsaSigner {
                         sig_buf.as_mut_ptr(),
                         &mut sig_len,
                         rsa_key.as_ptr() as *mut core::ffi::c_void,
-                        mem::size_of_val(&deref_rsa_key_c_type).try_into().unwrap(),
+                        mem::size_of::<RsaKey>().try_into().unwrap(),
                         rng_object.as_ptr(),
                     )
                 };
@@ -284,9 +292,12 @@ impl Signer for RsaSigner {
                     wc_SignatureGetSize(
                         wc_SignatureType_WC_SIGNATURE_TYPE_RSA_W_ENC,
                         rsa_key.as_ptr() as *const core::ffi::c_void,
-                        mem::size_of_val(&deref_rsa_key_c_type).try_into().unwrap(),
+                        mem::size_of::<RsaKey>().try_into().unwrap(),
                     )
                 };
+                check_if_greater_than_zero(actual_sig_size).map_err(|_| {
+                    rustls::Error::General(format!("wc_SignatureGetSize failed: {actual_sig_size}"))
+                })?;
 
                 let mut sig_vec = sig_buf.to_vec();
                 // Truncate to the size returned by wc_SignatureGetSize or the updated `sig_len`.

@@ -430,10 +430,10 @@ mod tests {
                                                          // Initialize RNG and ECC key objects
             let mut rng: WC_RNG = unsafe { mem::zeroed() };
             let rng_object: WCRngObject = WCRngObject::new(&mut rng);
-            rng_object.init();
+            rng_object.init().unwrap();
             let mut ecc_key_c_type: ecc_key = unsafe { mem::zeroed() };
             let key_object = ECCKeyObject::new(&mut ecc_key_c_type);
-            key_object.init();
+            key_object.init().unwrap();
 
             let mut pub_key_raw = ECCPubKey {
                 qx: vec![0; key_size],
@@ -514,11 +514,11 @@ mod tests {
         // Initialize RNG and ECC key objects
         let mut rng: WC_RNG = unsafe { mem::zeroed() };
         let rng_object: WCRngObject = WCRngObject::new(&mut rng);
-        rng_object.init();
+        rng_object.init().unwrap();
 
         let mut key_c_type: ed25519_key = unsafe { mem::zeroed() };
         let key_object = ED25519KeyObject::new(&mut key_c_type);
-        key_object.init();
+        key_object.init().unwrap();
 
         let mut der_ed25519_key: Vec<u8> = vec![0; 200]; // Adjust size if needed
         let mut pub_key_raw: [u8; 32] = [0; 32];
@@ -618,7 +618,7 @@ mod tests {
 
         let mut rng_c_type: WC_RNG = unsafe { mem::zeroed() };
         let rng_object = WCRngObject::new(&mut rng_c_type);
-        rng_object.init();
+        rng_object.init().unwrap();
 
         unsafe { wc_RsaSetRNG(rsa_key_object.as_ptr(), rng_object.as_ptr()) };
 
@@ -709,7 +709,7 @@ mod tests {
 
         let mut rng_c_type: WC_RNG = unsafe { mem::zeroed() };
         let rng_object = WCRngObject::new(&mut rng_c_type);
-        rng_object.init();
+        rng_object.init().unwrap();
 
         unsafe { wc_RsaSetRNG(rsa_key_object.as_ptr(), rng_object.as_ptr()) };
 
