@@ -10,6 +10,10 @@ jobs:
   macos-build:
     name: Build and Test (macOS)
     runs-on: macos-latest
+    env:
+      WOLFSSL_SRC: ${{ github.workspace }}/wolfssl
+      WOLFSSL_PREFIX: ${{ github.workspace }}/wolfssl-install
+      DYLD_LIBRARY_PATH: ${{ github.workspace }}/wolfssl-install/lib
     steps:
       - uses: actions/checkout@v4
 
@@ -35,6 +39,28 @@ jobs:
           restore-keys: |
             macos-cargo-
 
+      - name: Checkout wolfSSL master
+        uses: actions/checkout@v4
+        with:
+          repository: wolfSSL/wolfssl
+          path: wolfssl
+
+      - name: Build and install wolfSSL
+        working-directory: wolfssl
+        run: |
+          ./autogen.sh
+          ./configure --prefix="$WOLFSSL_PREFIX" \
+            --enable-all-crypto --enable-shared --disable-static \
+            CPPFLAGS=-DWOLFSSL_RSA_KEY_CHECK
+          make -j"$(sysctl -n hw.ncpu)"
+          make install
+
+      - name: Use the wolfCrypt crate from wolfSSL master
+        run: |
+          mkdir -p .cargo
+          printf '[patch."https://github.com/wolfSSL/wolfssl"]\nwolfssl-wolfcrypt = { path = "%s/wrapper/rust/wolfssl-wolfcrypt" }\n' \
+            "$WOLFSSL_SRC" > .cargo/config.toml
+
       - name: Checkout rustls v0.23.35
         uses: actions/checkout@v4
         with:
@@ -58,14 +84,9 @@ jobs:
           cp "$GITHUB_WORKSPACE/.github/test-workspace/workspace-Cargo.toml" Cargo.toml
 
           mkdir -p rustls-wolfcrypt-provider
-          cp -r "$GITHUB_WORKSPACE/wolfcrypt-rs" rustls-wolfcrypt-provider/
           cp -r "$GITHUB_WORKSPACE/rustls-wolfcrypt-provider" rustls-wolfcrypt-provider/
           cp "$GITHUB_WORKSPACE/.github/test-workspace/provider-Cargo.toml" \
              rustls-wolfcrypt-provider/rustls-wolfcrypt-provider/Cargo.toml
-
-      - name: Build wolfcrypt-rs
-        working-directory: rustlsv0.23.35-test-workspace/rustls-wolfcrypt-provider/wolfcrypt-rs
-        run: make build
 
       - name: Build rustls-wolfcrypt-provider
         working-directory: rustlsv0.23.35-test-workspace/rustls-wolfcrypt-provider/rustls-wolfcrypt-provider

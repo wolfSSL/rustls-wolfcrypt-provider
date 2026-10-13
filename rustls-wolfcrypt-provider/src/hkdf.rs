@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use core::mem;
 use foreign_types::ForeignType;
 use rustls::crypto::tls13::{self, Hkdf as RustlsHkdf};
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::sys::*;
 
 use crate::error::check_if_zero;
 use crate::hmac::WCShaHmac;

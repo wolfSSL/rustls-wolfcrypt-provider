@@ -10,7 +10,7 @@ use rustls::crypto::cipher::{
     UnsupportedOperationError, NONCE_LEN,
 };
 use rustls::{ConnectionTrafficSecrets, ContentType, ProtocolVersion};
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::sys::*;
 
 use crate::error::check_if_zero;
 use zeroize::Zeroizing;

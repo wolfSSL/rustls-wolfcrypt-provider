@@ -17,7 +17,7 @@ use core::ptr;
 use rustls::crypto::cipher::{Iv, Nonce};
 use rustls::quic::Tag;
 use rustls::{crypto::cipher::AeadKey, quic, Error};
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::sys::*;
 
 type PktEncFn =
     fn(packet_cipher: &Cipher, nonce: &[u8], aad: &[u8], in_out: &mut [u8]) -> Result<Tag, Error>;
@@ -117,10 +117,8 @@ fn generate_mask_aes(hp_cipher: &Cipher, sample: &[u8]) -> Result<[u8; MASK_LEN]
     };
 
     let mut mask = mask_array!();
-    match aes_cipher.encrypt_sample(sample) {
-        Ok(output) => mask.copy_from_slice(&output[..5]),
-        Err(e) => return Err(e),
-    }
+    let output = aes_cipher.encrypt_sample(sample)?;
+    mask.copy_from_slice(&output[..5]);
     Ok(mask)
 }
 
@@ -145,10 +143,8 @@ fn generate_mask_chacha20(hp_cipher: &Cipher, sample: &[u8]) -> Result<[u8; MASK
     };
 
     let mut mask = mask_array!();
-    match chacha20_cipher.encrypt_sample(sample) {
-        Ok(output) => mask.copy_from_slice(&output[..5]),
-        Err(e) => return Err(e),
-    }
+    let output = chacha20_cipher.encrypt_sample(sample)?;
+    mask.copy_from_slice(&output[..5]);
     Ok(mask)
 }
 

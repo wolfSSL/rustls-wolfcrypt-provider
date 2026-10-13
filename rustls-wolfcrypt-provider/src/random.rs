@@ -2,7 +2,7 @@ use crate::error::*;
 use crate::types::*;
 use core::mem;
 use foreign_types::ForeignType;
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::sys::*;
 
 pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) -> WCResult {
     let mut rng_c_type: WC_RNG = unsafe { mem::zeroed() };

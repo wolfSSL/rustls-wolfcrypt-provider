@@ -4,7 +4,7 @@ use alloc::{boxed::Box, vec, vec::Vec};
 use core::mem;
 use foreign_types::ForeignType;
 use rustls::crypto;
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::sys::*;
 use zeroize::Zeroizing;
 
 #[derive(Clone, Copy)]
@@ -30,8 +30,8 @@ impl WCShaHmac {
 
     pub fn new(hash_type: wc_HashType) -> Self {
         match hash_type {
-            wolfcrypt_rs::wc_HashType_WC_HASH_TYPE_SHA256 => WCShaHmac::Sha256,
-            wolfcrypt_rs::wc_HashType_WC_HASH_TYPE_SHA384 => WCShaHmac::Sha384,
+            wolfssl_wolfcrypt::sys::wc_HashType_WC_HASH_TYPE_SHA256 => WCShaHmac::Sha256,
+            wolfssl_wolfcrypt::sys::wc_HashType_WC_HASH_TYPE_SHA384 => WCShaHmac::Sha384,
             _ => panic!("Unsupported hash type"),
         }
     }

@@ -21,7 +21,7 @@ use std::process::{Child, Command};
 use std::sync::Once;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::sys::*;
 
 /*
  * Version config used by the server to specify
@@ -57,27 +57,29 @@ fn init_thread_pool() {
 
 /*
  * Starts background job for wolfssl server (localhost:4443).
+ * WOLFSSL_SERVER is the path to wolfSSL's examples/server/server, and
+ * WOLFSSL_SRC the wolfSSL source tree, which the server loads its default
+ * certificates from.
  * */
 fn start_wolfssl_server(current_dir_string: String, tls_version: &str) -> Child {
-    if let Err(e) = env::set_current_dir("../wolfcrypt-rs/wolfssl-5.9.1-stable/") {
-        panic!("Error changing directory: {}", e);
-    } else {
-        println!("Changed directory to wolfssl-5.9.1-stable.");
+    let server = env::var("WOLFSSL_SERVER")
+        .expect("WOLFSSL_SERVER must be set to wolfSSL's examples/server/server");
+    let wolfssl_src = env::var("WOLFSSL_SRC").expect("WOLFSSL_SRC must be set");
 
-        Command::new("./examples/server/server")
-            .arg("-d")
-            .arg("-c")
-            .arg(current_dir_string.clone() + "/tests/certs/localhost.pem")
-            .arg("-k")
-            .arg(current_dir_string.clone() + "/tests/certs/localhost.key")
-            .arg("-p")
-            .arg("4443")
-            .arg(tls_version)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .expect("Failed to start wolfssl server.")
-    }
+    Command::new(server)
+        .current_dir(wolfssl_src)
+        .arg("-d")
+        .arg("-c")
+        .arg(current_dir_string.clone() + "/tests/certs/localhost.pem")
+        .arg("-k")
+        .arg(current_dir_string.clone() + "/tests/certs/localhost.key")
+        .arg("-p")
+        .arg("4443")
+        .arg(tls_version)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("Failed to start wolfssl server.")
 }
 
 #[cfg(test)]

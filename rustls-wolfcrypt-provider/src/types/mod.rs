@@ -3,7 +3,7 @@ use core::ptr::NonNull;
 use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
 use log::error;
 
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::sys::*;
 
 macro_rules! define_foreign_type {
     ($struct_name:ident, $ref_name:ident, $c_type:ty, $init_function:ident) => {
@@ -181,7 +181,7 @@ define_foreign_type_no_copy!(RsaKeyObject, RsaKeyObjectRef, RsaKey, drop(wc_Free
 define_foreign_type_no_copy!(
     HmacObject,
     HmacObjectRef,
-    wolfcrypt_rs::Hmac,
+    wolfssl_wolfcrypt::sys::Hmac,
     drop_void(wc_HmacFree)
 );
 define_foreign_type_no_copy!(AesObject, AesObjectRef, Aes, drop_void(wc_AesFree));

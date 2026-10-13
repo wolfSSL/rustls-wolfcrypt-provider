@@ -7,14 +7,20 @@ use alloc::vec::Vec;
 use core::fmt;
 use core::mem;
 use foreign_types::ForeignType;
+use pkcs8::der::asn1::OctetStringRef;
+use pkcs8::der::Decode;
+use pkcs8::{ObjectIdentifier, PrivateKeyInfo};
 use rustls::pki_types::PrivateKeyDer;
 use rustls::sign::{Signer, SigningKey};
 use rustls::{SignatureAlgorithm, SignatureScheme};
 
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::sys::*;
 use zeroize::Zeroizing;
 
 const ALL_EDDSA_SCHEMES: &[SignatureScheme] = &[SignatureScheme::ED25519];
+
+/// id-Ed25519 (RFC 8410).
+const ED25519_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.3.101.112");
 
 /// An ED25519 private key with its optional embedded public key.
 type Ed25519KeyPair = (Zeroizing<Vec<u8>>, Option<[u8; 32]>);
@@ -36,74 +42,29 @@ impl fmt::Debug for Ed25519PrivateKey {
 impl Ed25519PrivateKey {
     /// Extract ED25519 private and if available public key values from a PKCS#8 DER formatted key
     fn extract_key_pair(input_key: &[u8]) -> Result<Ed25519KeyPair, rustls::Error> {
-        let mut private_key_raw: Zeroizing<Vec<u8>> =
-            Zeroizing::new(alloc::vec![0u8; ED25519_KEY_SIZE as usize]);
-        let mut private_key_raw_len: word32 = private_key_raw.len() as word32;
-        // Scratch buffer for the optional embedded public key. DecodeAsymKey
-        // reports it either as the bare 32-byte key, or as the raw DER BIT STRING
-        // body (a leading 0x00 "unused bits" octet + the 32-byte key = 33 bytes),
-        // so 33 bytes is the largest form we ever need to hold here.
-        let mut public_key_scratch: [u8; ED25519_PUB_KEY_SIZE as usize + 1] =
-            [0; ED25519_PUB_KEY_SIZE as usize + 1];
-        let mut public_key_scratch_len: word32 = public_key_scratch.len() as word32;
-        let mut idx: word32 = 0;
+        let bad_key = || rustls::Error::General("Invalid ED25519 PKCS#8 key".into());
 
-        // Parse the PKCS#8 structure with wolfSSL's own ASN parser. This is the
-        // same parser wc_Ed25519PrivateKeyDecode uses internally, but calling it
-        // directly lets us normalise the embedded public key before it is imported.
-        //
-        // For an RFC 5958 (PKCS#8 v2) key that carries the optional public key,
-        // DecodeAsymKey hands back the [1] field as the raw DER BIT STRING body:
-        // a leading "unused bits" 0x00 octet followed by the 32-byte key (33 bytes
-        // total). wc_Ed25519PrivateKeyDecode passes that body verbatim to
-        // wc_ed25519_import_public_ex, which expects the key material itself,
-        // which is a bare 32-byte key (or a 0x40-prefixed 33-byte form).
-        // The 0x00-led 33-byte body matches neither, so it is rejected
-        // with BAD_FUNC_ARG (-173). So we strip the 0x00 octet here and
-        // hand on the bare 32-byte key instead.
-        let ret = unsafe {
-            DecodeAsymKey(
-                input_key.as_ptr(),
-                &mut idx,
-                input_key.len() as word32,
-                private_key_raw.as_mut_ptr(),
-                &mut private_key_raw_len,
-                public_key_scratch.as_mut_ptr(),
-                &mut public_key_scratch_len,
-                Key_Sum_ED25519k as i32,
-            )
-        };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("DecodeAsymKey (ED25519) failed".into()))?;
+        // Parsed in Rust rather than with wc_Ed25519PrivateKeyDecode, which passes
+        // the embedded public key on with its leading BIT STRING "unused bits"
+        // octet, so the import rejects it. The pkcs8 crate strips that octet and
+        // checks that only a v2 key carries a public key.
+        let info = PrivateKeyInfo::try_from(input_key).map_err(|_| bad_key())?;
+        if info.algorithm.oid != ED25519_OID {
+            return Err(bad_key());
+        }
 
-        // Normalise the optional public key based on the length the parser reported.
-        let pub_key: Option<[u8; 32]> = match public_key_scratch_len {
-            // No embedded public key; the caller derives it from the private seed.
-            0 => None,
-            // Bare 32-byte public key.
-            len if len == ED25519_PUB_KEY_SIZE => Some(
-                public_key_scratch[..ED25519_PUB_KEY_SIZE as usize]
-                    .try_into()
-                    .map_err(|_| {
-                        rustls::Error::General("Unexpected ED25519 public key encoding".into())
-                    })?,
-            ),
-            // BIT STRING body: leading 0x00 "unused bits" octet + 32-byte key.
-            len if len == ED25519_PUB_KEY_SIZE + 1 && public_key_scratch[0] == 0x00 => Some(
-                public_key_scratch[1..1 + ED25519_PUB_KEY_SIZE as usize]
-                    .try_into()
-                    .map_err(|_| {
-                        rustls::Error::General("Unexpected ED25519 public key encoding".into())
-                    })?,
-            ),
-            _ => {
-                return Err(rustls::Error::General(
-                    "Unexpected ED25519 public key encoding".into(),
-                ))
-            }
-        };
+        // The private key field holds the 32-byte key wrapped in an OCTET STRING.
+        let private_key = OctetStringRef::from_der(info.private_key).map_err(|_| bad_key())?;
+        if private_key.as_bytes().len() != ED25519_KEY_SIZE as usize {
+            return Err(bad_key());
+        }
 
-        Ok((private_key_raw, pub_key))
+        let pub_key = info
+            .public_key
+            .map(|pk| pk.try_into().map_err(|_| bad_key()))
+            .transpose()?;
+
+        Ok((Zeroizing::new(private_key.as_bytes().to_vec()), pub_key))
     }
 }
 
@@ -259,5 +220,40 @@ impl Signer for Ed25519Signer {
 
     fn scheme(&self) -> SignatureScheme {
         self.scheme
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rustls::pki_types::PrivatePkcs8KeyDer;
+
+    /// RFC 8410 section 10.3 example key (no embedded public key), with the
+    /// given PKCS#8 version: 0 is v1, 1 is v2.
+    fn pkcs8_without_public_key(version: u8) -> Vec<u8> {
+        let mut der = alloc::vec![
+            0x30, 0x2e, 0x02, 0x01, version, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22,
+            0x04, 0x20,
+        ];
+        der.extend_from_slice(&[
+            0xd4, 0xee, 0x72, 0xdb, 0xf9, 0x13, 0x58, 0x4a, 0xd5, 0xb6, 0xd8, 0xf1, 0xf7, 0x69,
+            0xf8, 0xad, 0x3a, 0xfe, 0x7c, 0x28, 0xcb, 0xf1, 0xd4, 0xfb, 0xe0, 0x97, 0xa8, 0x8f,
+            0x44, 0x75, 0x58, 0x42,
+        ]);
+        der
+    }
+
+    fn load(der: &[u8]) -> Result<Ed25519PrivateKey, rustls::Error> {
+        Ed25519PrivateKey::try_from(&PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(der)))
+    }
+
+    #[test]
+    fn test_v1_without_public_key_is_accepted() {
+        assert!(load(&pkcs8_without_public_key(0)).is_ok());
+    }
+
+    #[test]
+    fn test_v2_without_public_key_is_rejected() {
+        assert!(load(&pkcs8_without_public_key(1)).is_err());
     }
 }

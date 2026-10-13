@@ -6,7 +6,7 @@ use core::ptr;
 use foreign_types::ForeignType;
 use rustls::pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerificationAlgorithm};
 use rustls_pki_types::alg_id;
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::sys::*;
 
 #[derive(Debug)]
 pub struct RsaPssSha256Verify;

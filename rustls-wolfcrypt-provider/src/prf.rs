@@ -1,6 +1,6 @@
 use alloc::boxed::Box;
 use rustls::crypto;
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::sys::*;
 
 use crate::error::check_if_zero;
 use crate::hmac::*;
