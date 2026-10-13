@@ -6,14 +6,8 @@ rust-version = "1.85"
 
 [dependencies]
 rustls = { version = "0.23.22", default-features = false, features = ["tls12"] }
-chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
-der = { version = "0.7", default-features = false }  
-ecdsa = { version = "0.16.9", default-features = false, features = ["alloc"] }
-hmac = { version = "0.12", default-features = false }
+der = { version = "0.7", default-features = false }
 pkcs8 = { version = "0.10.2", default-features = false }
-rand_core = { version = "0.6", default-features = false, features = ["getrandom", "alloc"] }
-rsa = { version = "0.9", features = ["sha2"], default-features = false }
-sha2 = { version = "0.10", default-features = false }  
 signature = { version = "2", default-features = false } 
 webpki = { package = "rustls-webpki", version = "0.103.13", features = ["alloc"], default-features = false }
 foreign-types = { version = "0.5.0", default-features = false } 
