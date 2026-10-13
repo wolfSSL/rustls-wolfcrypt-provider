@@ -1,7 +1,7 @@
 #![cfg_attr(not(test), no_std)]
 
 extern crate alloc;
-#[cfg(test)]
+#[cfg(any(test, feature = "std"))]
 extern crate std;
 
 use alloc::boxed::Box;
