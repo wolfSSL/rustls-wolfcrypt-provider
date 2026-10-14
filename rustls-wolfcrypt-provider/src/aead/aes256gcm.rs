@@ -15,7 +15,7 @@ use zeroize::Zeroizing;
 
 use alloc::vec::Vec;
 use core::ptr;
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::sys::*;
 
 const GCM_NONCE_LENGTH: usize = 12;
 const GCM_TAG_LENGTH: usize = 16;

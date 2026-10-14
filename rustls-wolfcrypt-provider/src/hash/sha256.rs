@@ -5,7 +5,7 @@ use core::mem;
 use foreign_types::ForeignType;
 use rustls::crypto::hash;
 
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::sys::*;
 
 pub struct WCSha256;
 

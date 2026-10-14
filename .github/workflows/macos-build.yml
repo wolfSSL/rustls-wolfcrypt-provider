@@ -10,6 +10,11 @@ jobs:
   macos-build:
     name: Build and Test (macOS)
     runs-on: macos-latest
+    env:
+      WOLFSSL_SRC: ${{ github.workspace }}/wolfssl
+      WOLFSSL_PREFIX: ${{ github.workspace }}/wolfssl-install
+      WOLFSSL_SERVER: ${{ github.workspace }}/wolfssl/examples/server/server
+      DYLD_LIBRARY_PATH: ${{ github.workspace }}/wolfssl-install/lib
     steps:
       - uses: actions/checkout@v4
 
@@ -35,11 +40,27 @@ jobs:
           restore-keys: |
             macos-cargo-
 
-      - name: Build and Test wolfcrypt-rs
+      - name: Checkout wolfSSL master
+        uses: actions/checkout@v4
+        with:
+          repository: wolfSSL/wolfssl
+          path: wolfssl
+
+      - name: Build and install wolfSSL
+        working-directory: wolfssl
         run: |
-          cd wolfcrypt-rs
-          make build
-          make test
+          ./autogen.sh
+          ./configure --prefix="$WOLFSSL_PREFIX" \
+            --enable-all-crypto --enable-shared --disable-static \
+            CPPFLAGS=-DWOLFSSL_RSA_KEY_CHECK
+          make -j"$(sysctl -n hw.ncpu)"
+          make install
+
+      - name: Use the wolfCrypt crate from wolfSSL master
+        run: |
+          mkdir -p .cargo
+          printf '[patch."https://github.com/wolfSSL/wolfssl"]\nwolfssl-wolfcrypt = { path = "%s/wrapper/rust/wolfssl-wolfcrypt" }\n' \
+            "$WOLFSSL_SRC" > .cargo/config.toml
 
       - name: Build and Test rustls-wolfcrypt-provider
         run: |
@@ -47,17 +68,14 @@ jobs:
           make build
           make test
           make test-quic
+          make test-std
 
       - name: Check formatting
         run: |
-          cd wolfcrypt-rs
-          cargo fmt --all -- --check
-          cd ../rustls-wolfcrypt-provider
+          cd rustls-wolfcrypt-provider
           cargo fmt --all -- --check
 
       - name: Run clippy
         run: |
-          cd wolfcrypt-rs
-          cargo clippy -- -D warnings -A unnecessary-transmutes
-          cd ../rustls-wolfcrypt-provider
+          cd rustls-wolfcrypt-provider
           cargo clippy --all-features -- -D warnings

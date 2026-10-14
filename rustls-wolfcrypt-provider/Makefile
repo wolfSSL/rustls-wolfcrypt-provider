@@ -6,6 +6,10 @@ test:
 test-quic:
 	@cargo test --features quic
 
+.PHONY: test-std
+test-std:
+	@cargo test --features std
+
 .PHONY: build
 build:
 	@cargo build --release

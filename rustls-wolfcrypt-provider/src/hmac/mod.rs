@@ -4,7 +4,8 @@ use alloc::{boxed::Box, vec, vec::Vec};
 use core::mem;
 use foreign_types::ForeignType;
 use rustls::crypto;
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::hmac::HMAC;
+use wolfssl_wolfcrypt::sys::*;
 use zeroize::Zeroizing;
 
 #[derive(Clone, Copy)]
@@ -21,25 +22,10 @@ impl WCShaHmac {
         }
     }
 
-    fn algorithm(&self) -> i32 {
+    pub fn hash_type(&self) -> i32 {
         match self {
-            WCShaHmac::Sha256 => wc_HashType_WC_HASH_TYPE_SHA256.try_into().unwrap(),
-            WCShaHmac::Sha384 => wc_HashType_WC_HASH_TYPE_SHA384.try_into().unwrap(),
-        }
-    }
-
-    pub fn new(hash_type: wc_HashType) -> Self {
-        match hash_type {
-            wolfcrypt_rs::wc_HashType_WC_HASH_TYPE_SHA256 => WCShaHmac::Sha256,
-            wolfcrypt_rs::wc_HashType_WC_HASH_TYPE_SHA384 => WCShaHmac::Sha384,
-            _ => panic!("Unsupported hash type"),
-        }
-    }
-
-    pub fn hash_type(&self) -> wc_HashType {
-        match self {
-            WCShaHmac::Sha256 => wc_HashType_WC_HASH_TYPE_SHA256,
-            WCShaHmac::Sha384 => wc_HashType_WC_HASH_TYPE_SHA384,
+            WCShaHmac::Sha256 => HMAC::TYPE_SHA256,
+            WCShaHmac::Sha384 => HMAC::TYPE_SHA384,
         }
     }
 
@@ -94,7 +80,7 @@ impl WCHmacKey {
         let ret = unsafe {
             wc_HmacSetKey(
                 hmac_object.as_ptr(),
-                self.variant.algorithm(),
+                self.variant.hash_type(),
                 self.key.as_ptr(),
                 self.key.len() as word32,
             )

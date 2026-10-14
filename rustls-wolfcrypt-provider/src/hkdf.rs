@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use core::mem;
 use foreign_types::ForeignType;
 use rustls::crypto::tls13::{self, Hkdf as RustlsHkdf};
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::sys::*;
 
 use crate::error::check_if_zero;
 use crate::hmac::WCShaHmac;
@@ -35,7 +35,7 @@ impl RustlsHkdf for WCHkdfUsingHmac {
 
         let ret = unsafe {
             wc_HKDF_Extract(
-                self.0.hash_type().try_into().unwrap(),
+                self.0.hash_type(),
                 salt_bytes.as_ptr(),
                 salt_bytes.len() as u32,
                 ikm.as_ptr(),
@@ -47,7 +47,7 @@ impl RustlsHkdf for WCHkdfUsingHmac {
 
         Box::new(WolfHkdfExpander::new(
             Zeroizing::new(extracted_key),
-            self.0.hash_type().try_into().unwrap(),
+            self.0.hash_type(),
             self.0.hash_len(),
         ))
     }
@@ -58,7 +58,7 @@ impl RustlsHkdf for WCHkdfUsingHmac {
     ) -> Box<dyn rustls::crypto::tls13::HkdfExpander> {
         Box::new(WolfHkdfExpander {
             extracted_key: Zeroizing::new(okm.as_ref().to_vec()),
-            hash_type: self.0.hash_type().try_into().unwrap(),
+            hash_type: self.0.hash_type(),
             hash_len: self.0.hash_len(),
         })
     }
@@ -75,7 +75,7 @@ impl RustlsHkdf for WCHkdfUsingHmac {
         let mut ret = unsafe {
             wc_HmacSetKey(
                 hmac_object.as_ptr(),
-                self.0.hash_type().try_into().unwrap(),
+                self.0.hash_type(),
                 key.as_ref().as_ptr(),
                 key.as_ref().len() as u32,
             )
@@ -173,7 +173,7 @@ mod tests {
             "34007208d5b887185865"
         );
 
-        let hkdf = WCHkdfUsingHmac(WCShaHmac::new(wc_HashType_WC_HASH_TYPE_SHA256));
+        let hkdf = WCHkdfUsingHmac(WCShaHmac::Sha256);
         let expander = hkdf.extract_from_secret(Some(&salt), &ikm);
 
         let mut okm = vec![0u8; 42]; // Length from test vector
@@ -191,7 +191,7 @@ mod tests {
         let salt = hex!("000102030405060708090a0b0c");
         let info = hex!("f0f1f2f3f4f5f6f7f8f9");
 
-        let hkdf = WCHkdfUsingHmac(WCShaHmac::new(wc_HashType_WC_HASH_TYPE_SHA384));
+        let hkdf = WCHkdfUsingHmac(WCShaHmac::Sha384);
         let expander = hkdf.extract_from_secret(Some(&salt), &ikm);
 
         let mut okm = vec![0u8; 48]; // SHA384 output length
@@ -205,7 +205,7 @@ mod tests {
     /// The limit is 255 times the hash length as specified in RFC 5869
     #[test]
     fn test_hkdf_output_length_limit() {
-        let hkdf = WCHkdfUsingHmac(WCShaHmac::new(wc_HashType_WC_HASH_TYPE_SHA256));
+        let hkdf = WCHkdfUsingHmac(WCShaHmac::Sha256);
         let expander = hkdf.extract_from_zero_ikm(None);
 
         // Maximum allowed length (255 * hash_len)
@@ -222,7 +222,7 @@ mod tests {
     /// This is important for TLS 1.3 which sometimes requires derivation from zero IKM
     #[test]
     fn test_hkdf_zero_ikm() {
-        let hkdf = WCHkdfUsingHmac(WCShaHmac::new(wc_HashType_WC_HASH_TYPE_SHA256));
+        let hkdf = WCHkdfUsingHmac(WCShaHmac::Sha256);
         let salt = hex!("000102030405060708090a0b0c");
         let info = hex!("f0f1f2f3f4f5f6f7f8f9");
 
@@ -243,7 +243,7 @@ mod tests {
     /// Verifies that passing multiple info slices produces the same result as their concatenation
     #[test]
     fn test_hkdf_multiple_info_components() {
-        let hkdf = WCHkdfUsingHmac(WCShaHmac::new(wc_HashType_WC_HASH_TYPE_SHA256));
+        let hkdf = WCHkdfUsingHmac(WCShaHmac::Sha256);
         let salt = hex!("000102030405060708090a0b0c");
         let info1 = hex!("f0f1f2f3");
         let info2 = hex!("f4f5f6f7");

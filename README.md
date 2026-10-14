@@ -8,12 +8,13 @@ provider itself operates independently of `std`.
 ## Status
 
 This is in an alpha stage, particularly because the Rustls API is not yet stable.
-This code currently works with Rustls = 0.23.22.
+This code currently works with Rustls = 0.23.45.
 
 ## Repo Structure
 
 - **rustls-wolfcrypt-provider**: Crate containing the code that lets you use rustls with wolfcrypt as a crypto provider.
-- **wolfcrypt-rs**: Low-level unsafe bindings for wolfcrypt generated using bindgen.
+
+It calls wolfCrypt through the official [`wolfssl-wolfcrypt`](https://github.com/wolfSSL/wolfssl/tree/master/wrapper/rust/wolfssl-wolfcrypt) crate, which links an installed wolfSSL.
 
 ## Cipher Suites (Currently) Supported
 
@@ -35,7 +36,7 @@ For more details about the supported curves, verification/signing methods, and a
 ## Usage
 
 ### Initial Setup and Installation
-*Rustc 1.77+ is required.*
+*Rustc 1.85+ is required.*
 
 1. Clone the repository:
    ```
@@ -43,19 +44,26 @@ For more details about the supported curves, verification/signing methods, and a
    cd rustls-wolfcrypt-provider/
    ```
 
-2. Build the wolfcrypt-rs crate to correctly generate the bindings and make sure
-   the build was successful by running the sanity check(s):
+2. Build and install wolfSSL as a shared library (from a checkout of
+   [wolfSSL](https://github.com/wolfSSL/wolfssl)):
    ```
-   cd wolfcrypt-rs/
-   make build
-   make test
+   ./autogen.sh
+   ./configure --prefix=<install dir> --enable-all-crypto --enable-shared \
+       --disable-static CPPFLAGS=-DWOLFSSL_RSA_KEY_CHECK
+   make
+   make install
    ```
 
-   Then change the current directory to the rustls-wolfcrypt-provider, build 
-   the crate, followed by running the test to make sure everything is running
-   smoothly:
+3. Build the crate and run the tests. `WOLFSSL_PREFIX` tells the wolfCrypt
+   crate where wolfSSL is installed, and the library directory must be on the
+   loader path. The end-to-end tests run wolfSSL's example server
+   (`WOLFSSL_SERVER`) from the wolfSSL source tree (`WOLFSSL_SRC`):
    ```
-   cd ../rustls-wolfcrypt-provider/
+   export WOLFSSL_PREFIX=<install dir>
+   export LD_LIBRARY_PATH=$WOLFSSL_PREFIX/lib    # DYLD_LIBRARY_PATH on macOS
+   export WOLFSSL_SRC=<wolfSSL checkout>
+   export WOLFSSL_SERVER=$WOLFSSL_SRC/examples/server/server
+   cd rustls-wolfcrypt-provider/
    make build
    make test
    ```

@@ -1,165 +1,61 @@
-use crate::{error::check_if_zero, types::*};
 use alloc::boxed::Box;
-use core::mem;
-use foreign_types::ForeignType;
-use wolfcrypt_rs::*;
-use zeroize::Zeroizing;
+use wolfssl_wolfcrypt::curve25519::Curve25519Key;
+use wolfssl_wolfcrypt::random::RNG;
+
+/// The generated key, kept for the whole exchange along with the RNG it was
+/// generated with, which wolfSSL uses when curve25519 blinding is built in.
+struct X25519Key(Curve25519Key);
+
+// SAFETY: the key owns everything its pointers refer to (including its RNG),
+// and is only used through `&mut`.
+unsafe impl Send for X25519Key {}
+unsafe impl Sync for X25519Key {}
 
 pub struct KeyExchangeX25519 {
     pub_key_bytes: Box<[u8]>,
-    priv_key_bytes: Zeroizing<Box<[u8]>>,
+    key: X25519Key,
 }
 
 impl KeyExchangeX25519 {
     pub fn use_curve25519() -> Result<Self, rustls::Error> {
-        let mut key: curve25519_key = unsafe { mem::zeroed() };
-        let key_object = Curve25519KeyObject::new(&mut key);
-        let mut rng: WC_RNG = unsafe { mem::zeroed() };
-        let rng_object = WCRngObject::new(&mut rng);
-        let mut ret;
-        let mut pub_key_raw: [u8; 32] = [0; 32];
-        let mut pub_key_raw_len: word32 = pub_key_raw.len() as word32;
-        // Export the private key straight into a zeroizing heap buffer so the
-        // raw secret never lives in an un-wiped stack array.
-        let mut priv_key_raw: Zeroizing<Box<[u8]>> =
-            Zeroizing::new(alloc::vec![0u8; 32].into_boxed_slice());
-        let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
-        let endian: u32 = EC25519_LITTLE_ENDIAN;
-
-        // We initialize the curve25519 key object.
-        key_object
-            .init()
-            .map_err(|_| rustls::Error::General("wc_curve25519_init failed".into()))?;
-
-        // We initialize the rng object.
-        rng_object
-            .init()
-            .map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
-
-        // This function generates a Curve25519 key using the given random number generator, rng,
-        // of the size given (keysize), and stores it in the given curve25519_key structure.
-        ret = unsafe { wc_curve25519_make_key(rng_object.as_ptr(), 32, key_object.as_ptr()) };
-        check_if_zero(ret)
+        let rng = RNG::new().map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
+        let mut key = Curve25519Key::generate(rng)
             .map_err(|_| rustls::Error::General("wc_curve25519_make_key failed".into()))?;
 
-        // Export curve25519 key pair. Big or little endian.
-        ret = unsafe {
-            wc_curve25519_export_key_raw_ex(
-                key_object.as_ptr(),
-                priv_key_raw.as_mut_ptr(),
-                &mut priv_key_raw_len,
-                pub_key_raw.as_mut_ptr(),
-                &mut pub_key_raw_len,
-                endian.try_into().unwrap(),
-            )
-        };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("wc_curve25519_export_key_raw_ex failed".into()))?;
+        let mut pub_key_raw = [0u8; Curve25519Key::KEYSIZE];
+        key.export_public_ex(&mut pub_key_raw, false)
+            .map_err(|_| rustls::Error::General("wc_curve25519_export_public_ex failed".into()))?;
 
         Ok(KeyExchangeX25519 {
             pub_key_bytes: Box::new(pub_key_raw),
-            priv_key_bytes: priv_key_raw,
+            key: X25519Key(key),
         })
     }
 
-    pub fn derive_shared_secret(&self, peer_pub_key: &[u8]) -> Result<Box<[u8]>, rustls::Error> {
-        if peer_pub_key.len() != 32 {
+    pub fn derive_shared_secret(
+        &mut self,
+        peer_pub_key: &[u8],
+    ) -> Result<Box<[u8]>, rustls::Error> {
+        if peer_pub_key.len() != Curve25519Key::KEYSIZE {
             return Err(rustls::Error::General(
                 "Invalid peer public key length".into(),
             ));
         }
 
-        let mut ret;
-        let endian: u32 = EC25519_LITTLE_ENDIAN;
-        let mut pub_key_provided: curve25519_key = unsafe { mem::zeroed() };
-        let pub_key_provided_object = Curve25519KeyObject::new(&mut pub_key_provided);
-        let mut out: [u8; 32] = [0; 32];
-        let mut out_len: word32 = out.len() as word32;
-        let mut private_key: curve25519_key = unsafe { mem::zeroed() };
-        let private_key_object = Curve25519KeyObject::new(&mut private_key);
-
-        // This function checks that a public key buffer holds a valid
-        // Curve25519 key value given the endian ordering.
-        ret = unsafe {
-            wc_curve25519_check_public(
-                peer_pub_key.as_ptr(),
-                peer_pub_key.len() as word32,
-                endian.try_into().unwrap(),
-            )
-        };
-        check_if_zero(ret)
+        Curve25519Key::check_public(peer_pub_key, false)
             .map_err(|_| rustls::Error::General("Invalid Curve25519 public key".into()))?;
 
-        // We initialize the curve25519 key object before we import the public key in it.
-        pub_key_provided_object
-            .init()
-            .map_err(|_| rustls::Error::General("wc_curve25519_init failed".into()))?;
-
-        // This function imports a public key from the given input buffer
-        // and stores it in the curve25519_key structure.
-        ret = unsafe {
-            wc_curve25519_import_public_ex(
-                peer_pub_key.as_ptr(),
-                peer_pub_key.len() as word32,
-                pub_key_provided_object.as_ptr(),
-                endian.try_into().unwrap(),
-            )
-        };
-        check_if_zero(ret)
+        let mut peer_key = Curve25519Key::import_public_ex(peer_pub_key, false)
             .map_err(|_| rustls::Error::General("Failed to import Curve25519 public key".into()))?;
 
-        // We initialize the curve25519 key object before we import the private key in it.
-        private_key_object
-            .init()
-            .map_err(|_| rustls::Error::General("wc_curve25519_init failed".into()))?;
-
-        // This function imports a private key from the given input buffer
-        // and stores it in the the curve25519_key structure.
-        ret = unsafe {
-            wc_curve25519_import_private_ex(
-                self.priv_key_bytes.as_ptr(),
-                self.priv_key_bytes.len() as word32,
-                private_key_object.as_ptr(),
-                endian.try_into().unwrap(),
-            )
-        };
-        check_if_zero(ret).map_err(|_| {
-            rustls::Error::General("Failed to import Curve25519 private key".into())
-        })?;
-
-        // When wolfSSL is built with curve25519 blinding (pure-C builds, e.g.
-        // Apple Silicon where no asm backend is selected), the shared-secret
-        // scalar multiplication draws random values to blind the private
-        // scalar. An imported key has no RNG attached, so we must supply one;
-        // otherwise wc_curve25519_shared_secret_ex returns BAD_FUNC_ARG (-173).
-        // On non-blinding (asm) builds curve25519_set_rng is a no-op.
-        let mut rng: WC_RNG = unsafe { mem::zeroed() };
-        let rng_object = WCRngObject::new(&mut rng);
-        rng_object
-            .init()
-            .map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
-
-        ret = unsafe { curve25519_set_rng(private_key_object.as_ptr(), rng_object.as_ptr()) };
-        check_if_zero(ret).map_err(|_| {
-            rustls::Error::General("Failed to set RNG on Curve25519 private key".into())
-        })?;
-
-        // This function computes a shared secret key given a secret private key and
-        // a received public key. Stores the generated secret in the buffer out.
-        ret = unsafe {
-            wc_curve25519_shared_secret_ex(
-                private_key_object.as_ptr(),
-                pub_key_provided_object.as_ptr(),
-                out.as_mut_ptr(),
-                &mut out_len,
-                endian.try_into().unwrap(),
-            )
-        };
-        check_if_zero(ret).map_err(|_| {
-            rustls::Error::General(alloc::format!(
-                "Failed to compute Curve25519 shared secret (ret = {ret})"
-            ))
-        })?;
+        let mut out = [0u8; Curve25519Key::KEYSIZE];
+        Curve25519Key::shared_secret_ex(&mut self.key.0, &mut peer_key, &mut out, false).map_err(
+            |ret| {
+                rustls::Error::General(alloc::format!(
+                    "Failed to compute Curve25519 shared secret (ret = {ret})"
+                ))
+            },
+        )?;
 
         Ok(Box::new(out))
     }
@@ -167,7 +63,7 @@ impl KeyExchangeX25519 {
 
 impl rustls::crypto::ActiveKeyExchange for KeyExchangeX25519 {
     fn complete(
-        self: Box<Self>,
+        mut self: Box<Self>,
         peer_pub_key: &[u8],
     ) -> Result<rustls::crypto::SharedSecret, rustls::Error> {
         // We derive the shared secret with our private key and
@@ -193,12 +89,14 @@ mod tests {
 
     #[test]
     fn test_curve25519_kx() {
-        let alice = Box::new(KeyExchangeX25519::use_curve25519().unwrap());
-        let bob = Box::new(KeyExchangeX25519::use_curve25519().unwrap());
+        let mut alice = Box::new(KeyExchangeX25519::use_curve25519().unwrap());
+        let mut bob = Box::new(KeyExchangeX25519::use_curve25519().unwrap());
+        let alice_pub = alice.pub_key().to_vec();
+        let bob_pub = bob.pub_key().to_vec();
 
         assert_eq!(
-            alice.derive_shared_secret(bob.pub_key()).unwrap(),
-            bob.derive_shared_secret(alice.pub_key()).unwrap(),
+            alice.derive_shared_secret(&bob_pub).unwrap(),
+            bob.derive_shared_secret(&alice_pub).unwrap(),
         )
     }
 }

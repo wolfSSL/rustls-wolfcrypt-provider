@@ -4,7 +4,7 @@ use alloc::boxed::Box;
 use core::mem;
 use core::ptr;
 use foreign_types::ForeignType;
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::sys::*;
 use zeroize::Zeroizing;
 
 pub struct KeyExchangeSecP384r1 {

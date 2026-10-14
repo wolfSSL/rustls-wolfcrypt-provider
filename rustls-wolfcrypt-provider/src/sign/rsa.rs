@@ -13,7 +13,7 @@ use rustls::sign::{Signer, SigningKey};
 use rustls::{SignatureAlgorithm, SignatureScheme};
 
 use core::ptr;
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::sys::*;
 use zeroize::Zeroizing;
 
 const ALL_RSA_SCHEMES: &[SignatureScheme] = &[

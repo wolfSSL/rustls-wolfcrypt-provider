@@ -14,7 +14,7 @@ use rustls::pki_types::PrivateKeyDer;
 use rustls::sign::{Signer, SigningKey};
 use rustls::{SignatureAlgorithm, SignatureScheme};
 
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::sys::*;
 use zeroize::Zeroizing;
 
 /// A unified ECDSA signing key that supports P-256, P-384, P-521.

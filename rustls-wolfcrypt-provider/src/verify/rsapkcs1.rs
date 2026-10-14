@@ -8,7 +8,7 @@ use rustls::pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerifica
 
 use core::ptr;
 use rustls_pki_types::alg_id;
-use wolfcrypt_rs::*;
+use wolfssl_wolfcrypt::sys::*;
 
 #[derive(Debug)]
 pub struct RsaPkcs1Sha256Verify;
