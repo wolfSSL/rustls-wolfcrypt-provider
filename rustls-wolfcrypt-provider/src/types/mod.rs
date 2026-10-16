@@ -148,53 +148,6 @@ define_foreign_type!(
     drop(wc_FreeRng),
     wc_InitRng
 );
-define_foreign_type!(
-    Curve25519KeyObject,
-    Curve25519KeyObjectRef,
-    curve25519_key,
-    drop_void(wc_curve25519_free),
-    wc_curve25519_init
-);
-define_foreign_type!(
-    ECCKeyObject,
-    ECCKeyObjectRef,
-    ecc_key,
-    drop(wc_ecc_free),
-    wc_ecc_init
-);
-define_foreign_type!(
-    ED25519KeyObject,
-    ED25519KeyObjectRef,
-    ed25519_key,
-    drop_void(wc_ed25519_free),
-    wc_ed25519_init
-);
-define_foreign_type!(
-    ED448KeyObject,
-    ED448KeyObjectRef,
-    ed448_key,
-    drop_void(wc_ed448_free),
-    wc_ed448_init
-);
 
 define_foreign_type_no_copy!(RsaKeyObject, RsaKeyObjectRef, RsaKey, drop(wc_FreeRsaKey));
-define_foreign_type_no_copy!(
-    HmacObject,
-    HmacObjectRef,
-    wolfssl_wolfcrypt::sys::Hmac,
-    drop_void(wc_HmacFree)
-);
-define_foreign_type_no_copy!(AesObject, AesObjectRef, Aes, drop_void(wc_AesFree));
 define_foreign_type_no_copy!(ChaChaObject, ChaChaObjectRef, ChaCha);
-define_foreign_type_no_copy!(
-    Sha256Object,
-    Sha256ObjectRef,
-    wc_Sha256,
-    drop_void(wc_Sha256Free)
-);
-define_foreign_type_no_copy!(
-    Sha384Object,
-    Sha384ObjectRef,
-    wc_Sha384,
-    drop_void(wc_Sha384Free)
-);
