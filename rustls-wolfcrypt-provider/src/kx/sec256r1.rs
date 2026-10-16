@@ -1,9 +1,6 @@
-use crate::{error::check_if_zero, types::*};
 use alloc::boxed::Box;
-use core::mem;
-use core::ptr;
-use foreign_types::ForeignType;
-use wolfssl_wolfcrypt::sys::*;
+use wolfssl_wolfcrypt::ecc::ECC;
+use wolfssl_wolfcrypt::random::RNG;
 use zeroize::Zeroizing;
 
 pub struct KeyExchangeSecP256r1 {
@@ -11,80 +8,25 @@ pub struct KeyExchangeSecP256r1 {
     pub_key_bytes: Box<[u8]>,
 }
 
-pub struct ECCPubKey {
-    qx: [u8; 32],
-    qx_len: word32,
-    qy: [u8; 32],
-    qy_len: word32,
-}
-
 impl KeyExchangeSecP256r1 {
     pub fn use_secp256r1() -> Result<Self, rustls::Error> {
-        let mut key: ecc_key = unsafe { mem::zeroed() };
-        let key_object = ECCKeyObject::new(&mut key);
-        let mut rng: WC_RNG = unsafe { mem::zeroed() };
-        let rng_object: WCRngObject = WCRngObject::new(&mut rng);
-        let mut ret;
-        let mut pub_key_raw = ECCPubKey {
-            qx: [0; 32],
-            qx_len: 32,
-            qy: [0; 32],
-            qy_len: 32,
-        };
+        let rng = RNG::new().map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
 
-        key_object
-            .init()
-            .map_err(|_| rustls::Error::General("wc_ecc_init failed".into()))?;
-        rng_object
-            .init()
-            .map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
+        let key_size = ECC::get_curve_size_from_id(ECC::SECP256R1)
+            .map_err(|_| rustls::Error::General("wc_ecc_get_curve_size_from_id failed".into()))?;
 
-        let key_size = unsafe { wc_ecc_get_curve_size_from_id(ecc_curve_ids_ECC_SECP256R1) };
+        let mut key = ECC::generate_ex(key_size, &rng, ECC::SECP256R1, None, None)
+            .map_err(|_| rustls::Error::General("wc_ecc_make_key_ex failed".into()))?;
 
         let mut priv_key_raw: Zeroizing<Box<[u8]>> =
             Zeroizing::new(alloc::vec![0u8; 32].into_boxed_slice());
-        let mut priv_key_raw_len: word32 = priv_key_raw.len() as word32;
-
-        ret = unsafe {
-            wc_ecc_make_key_ex(
-                rng_object.as_ptr(),
-                key_size,
-                key_object.as_ptr(),
-                ecc_curve_ids_ECC_SECP256R1,
-            )
-        };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("wc_ecc_make_key_ex failed".into()))?;
-
-        ret = unsafe {
-            wc_ecc_export_private_only(
-                key_object.as_ptr(),
-                priv_key_raw.as_mut_ptr(),
-                &mut priv_key_raw_len,
-            )
-        };
-        check_if_zero(ret)
+        key.export_private(&mut priv_key_raw)
             .map_err(|_| rustls::Error::General("wc_ecc_export_private_only failed".into()))?;
 
-        ret = unsafe {
-            wc_ecc_export_public_raw(
-                key_object.as_ptr(),
-                pub_key_raw.qx.as_mut_ptr(),
-                &mut pub_key_raw.qx_len,
-                pub_key_raw.qy.as_mut_ptr(),
-                &mut pub_key_raw.qy_len,
-            )
-        };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("wc_ecc_export_public_raw failed".into()))?;
         // One byte prefix (0x04) + 32 bytes X coord + 32 bytes Y coord
-        let mut pub_key_bytes = [0x04; 65];
-
-        // Copy X coordinate into bytes 1-32
-        pub_key_bytes[1..33].copy_from_slice(&pub_key_raw.qx);
-
-        // Copy Y coordinate into bytes 33-64
-        pub_key_bytes[33..65].copy_from_slice(&pub_key_raw.qy);
+        let mut pub_key_bytes = [0u8; 65];
+        key.export_x963(&mut pub_key_bytes)
+            .map_err(|_| rustls::Error::General("wc_ecc_export_x963 failed".into()))?;
 
         Ok(KeyExchangeSecP256r1 {
             priv_key_bytes: priv_key_raw,
@@ -99,70 +41,23 @@ impl KeyExchangeSecP256r1 {
             ));
         }
 
-        let mut priv_key: ecc_key = unsafe { mem::zeroed() };
-        let priv_key_object = ECCKeyObject::new(&mut priv_key);
-        let mut pub_key: ecc_key = unsafe { mem::zeroed() };
-        let pub_key_object = ECCKeyObject::new(&mut pub_key);
-        let mut rng: WC_RNG = unsafe { mem::zeroed() };
-        let rng_object = WCRngObject::new(&mut rng);
-        let mut ret: i32;
+        let mut priv_key =
+            ECC::import_private_key_ex(&self.priv_key_bytes, &[], ECC::SECP256R1, None, None)
+                .map_err(|_| rustls::Error::General("Failed to import ECC private key".into()))?;
 
-        priv_key_object
-            .init()
-            .map_err(|_| rustls::Error::General("wc_ecc_init failed".into()))?;
-        pub_key_object
-            .init()
-            .map_err(|_| rustls::Error::General("wc_ecc_init failed".into()))?;
-
-        ret = unsafe {
-            wc_ecc_import_private_key_ex(
-                self.priv_key_bytes.as_ptr(),
-                self.priv_key_bytes.len() as word32,
-                ptr::null_mut(),
-                0,
-                priv_key_object.as_ptr(),
-                ecc_curve_ids_ECC_SECP256R1,
-            )
-        };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("Failed to import ECC private key".into()))?;
-
-        ret = unsafe {
-            wc_ecc_import_unsigned(
-                pub_key_object.as_ptr(),
-                peer_pub_key[1..33].as_ptr(),
-                peer_pub_key[33..].as_ptr(),
-                ptr::null_mut(),
-                ecc_curve_ids_ECC_SECP256R1,
-            )
-        };
-        check_if_zero(ret)
+        // rustls hands us the uncompressed point (0x04 || X || Y), see
+        // https://www.rfc-editor.org/rfc/rfc8446#section-4.2.8.2.
+        let mut pub_key = ECC::import_x963_ex(peer_pub_key, ECC::SECP256R1, None, None)
             .map_err(|_| rustls::Error::General("Failed to import peer ECC public key".into()))?;
 
-        rng_object
-            .init()
-            .map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
-
-        ret = unsafe { wc_ecc_set_rng(pub_key_object.as_ptr(), rng_object.as_ptr()) };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("Failed to set RNG on public key".into()))?;
-
-        ret = unsafe { wc_ecc_set_rng(priv_key_object.as_ptr(), rng_object.as_ptr()) };
-        check_if_zero(ret)
+        let rng = RNG::new().map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
+        priv_key
+            .set_rng(rng)
             .map_err(|_| rustls::Error::General("Failed to set RNG on private key".into()))?;
 
         let mut out = [0u8; 32];
-        let mut out_len: word32 = out.len() as word32;
-
-        ret = unsafe {
-            wc_ecc_shared_secret(
-                priv_key_object.as_ptr(),
-                pub_key_object.as_ptr(),
-                out.as_mut_ptr(),
-                &mut out_len,
-            )
-        };
-        check_if_zero(ret)
+        priv_key
+            .shared_secret(&mut pub_key, &mut out)
             .map_err(|_| rustls::Error::General("Failed to compute ECC shared secret".into()))?;
 
         Ok(Box::new(out))
