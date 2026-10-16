@@ -179,9 +179,8 @@ impl Signer for Ed25519Signer {
         let mut ed25519_c_type: ed25519_key = unsafe { mem::zeroed() };
         let ed25519_key_object = ED25519KeyObject::new(&mut ed25519_c_type);
 
-        ed25519_key_object
-            .init()
-            .map_err(|_| rustls::Error::General("wc_ed25519_init failed".into()))?;
+        let mut key =
+            Ed25519::new().map_err(|_| rustls::Error::General("wc_ed25519_init failed".into()))?;
 
         ret = unsafe {
             wc_ed25519_import_private_key(

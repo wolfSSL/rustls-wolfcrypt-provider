@@ -1,28 +1,32 @@
 use crate::alloc::string::ToString;
-use crate::error::*;
-use crate::types::*;
+use crate::verify::Hash;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
-use core::mem;
-use core::ptr;
-use foreign_types::ForeignType;
 use rustls::pki_types::PrivateKeyDer;
 use rustls::sign::{Signer, SigningKey};
 use rustls::{SignatureAlgorithm, SignatureScheme};
 
-use wolfssl_wolfcrypt::sys::*;
+use wolfssl_wolfcrypt::ecc::ECC;
+use wolfssl_wolfcrypt::random::RNG;
 use zeroize::Zeroizing;
+
+/// Private key size of the largest supported curve, P-521.
+const MAX_ECC_KEY_SIZE: usize = 66;
+
+/// Largest DER-encoded signature for P-521: a SEQUENCE header (3 bytes) around
+/// two INTEGERs, each with a 2-byte header and possibly a leading zero byte.
+const ECC_MAX_SIG_SIZE: usize = 2 * MAX_ECC_KEY_SIZE + 9;
 
 /// A unified ECDSA signing key that supports P-256, P-384, P-521.
 /// Internally, we store the raw private key bytes plus
 /// which scheme we should use (determined by WolfSSL after decode).
 #[derive(Clone)]
 pub struct EcdsaSigningKey {
-    /// Raw private key bytes exported from WolfSSL (`wc_ecc_export_private_only`)
+    /// Raw private key bytes exported from wolfSSL (`ECC::export_private`)
     /// in big-endian format.
     key: Arc<Zeroizing<Vec<u8>>>,
     /// The signature scheme to use (e.g. ECDSA_NISTP256_SHA256).
@@ -56,46 +60,16 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKey {
             }
         };
 
-        let mut ecc_c_type: ecc_key = unsafe { mem::zeroed() };
-        let ecc_key_object = ECCKeyObject::new(&mut ecc_c_type);
-
-        ecc_key_object
-            .init()
-            .map_err(|_| rustls::Error::General("wc_ecc_init failed".into()))?;
-
-        let mut idx: u32 = 0;
-        let ret = unsafe {
-            wc_EccPrivateKeyDecode(
-                der_formatted.as_ptr() as *mut u8,
-                &mut idx,
-                ecc_key_object.as_ptr(),
-                der_formatted.len() as word32,
-            )
-        };
-        check_if_zero(ret)
+        let mut key = ECC::import_der(der_formatted, None, None)
             .map_err(|_| rustls::Error::General("wc_EccPrivateKeyDecode failed".into()))?;
 
-        let key_size = unsafe { wc_ecc_size(ecc_key_object.as_ptr()) };
-        if key_size == 0 {
-            return Err(rustls::Error::General(
-                "wc_ecc_size returned 0; invalid key?".into(),
-            ));
-        }
-
-        let mut priv_key_bytes = Zeroizing::new(vec![0u8; key_size as usize]);
-        let mut priv_key_bytes_len = priv_key_bytes.len() as word32;
-
-        let ret = unsafe {
-            wc_ecc_export_private_only(
-                ecc_key_object.as_ptr(),
-                priv_key_bytes.as_mut_ptr(),
-                &mut priv_key_bytes_len,
-            )
-        };
-        check_if_zero(ret)
+        // The export writes exactly the curve's key size, so a buffer big
+        // enough for P-521 also tells us which curve the key is on.
+        let mut priv_key_bytes = Zeroizing::new(vec![0u8; MAX_ECC_KEY_SIZE]);
+        let key_size = key
+            .export_private(&mut priv_key_bytes)
             .map_err(|_| rustls::Error::General("wc_ecc_export_private_only failed".into()))?;
-
-        priv_key_bytes.truncate(priv_key_bytes_len as usize);
+        priv_key_bytes.truncate(key_size);
 
         let scheme =
             curve_id_to_scheme(key_size).map_err(|e| rustls::Error::General(e.to_string()))?;
@@ -108,7 +82,7 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKey {
 }
 
 /// Converts a key size to a `SignatureScheme` (e.g. 32 -> ECDSA_NISTP256_SHA256).
-fn curve_id_to_scheme(key_size: i32) -> Result<SignatureScheme, &'static str> {
+fn curve_id_to_scheme(key_size: usize) -> Result<SignatureScheme, &'static str> {
     match key_size {
         32 => Ok(SignatureScheme::ECDSA_NISTP256_SHA256),
         48 => Ok(SignatureScheme::ECDSA_NISTP384_SHA384),
@@ -134,57 +108,24 @@ impl SigningKey for EcdsaSigningKey {
 
 impl Signer for EcdsaSigningKey {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
-        let digest = hash_message_for_scheme(self.scheme, message)
-            .map_err(|_| rustls::Error::General("hash failed".into()))?;
-
-        let mut rng: WC_RNG = unsafe { mem::zeroed() };
-        let rng_object: WCRngObject = WCRngObject::new(&mut rng);
-        rng_object
-            .init()
-            .map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
-
-        let mut ecc_c_type: ecc_key = unsafe { mem::zeroed() };
-        let ecc_key_object = ECCKeyObject::new(&mut ecc_c_type);
-        ecc_key_object
-            .init()
-            .map_err(|_| rustls::Error::General("wc_ecc_init failed".into()))?;
-
-        let curve_id = scheme_to_curve_id(self.scheme)
+        let (curve_id, hash) = scheme_to_curve_and_hash(self.scheme)
             .map_err(|e| rustls::Error::General(format!("scheme_to_curve_id unsupported: {e}")))?;
 
-        let ret = unsafe {
-            wc_ecc_import_private_key_ex(
-                self.key.as_ptr(),
-                self.key.len() as word32,
-                ptr::null_mut(),
-                0,
-                ecc_key_object.as_ptr(),
-                curve_id,
-            )
-        };
-        check_if_zero(ret)
+        let (digest, digest_len) = hash
+            .digest(message)
+            .map_err(|_| rustls::Error::General("hash failed".into()))?;
+
+        let rng = RNG::new().map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
+
+        let mut key = ECC::import_private_key_ex(&self.key, &[], curve_id, None, None)
             .map_err(|_| rustls::Error::General("wc_ecc_import_private_key_ex failed".into()))?;
 
-        let mut sig = [0u8; ECC_MAX_SIG_SIZE as usize];
-        let mut sig_sz: word32 = sig.len() as word32;
+        let mut sig = [0u8; ECC_MAX_SIG_SIZE];
+        let sig_sz = key
+            .sign_hash(&digest[..digest_len], &mut sig, &rng)
+            .map_err(|_| rustls::Error::General("wc_ecc_sign_hash failed".into()))?;
 
-        let ret = unsafe {
-            wc_ecc_sign_hash(
-                digest.as_ptr() as *mut u8,
-                digest.len() as word32,
-                sig.as_mut_ptr(),
-                &mut sig_sz,
-                rng_object.as_ptr(),
-                ecc_key_object.as_ptr(),
-            )
-        };
-        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_ecc_sign_hash failed".into()))?;
-
-        // truncate to actual sig size
-        let mut sig_vec = sig.to_vec();
-        sig_vec.truncate(sig_sz as usize);
-
-        Ok(sig_vec)
+        Ok(sig[..sig_sz].to_vec())
     }
 
     fn scheme(&self) -> SignatureScheme {
@@ -192,65 +133,12 @@ impl Signer for EcdsaSigningKey {
     }
 }
 
-/// Hash the input `message` according to the scheme’s hash algorithm.
-/// Returns the raw digest bytes.
-fn hash_message_for_scheme(
-    scheme: SignatureScheme,
-    message: &[u8],
-) -> Result<Vec<u8>, &'static str> {
+/// Converts a rustls `SignatureScheme` to the wolfSSL curve id and the hash to sign with.
+fn scheme_to_curve_and_hash(scheme: SignatureScheme) -> Result<(i32, Hash), &'static str> {
     match scheme {
-        SignatureScheme::ECDSA_NISTP256_SHA256 => {
-            let mut digest = vec![0u8; WC_SHA256_DIGEST_SIZE as usize];
-            let ret = unsafe {
-                wc_Sha256Hash(
-                    message.as_ptr(),
-                    message.len() as word32,
-                    digest.as_mut_ptr(),
-                )
-            };
-            if ret != 0 {
-                return Err("wc_Sha256Hash failed");
-            }
-            Ok(digest)
-        }
-        SignatureScheme::ECDSA_NISTP384_SHA384 => {
-            let mut digest = vec![0u8; WC_SHA384_DIGEST_SIZE as usize];
-            let ret = unsafe {
-                wc_Sha384Hash(
-                    message.as_ptr(),
-                    message.len() as word32,
-                    digest.as_mut_ptr(),
-                )
-            };
-            if ret != 0 {
-                return Err("wc_Sha384Hash failed");
-            }
-            Ok(digest)
-        }
-        SignatureScheme::ECDSA_NISTP521_SHA512 => {
-            let mut digest = vec![0u8; WC_SHA512_DIGEST_SIZE as usize];
-            let ret = unsafe {
-                wc_Sha512Hash(
-                    message.as_ptr(),
-                    message.len() as word32,
-                    digest.as_mut_ptr(),
-                )
-            };
-            if ret != 0 {
-                return Err("wc_Sha512Hash failed");
-            }
-            Ok(digest)
-        }
-        _ => Err("Unsupported scheme for ECDSA signing"),
-    }
-}
-
-/// Converts a rustls `SignatureScheme` to the WolfSSL curve id (ecc_curve_ids_ECC_...).
-fn scheme_to_curve_id(scheme: SignatureScheme) -> Result<i32, &'static str> {
-    match scheme {
-        SignatureScheme::ECDSA_NISTP256_SHA256 => Ok(ecc_curve_ids_ECC_SECP256R1),
-        SignatureScheme::ECDSA_NISTP384_SHA384 => Ok(ecc_curve_ids_ECC_SECP384R1),
-        SignatureScheme::ECDSA_NISTP521_SHA512 => Ok(ecc_curve_ids_ECC_SECP521R1),
+        SignatureScheme::ECDSA_NISTP256_SHA256 => Ok((ECC::SECP256R1, Hash::Sha256)),
+        SignatureScheme::ECDSA_NISTP384_SHA384 => Ok((ECC::SECP384R1, Hash::Sha384)),
+        SignatureScheme::ECDSA_NISTP521_SHA512 => Ok((ECC::SECP521R1, Hash::Sha512)),
         _ => Err("Not an ECDSA_NISTPxxx_SHAxxx scheme"),
     }
 }
