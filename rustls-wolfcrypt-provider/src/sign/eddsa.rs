@@ -1,12 +1,8 @@
-use crate::error::*;
-use crate::types::*;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::fmt;
-use core::mem;
-use foreign_types::ForeignType;
 use pkcs8::der::asn1::OctetStringRef;
 use pkcs8::der::Decode;
 use pkcs8::{ObjectIdentifier, PrivateKeyInfo};
@@ -14,7 +10,7 @@ use rustls::pki_types::PrivateKeyDer;
 use rustls::sign::{Signer, SigningKey};
 use rustls::{SignatureAlgorithm, SignatureScheme};
 
-use wolfssl_wolfcrypt::sys::*;
+use wolfssl_wolfcrypt::ed25519::Ed25519;
 use zeroize::Zeroizing;
 
 const ALL_EDDSA_SCHEMES: &[SignatureScheme] = &[SignatureScheme::ED25519];
@@ -55,7 +51,7 @@ impl Ed25519PrivateKey {
 
         // The private key field holds the 32-byte key wrapped in an OCTET STRING.
         let private_key = OctetStringRef::from_der(info.private_key).map_err(|_| bad_key())?;
-        if private_key.as_bytes().len() != ED25519_KEY_SIZE as usize {
+        if private_key.as_bytes().len() != Ed25519::KEY_SIZE {
             return Err(bad_key());
         }
 
@@ -81,38 +77,15 @@ impl TryFrom<&PrivateKeyDer<'_>> for Ed25519PrivateKey {
                     Err(error) => return Err(error),
                 };
 
-                let mut ret;
-                let mut pub_key_raw: [u8; 32] = [0; 32];
-                let pub_key_raw_len: word32 = pub_key_raw.len() as word32;
+                let mut pub_key_raw: [u8; Ed25519::PUB_KEY_SIZE] = [0; Ed25519::PUB_KEY_SIZE];
 
                 // Generate pub key part if not given
                 if pub_option.is_none() {
-                    let mut ed25519_c_type: ed25519_key = unsafe { mem::zeroed() };
-                    let ed25519_key_object = ED25519KeyObject::new(&mut ed25519_c_type);
-                    // This function initiliazes an ed25519_key object for
-                    // using it to sign a message.
-                    ed25519_key_object
-                        .init()
+                    let mut key = Ed25519::new()
                         .map_err(|_| rustls::Error::General("wc_ed25519_init failed".into()))?;
-
-                    ret = unsafe {
-                        wc_ed25519_import_private_only(
-                            priv_key_raw.as_ptr(),
-                            priv_key_raw.len() as word32,
-                            ed25519_key_object.as_ptr(),
-                        )
-                    };
-                    check_if_zero(ret)
+                    key.import_private_only(&priv_key_raw)
                         .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
-
-                    ret = unsafe {
-                        wc_ed25519_make_public(
-                            ed25519_key_object.as_ptr(),
-                            pub_key_raw.as_mut_ptr(),
-                            pub_key_raw_len,
-                        )
-                    };
-                    check_if_zero(ret)
+                    key.make_public(&mut pub_key_raw)
                         .map_err(|_| rustls::Error::General("FFI function failed".into()))?;
                 }
 
@@ -170,51 +143,19 @@ impl fmt::Debug for Ed25519Signer {
 
 impl Signer for Ed25519Signer {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
-        let mut ret;
-        let message_length: word32 = message.len() as word32;
-        let mut sig: [u8; ED25519_SIG_SIZE as usize] = [0; ED25519_SIG_SIZE as usize];
-        let mut sig_sz: word32 = sig.len() as word32;
-        let priv_key_raw = &self.priv_key;
-        let pub_key_raw = &self.pub_key;
-        let mut ed25519_c_type: ed25519_key = unsafe { mem::zeroed() };
-        let ed25519_key_object = ED25519KeyObject::new(&mut ed25519_c_type);
+        let mut sig: [u8; Ed25519::SIG_SIZE] = [0; Ed25519::SIG_SIZE];
 
         let mut key =
             Ed25519::new().map_err(|_| rustls::Error::General("wc_ed25519_init failed".into()))?;
 
-        ret = unsafe {
-            wc_ed25519_import_private_key(
-                priv_key_raw.as_ptr(),
-                priv_key_raw.len() as word32,
-                pub_key_raw.as_ptr(),
-                pub_key_raw.len() as word32,
-                ed25519_key_object.as_ptr(),
-            )
-        };
-
-        check_if_zero(ret)
+        key.import_private_key(&self.priv_key, Some(self.pub_key.as_slice()))
             .map_err(|_| rustls::Error::General("wc_ed25519_import_private_key failed".into()))?;
 
-        ret = unsafe {
-            wc_ed25519_sign_msg(
-                message.as_ptr(),
-                message_length,
-                sig.as_mut_ptr(),
-                &mut sig_sz,
-                ed25519_key_object.as_ptr(),
-            )
-        };
-        if ret < 0 {
-            return Err(rustls::Error::General(format!(
-                "wc_ed25519_sign_msg failed: {ret}",
-            )));
-        }
+        let sig_sz = key
+            .sign_msg(message, &mut sig)
+            .map_err(|ret| rustls::Error::General(format!("wc_ed25519_sign_msg failed: {ret}")))?;
 
-        let mut sig_vec = sig.to_vec();
-
-        sig_vec.truncate(sig_sz as usize);
-
-        Ok(sig_vec)
+        Ok(sig[..sig_sz].to_vec())
     }
 
     fn scheme(&self) -> SignatureScheme {
