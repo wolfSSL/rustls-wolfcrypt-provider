@@ -1,14 +1,11 @@
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
-use core::mem;
-use foreign_types::ForeignType;
+use rustls::crypto::hmac::Hmac as RustlsHmac;
 use rustls::crypto::tls13::{self, Hkdf as RustlsHkdf};
-use wolfssl_wolfcrypt::sys::*;
+use wolfssl_wolfcrypt::hkdf::{hkdf_expand, hkdf_extract};
 
-use crate::error::check_if_zero;
 use crate::hmac::WCShaHmac;
-use crate::types::HmacObject;
 use zeroize::Zeroizing;
 
 pub struct WCHkdfUsingHmac(pub WCShaHmac);
@@ -33,17 +30,13 @@ impl RustlsHkdf for WCHkdfUsingHmac {
         let zero_salt = vec![0u8; hash_len];
         let salt_bytes = salt.unwrap_or(&zero_salt);
 
-        let ret = unsafe {
-            wc_HKDF_Extract(
-                self.0.hash_type(),
-                salt_bytes.as_ptr(),
-                salt_bytes.len() as u32,
-                ikm.as_ptr(),
-                ikm.len() as u32,
-                extracted_key.as_mut_ptr(),
-            )
-        };
-        check_if_zero(ret).expect("wc_HKDF_Extract failed");
+        hkdf_extract(
+            self.0.hash_type(),
+            Some(salt_bytes),
+            ikm,
+            &mut extracted_key,
+        )
+        .expect("hkdf_extract failed");
 
         Box::new(WolfHkdfExpander::new(
             Zeroizing::new(extracted_key),
@@ -68,28 +61,7 @@ impl RustlsHkdf for WCHkdfUsingHmac {
         key: &rustls::crypto::tls13::OkmBlock,
         message: &[u8],
     ) -> rustls::crypto::hmac::Tag {
-        let mut hmac = vec![0u8; self.0.hash_len()];
-        let mut hmac_c_type: Hmac = unsafe { mem::zeroed() };
-        let hmac_object = unsafe { HmacObject::from_ptr(&mut hmac_c_type) };
-
-        let mut ret = unsafe {
-            wc_HmacSetKey(
-                hmac_object.as_ptr(),
-                self.0.hash_type(),
-                key.as_ref().as_ptr(),
-                key.as_ref().len() as u32,
-            )
-        };
-        check_if_zero(ret).expect("wc_HmacSetKey failed in hmac_sign");
-
-        ret =
-            unsafe { wc_HmacUpdate(hmac_object.as_ptr(), message.as_ptr(), message.len() as u32) };
-        check_if_zero(ret).expect("wc_HmacUpdate failed in hmac_sign");
-
-        ret = unsafe { wc_HmacFinal(hmac_object.as_ptr(), hmac.as_mut_ptr()) };
-        check_if_zero(ret).expect("wc_HmacFinal failed in hmac_sign");
-
-        rustls::crypto::hmac::Tag::new(&hmac)
+        self.0.with_key(key.as_ref()).sign(&[message])
     }
 }
 
@@ -122,20 +94,13 @@ impl tls13::HkdfExpander for WolfHkdfExpander {
             return Err(tls13::OutputLengthError);
         }
 
-        let ret = unsafe {
-            wc_HKDF_Expand(
-                self.hash_type,
-                self.extracted_key.as_ptr(),
-                self.extracted_key.len() as u32,
-                info_concat.as_ptr(),
-                info_concat.len() as u32,
-                output.as_mut_ptr(),
-                output.len() as u32,
-            )
-        };
-        check_if_zero(ret).map_err(|_| tls13::OutputLengthError)?;
-
-        Ok(())
+        hkdf_expand(
+            self.hash_type,
+            &self.extracted_key,
+            Some(&info_concat),
+            output,
+        )
+        .map_err(|_| tls13::OutputLengthError)
     }
 
     fn expand_block(&self, info: &[&[u8]]) -> tls13::OkmBlock {
