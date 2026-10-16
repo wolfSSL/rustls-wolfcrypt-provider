@@ -2,6 +2,7 @@
 //!
 //! See draft-ietf-quic-tls.
 
+use aead::{AeadInPlace, KeyInit};
 use alloc::vec;
 use core::mem;
 use foreign_types::ForeignType;
@@ -9,15 +10,19 @@ use zeroize::Zeroizing;
 
 use crate::alloc::string::ToString;
 use crate::error::check_if_zero;
-use crate::types::{AesObject, ChaChaObject};
+use crate::types::ChaChaObject;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use core::ptr;
 
 use rustls::crypto::cipher::{Iv, Nonce};
 use rustls::quic::Tag;
 use rustls::{crypto::cipher::AeadKey, quic, Error};
-use wolfssl_wolfcrypt::sys::*;
+use wolfssl_wolfcrypt::aes::{Aes128Gcm, Aes256Gcm, ECB};
+use wolfssl_wolfcrypt::chacha20_poly1305::ChaCha20Poly1305Aead;
+// The crate has no safe wrapper for plain ChaCha20, used for header protection.
+use wolfssl_wolfcrypt::sys::{
+    wc_Chacha_Process, wc_Chacha_SetIV, wc_Chacha_SetKey, word32, ChaCha,
+};
 
 type PktEncFn =
     fn(packet_cipher: &Cipher, nonce: &[u8], aad: &[u8], in_out: &mut [u8]) -> Result<Tag, Error>;
@@ -549,28 +554,12 @@ impl AesCipher {
         }
 
         // Use a fresh AES context per call so &self never mutates shared state.
-        let mut aes_c_type: Aes = unsafe { mem::zeroed() };
-        let aes_object = unsafe { AesObject::from_ptr(&mut aes_c_type) };
-
-        let mut ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
-        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
-
-        ret = unsafe {
-            wc_AesSetKey(
-                aes_object.as_ptr(),
-                self.key.as_ptr(),
-                self.key.len() as word32,
-                ptr::null_mut(),
-                0,
-            )
-        };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("Function AesSetKey failed".into()))?;
-
-        ret = unsafe {
-            wc_AesEncryptDirect(aes_object.as_ptr(), out_block.as_mut_ptr(), sample.as_ptr())
-        };
-        check_if_zero(ret).map_err(|_| rustls::Error::EncryptError)?;
+        // One ECB block is AES applied directly to the sample.
+        let mut ecb = ECB::new().map_err(|_| rustls::Error::General("ECB::new failed".into()))?;
+        ecb.init_encrypt(&self.key)
+            .map_err(|_| rustls::Error::General("ECB::init_encrypt failed".into()))?;
+        ecb.encrypt(&sample[..SAMPLE_LEN], &mut out_block)
+            .map_err(|_| rustls::Error::EncryptError)?;
 
         Ok(out_block)
     }
@@ -581,47 +570,25 @@ impl AesCipher {
         aad: &[u8],
         payload: &mut [u8],
     ) -> Result<Tag, Error> {
-        let mut auth_tag = vec![0u8; TAG_LEN];
-
-        // Use a fresh AES context per call so &self never mutates shared state.
-        let mut aes_c_type: Aes = unsafe { mem::zeroed() };
-        let aes_object = unsafe { AesObject::from_ptr(&mut aes_c_type) };
-
-        let mut ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
-        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
-
-        // Prepare aes_object for encryption
-        ret = unsafe {
-            wc_AesGcmSetKey(
-                aes_object.as_ptr(),
-                self.key.as_ptr(),
-                self.key.len() as word32,
-            )
-        };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("Function AesGcmSetKey failed".into()))?;
-
-        // This function encrypts the input message, held in the buffer in,
-        // and stores the resulting cipher text in the output buffer out.
-        // It requires a new iv (initialization vector) for each call to encrypt.
-        // It also encodes the input authentication vector,
-        // authIn, into the authentication tag, authTag.
-
-        ret = unsafe {
-            wc_AesGcmEncrypt(
-                aes_object.as_ptr(),
-                payload.as_mut_ptr(),
-                payload.as_ptr(),
-                payload.as_ref().len() as word32,
-                nonce.as_ptr(),
-                nonce.len() as word32,
-                auth_tag.as_mut_ptr(),
-                auth_tag.len() as word32,
-                aad.as_ptr(),
-                aad.len() as word32,
-            )
-        };
-        check_if_zero(ret).map_err(|_| rustls::Error::EncryptError)?;
+        // Encrypts the payload in place and returns the authentication tag.
+        let auth_tag = match self.key.len() {
+            AES_128_KEY_LEN => Aes128Gcm::new_from_slice(&self.key)
+                .map_err(|_| rustls::Error::EncryptError)?
+                .encrypt_in_place_detached(
+                    aead::Nonce::<Aes128Gcm>::from_slice(nonce),
+                    aad,
+                    payload,
+                ),
+            AES_256_KEY_LEN => Aes256Gcm::new_from_slice(&self.key)
+                .map_err(|_| rustls::Error::EncryptError)?
+                .encrypt_in_place_detached(
+                    aead::Nonce::<Aes256Gcm>::from_slice(nonce),
+                    aad,
+                    payload,
+                ),
+            _ => return Err(Error::General("Invalid key length".into())),
+        }
+        .map_err(|_| rustls::Error::EncryptError)?;
 
         Ok(quic::Tag::from(auth_tag.as_ref()))
     }
@@ -633,44 +600,29 @@ impl AesCipher {
         let message_len = payload.len() - TAG_LEN;
         auth_tag.copy_from_slice(&payload[message_len..]);
 
-        // Use a fresh AES context per call so &self never mutates shared state.
-        let mut aes_c_type: Aes = unsafe { mem::zeroed() };
-        let aes_object = unsafe { AesObject::from_ptr(&mut aes_c_type) };
-
-        let mut ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
-        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
-
-        // Prepare aes_object for decryption
-        ret = unsafe {
-            wc_AesGcmSetKey(
-                aes_object.as_ptr(),
-                self.key.as_ptr(),
-                self.key.len() as word32,
-            )
-        };
-        check_if_zero(ret)
-            .map_err(|_| rustls::Error::General("Function AesGcmSetKey failed".into()))?;
-
         // Finally, we have everything to decrypt the message
         // from the payload.
-        ret = unsafe {
-            wc_AesGcmDecrypt(
-                aes_object.as_ptr(),
-                payload[..message_len].as_mut_ptr(),
-                payload[..message_len].as_ptr(),
-                payload[..message_len]
-                    .len()
-                    .try_into()
-                    .map_err(|_| rustls::Error::General("Function try_into() failed".into()))?,
-                nonce.as_ptr(),
-                nonce.len() as word32,
-                auth_tag.as_ptr(),
-                auth_tag.len() as word32,
-                aad.as_ptr(),
-                aad.len() as word32,
-            )
-        };
-        check_if_zero(ret).map_err(|_| rustls::Error::DecryptError)?;
+        let buf = &mut payload[..message_len];
+        match self.key.len() {
+            AES_128_KEY_LEN => Aes128Gcm::new_from_slice(&self.key)
+                .map_err(|_| rustls::Error::DecryptError)?
+                .decrypt_in_place_detached(
+                    aead::Nonce::<Aes128Gcm>::from_slice(nonce),
+                    aad,
+                    buf,
+                    aead::Tag::<Aes128Gcm>::from_slice(&auth_tag),
+                ),
+            AES_256_KEY_LEN => Aes256Gcm::new_from_slice(&self.key)
+                .map_err(|_| rustls::Error::DecryptError)?
+                .decrypt_in_place_detached(
+                    aead::Nonce::<Aes256Gcm>::from_slice(nonce),
+                    aad,
+                    buf,
+                    aead::Tag::<Aes256Gcm>::from_slice(&auth_tag),
+                ),
+            _ => return Err(Error::General("Invalid key length".into())),
+        }
+        .map_err(|_| rustls::Error::DecryptError)?;
 
         Ok(())
     }
@@ -762,27 +714,17 @@ impl ChaChaCipher {
             Error::General("Key is none. Generate a key before encryption".into())
         })?;
 
-        let mut auth_tag: [u8; CHACHA20_POLY1305_AEAD_AUTHTAG_SIZE as usize] =
-            unsafe { mem::zeroed() };
-
-        // This function encrypts an input message, inPlaintext,
-        // using the ChaCha20 stream cipher, into the output buffer, outCiphertext.
-        // It also performs Poly-1305 authentication (on the cipher text),
-        // and stores the generated authentication tag in the output buffer, outAuthTag.
-
-        let ret = unsafe {
-            wc_ChaCha20Poly1305_Encrypt(
-                chacha_key.as_ptr(),
-                nonce.as_ptr(),
-                aad.as_ptr(),
-                aad.len() as word32,
-                payload.as_ref().as_ptr(),
-                payload.len() as word32,
-                payload.as_mut().as_mut_ptr(),
-                auth_tag.as_mut_ptr(),
+        // Encrypts the payload in place using the ChaCha20 stream cipher,
+        // performs Poly-1305 authentication (on the cipher text),
+        // and returns the generated authentication tag.
+        let auth_tag = ChaCha20Poly1305Aead::new_from_slice(chacha_key.as_ref())
+            .map_err(|_| rustls::Error::EncryptError)?
+            .encrypt_in_place_detached(
+                aead::Nonce::<ChaCha20Poly1305Aead>::from_slice(nonce),
+                aad,
+                payload,
             )
-        };
-        check_if_zero(ret).map_err(|_| rustls::Error::EncryptError)?;
+            .map_err(|_| rustls::Error::EncryptError)?;
 
         Ok(quic::Tag::from(auth_tag.as_ref()))
     }
@@ -804,21 +746,17 @@ impl ChaChaCipher {
         // to an authentication generated with the inAAD (arbitrary length additional authentication data).
         // Note: If the generated authentication tag does not match the supplied
         // authentication tag, the text is not decrypted.
-        let ret = unsafe {
-            wc_ChaCha20Poly1305_Decrypt(
-                chacha_key.as_ptr(),
-                nonce.as_ptr(),
-                aad.as_ptr(),
-                aad.len() as word32,
+        ChaCha20Poly1305Aead::new_from_slice(chacha_key.as_ref())
+            .map_err(|_| rustls::Error::DecryptError)?
+            .decrypt_in_place_detached(
+                aead::Nonce::<ChaCha20Poly1305Aead>::from_slice(nonce),
+                aad,
                 // [..message_len] since we want to exclude the
                 // the auth_tag.
-                payload[..message_len].as_ptr(),
-                message_len as word32,
-                auth_tag.as_ptr(),
-                payload[..message_len].as_mut_ptr(),
+                &mut payload[..message_len],
+                aead::Tag::<ChaCha20Poly1305Aead>::from_slice(&auth_tag),
             )
-        };
-        check_if_zero(ret).map_err(|_| rustls::Error::DecryptError)?;
+            .map_err(|_| rustls::Error::DecryptError)?;
         Ok(())
     }
 }
