@@ -1,11 +1,7 @@
-use crate::error::check_if_zero;
-use crate::types::HmacObject;
 use alloc::{boxed::Box, vec, vec::Vec};
-use core::mem;
-use foreign_types::ForeignType;
 use rustls::crypto;
 use wolfssl_wolfcrypt::hmac::HMAC;
-use wolfssl_wolfcrypt::sys::*;
+use wolfssl_wolfcrypt::sha::{SHA256, SHA384};
 use zeroize::Zeroizing;
 
 #[derive(Clone, Copy)]
@@ -17,8 +13,8 @@ pub enum WCShaHmac {
 impl WCShaHmac {
     fn digest_size(&self) -> usize {
         match self {
-            WCShaHmac::Sha256 => WC_SHA256_DIGEST_SIZE as usize,
-            WCShaHmac::Sha384 => WC_SHA384_DIGEST_SIZE as usize,
+            WCShaHmac::Sha256 => SHA256::DIGEST_SIZE,
+            WCShaHmac::Sha384 => SHA384::DIGEST_SIZE,
         }
     }
 
@@ -31,8 +27,8 @@ impl WCShaHmac {
 
     pub fn hash_len(&self) -> usize {
         match self {
-            WCShaHmac::Sha256 => WC_SHA256_DIGEST_SIZE as usize,
-            WCShaHmac::Sha384 => WC_SHA384_DIGEST_SIZE as usize,
+            WCShaHmac::Sha256 => SHA256::DIGEST_SIZE,
+            WCShaHmac::Sha384 => SHA384::DIGEST_SIZE,
         }
     }
 }
@@ -57,48 +53,20 @@ struct WCHmacKey {
 
 impl crypto::hmac::Key for WCHmacKey {
     fn sign_concat(&self, first: &[u8], middle: &[&[u8]], last: &[u8]) -> crypto::hmac::Tag {
-        let mut hmac_c_type: Hmac = unsafe { mem::zeroed() };
-        let hmac_object = unsafe { HmacObject::from_ptr(&mut hmac_c_type) };
+        let mut hmac = HMAC::new(self.variant.hash_type(), &self.key).expect("HMAC::new failed");
 
-        self.hmac_init(&hmac_object);
-        self.hmac_update(&hmac_object, first);
+        hmac.update(first).expect("HMAC::update failed");
         for m in middle {
-            self.hmac_update(&hmac_object, m)
+            hmac.update(m).expect("HMAC::update failed");
         }
-        self.hmac_update(&hmac_object, last);
-        let digest = self.hmac_final(&hmac_object);
+        hmac.update(last).expect("HMAC::update failed");
+
+        let mut digest = vec![0u8; self.variant.digest_size()];
+        hmac.finalize(&mut digest).expect("HMAC::finalize failed");
         crypto::hmac::Tag::new(&digest)
     }
 
     fn tag_len(&self) -> usize {
         self.variant.digest_size()
-    }
-}
-
-impl WCHmacKey {
-    fn hmac_init(&self, hmac_object: &HmacObject) {
-        let ret = unsafe {
-            wc_HmacSetKey(
-                hmac_object.as_ptr(),
-                self.variant.hash_type(),
-                self.key.as_ptr(),
-                self.key.len() as word32,
-            )
-        };
-        check_if_zero(ret).expect("wc_HmacSetKey failed");
-    }
-
-    fn hmac_update(&self, hmac_object: &HmacObject, input: &[u8]) {
-        let ret =
-            unsafe { wc_HmacUpdate(hmac_object.as_ptr(), input.as_ptr(), input.len() as word32) };
-        check_if_zero(ret).expect("wc_HmacUpdate failed");
-    }
-
-    fn hmac_final(&self, hmac_object: &HmacObject) -> Vec<u8> {
-        let mut digest = vec![0u8; self.variant.digest_size()];
-        let ret = unsafe { wc_HmacFinal(hmac_object.as_ptr(), digest.as_mut_ptr()) };
-        check_if_zero(ret).expect("wc_HmacFinal failed");
-
-        digest
     }
 }
