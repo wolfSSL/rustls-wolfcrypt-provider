@@ -1,9 +1,9 @@
 use crate::error::*;
 use crate::types::*;
+use crate::verify::Hash;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::sync::Arc;
-use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
 use core::mem;
@@ -13,6 +13,8 @@ use rustls::sign::{Signer, SigningKey};
 use rustls::{SignatureAlgorithm, SignatureScheme};
 
 use core::ptr;
+use wolfssl_wolfcrypt::random::RNG;
+use wolfssl_wolfcrypt::rsa::RSA;
 use wolfssl_wolfcrypt::sys::*;
 use zeroize::Zeroizing;
 
@@ -26,13 +28,6 @@ const ALL_RSA_SCHEMES: &[SignatureScheme] = &[
 ];
 
 const MAX_RSA_SIG_SIZE: usize = 512;
-const HASH_TYPE_SHA256: u32 = wc_HashType_WC_HASH_TYPE_SHA256;
-const HASH_TYPE_SHA384: u32 = wc_HashType_WC_HASH_TYPE_SHA384;
-const HASH_TYPE_SHA512: u32 = wc_HashType_WC_HASH_TYPE_SHA512;
-
-const MGF1_SHA256: u32 = WC_MGF1SHA256;
-const MGF1_SHA384: u32 = WC_MGF1SHA384;
-const MGF1_SHA512: u32 = WC_MGF1SHA512;
 
 /// Which DER format the stored key bytes are in.
 #[derive(Clone, Debug)]
@@ -172,15 +167,6 @@ impl fmt::Debug for RsaSigner {
 
 impl Signer for RsaSigner {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
-        let rsa_key = import_rsa_key(&self.der_bytes, &self.format)?;
-
-        // Prepare a random generator
-        let mut rng: WC_RNG = unsafe { mem::zeroed() };
-        let rng_object = WCRngObject::new(&mut rng);
-        rng_object
-            .init()
-            .map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
-
         // Allocate enough space for the signature
         let mut sig_buf = [0u8; MAX_RSA_SIG_SIZE];
 
@@ -191,80 +177,62 @@ impl Signer for RsaSigner {
             SignatureScheme::RSA_PSS_SHA256
             | SignatureScheme::RSA_PSS_SHA384
             | SignatureScheme::RSA_PSS_SHA512 => {
-                // We'll do explicit hashing plus wc_RsaPSS_Sign.
+                // We'll do explicit hashing plus RSA::pss_sign.
 
                 // 1) Determine hash algorithm & MGF
-                let (hash_ty, mgf_ty, digest_len) = match self.scheme {
+                let (hash, hash_ty, mgf_ty) = match self.scheme {
                     SignatureScheme::RSA_PSS_SHA256 => {
-                        (HASH_TYPE_SHA256, MGF1_SHA256, WC_SHA256_DIGEST_SIZE)
+                        (Hash::Sha256, RSA::HASH_TYPE_SHA256, RSA::MGF1SHA256)
                     }
                     SignatureScheme::RSA_PSS_SHA384 => {
-                        (HASH_TYPE_SHA384, MGF1_SHA384, WC_SHA384_DIGEST_SIZE)
+                        (Hash::Sha384, RSA::HASH_TYPE_SHA384, RSA::MGF1SHA384)
                     }
                     SignatureScheme::RSA_PSS_SHA512 => {
-                        (HASH_TYPE_SHA512, MGF1_SHA512, WC_SHA512_DIGEST_SIZE)
+                        (Hash::Sha512, RSA::HASH_TYPE_SHA512, RSA::MGF1SHA512)
                     }
                     _ => unreachable!(),
                 };
 
                 // 2) Hash the message ourselves
-                let mut digest = vec![0u8; digest_len as usize];
-                let ret = unsafe {
-                    match hash_ty {
-                        HASH_TYPE_SHA256 => wc_Sha256Hash(
-                            message.as_ptr(),
-                            message.len() as u32,
-                            digest.as_mut_ptr(),
-                        ),
-                        HASH_TYPE_SHA384 => wc_Sha384Hash(
-                            message.as_ptr(),
-                            message.len() as u32,
-                            digest.as_mut_ptr(),
-                        ),
-                        HASH_TYPE_SHA512 => wc_Sha512Hash(
-                            message.as_ptr(),
-                            message.len() as u32,
-                            digest.as_mut_ptr(),
-                        ),
-                        _ => -1,
-                    }
-                };
-                check_if_zero(ret)
+                let (digest, digest_len) = hash
+                    .digest(message)
                     .map_err(|_| rustls::Error::General("Failed to hash for PSS".into()))?;
 
-                // 3) Sign with wc_RsaPSS_Sign
-                let ret = unsafe {
-                    wc_RsaPSS_Sign(
-                        digest.as_ptr(),
-                        digest_len,
-                        sig_buf.as_mut_ptr(),
-                        sig_buf.len() as u32,
-                        hash_ty,
-                        mgf_ty.try_into().unwrap(),
-                        rsa_key.as_ptr(),
-                        rng_object.as_ptr(),
-                    )
-                };
-                check_if_greater_than_zero(ret)
+                // 3) Sign with RSA::pss_sign
+                let mut rsa_key = RSA::new_from_der(&self.der_bytes)
+                    .map_err(|_| rustls::Error::General("wc_RsaPrivateKeyDecode failed".into()))?;
+                let rng =
+                    RNG::new().map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
+
+                let sig_len = rsa_key
+                    .pss_sign(&digest[..digest_len], &mut sig_buf, hash_ty, mgf_ty, &rng)
                     .map_err(|_| rustls::Error::General("wc_RsaPSS_Sign failed".into()))?;
 
-                let sig_len = ret as usize;
-                let mut sig_vec = sig_buf.to_vec();
-                sig_vec.truncate(sig_len);
-                Ok(sig_vec)
+                Ok(sig_buf[..sig_len].to_vec())
             }
 
             // ------------------------------------------------
             // RSA-PKCS#1 branch:
             // ------------------------------------------------
+            // Stays on the raw bindings: the crate's PKCS#1 v1.5 signer fixes
+            // the key size at compile time.
             SignatureScheme::RSA_PKCS1_SHA256
             | SignatureScheme::RSA_PKCS1_SHA384
             | SignatureScheme::RSA_PKCS1_SHA512 => {
+                let rsa_key = import_rsa_key(&self.der_bytes, &self.format)?;
+
+                // Prepare a random generator
+                let mut rng: WC_RNG = unsafe { mem::zeroed() };
+                let rng_object = WCRngObject::new(&mut rng);
+                rng_object
+                    .init()
+                    .map_err(|_| rustls::Error::General("wc_InitRng failed".into()))?;
+
                 // We'll let wc_SignatureGenerate do the hashing & PKCS#1.
                 let hash_ty = match self.scheme {
-                    SignatureScheme::RSA_PKCS1_SHA256 => HASH_TYPE_SHA256,
-                    SignatureScheme::RSA_PKCS1_SHA384 => HASH_TYPE_SHA384,
-                    SignatureScheme::RSA_PKCS1_SHA512 => HASH_TYPE_SHA512,
+                    SignatureScheme::RSA_PKCS1_SHA256 => RSA::HASH_TYPE_SHA256,
+                    SignatureScheme::RSA_PKCS1_SHA384 => RSA::HASH_TYPE_SHA384,
+                    SignatureScheme::RSA_PKCS1_SHA512 => RSA::HASH_TYPE_SHA512,
                     _ => unreachable!(),
                 };
 

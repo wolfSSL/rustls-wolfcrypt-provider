@@ -1,11 +1,54 @@
 use rustls::crypto::WebPkiSupportedAlgorithms;
-use rustls::pki_types::SignatureVerificationAlgorithm;
+use rustls::pki_types::{InvalidSignature, SignatureVerificationAlgorithm};
 use rustls::SignatureScheme;
+use wolfssl_wolfcrypt::sha::{SHA256, SHA384, SHA512};
 
 mod ecdsa;
 pub mod eddsa;
 mod rsapkcs1;
 mod rsapss;
+
+/// Hash a message before checking (or making) its signature.
+#[derive(Clone, Copy)]
+pub(crate) enum Hash {
+    Sha256,
+    Sha384,
+    Sha512,
+}
+
+impl Hash {
+    /// Returns the digest in a buffer big enough for any of the hashes,
+    /// along with its length.
+    pub(crate) fn digest(
+        self,
+        message: &[u8],
+    ) -> Result<([u8; SHA512::DIGEST_SIZE], usize), InvalidSignature> {
+        let mut out = [0u8; SHA512::DIGEST_SIZE];
+        let len = match self {
+            Hash::Sha256 => {
+                let mut sha = SHA256::new().map_err(|_| InvalidSignature)?;
+                sha.update(message).map_err(|_| InvalidSignature)?;
+                sha.finalize(&mut out[..SHA256::DIGEST_SIZE])
+                    .map_err(|_| InvalidSignature)?;
+                SHA256::DIGEST_SIZE
+            }
+            Hash::Sha384 => {
+                let mut sha = SHA384::new().map_err(|_| InvalidSignature)?;
+                sha.update(message).map_err(|_| InvalidSignature)?;
+                sha.finalize(&mut out[..SHA384::DIGEST_SIZE])
+                    .map_err(|_| InvalidSignature)?;
+                SHA384::DIGEST_SIZE
+            }
+            Hash::Sha512 => {
+                let mut sha = SHA512::new().map_err(|_| InvalidSignature)?;
+                sha.update(message).map_err(|_| InvalidSignature)?;
+                sha.finalize(&mut out).map_err(|_| InvalidSignature)?;
+                SHA512::DIGEST_SIZE
+            }
+        };
+        Ok((out, len))
+    }
+}
 
 pub static ALGORITHMS: WebPkiSupportedAlgorithms = WebPkiSupportedAlgorithms {
     all: &[

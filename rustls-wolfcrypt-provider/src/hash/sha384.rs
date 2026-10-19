@@ -1,29 +1,15 @@
 use alloc::boxed::Box;
-use core::mem;
-use foreign_types::ForeignType;
+use core::cell::UnsafeCell;
+use core::sync::atomic::{AtomicBool, Ordering};
 use rustls::crypto::hash;
-use wolfssl_wolfcrypt::sys::*;
-
-use crate::error::check_if_zero;
-use crate::types::*;
+use wolfssl_wolfcrypt::sha::SHA384;
 
 pub struct WCSha384;
 
 impl hash::Hash for WCSha384 {
     fn start(&self) -> Box<dyn hash::Context> {
-        let mut sha384_storage = Box::new(unsafe { mem::zeroed::<wc_Sha384>() });
-        let sha384_object = unsafe { Sha384Object::from_ptr(&mut *sha384_storage) };
-        let hash: [u8; WC_SHA384_DIGEST_SIZE as usize] = [0; WC_SHA384_DIGEST_SIZE as usize];
-
-        let mut hasher = WCHasher384 {
-            sha384_object,
-            _sha384_storage: sha384_storage,
-            hash,
-        };
-
-        hasher.wchasher_init();
-
-        Box::new(WCSha384Context(hasher))
+        let sha384 = SHA384::new().expect("SHA384::new failed");
+        Box::new(WCSha384Context::new(sha384))
     }
 
     fn hash(&self, data: &[u8]) -> hash::Output {
@@ -37,61 +23,73 @@ impl hash::Hash for WCSha384 {
     }
 
     fn output_len(&self) -> usize {
-        WC_SHA384_DIGEST_SIZE as usize
+        SHA384::DIGEST_SIZE
     }
 }
 
-struct WCHasher384 {
-    sha384_object: Sha384Object,
-    _sha384_storage: Box<wc_Sha384>,
-    hash: [u8; WC_SHA384_DIGEST_SIZE as usize],
+// `SHA384::copy` takes `&mut self` because `wc_Sha384Copy` may write to its
+// source on some hardware ports (e.g. MAXQ10XX), while rustls forks a context
+// through `&self`. The cell lets `fork` reach the state, and the `copying`
+// flag makes concurrent forks take turns so only one `&mut` exists at a time.
+struct WCSha384Context {
+    state: UnsafeCell<SHA384>,
+    copying: AtomicBool,
 }
 
-impl WCHasher384 {
-    fn wchasher_init(&mut self) {
-        // This function initializes SHA384. This is automatically called by wc_Sha384Hash.
-        let ret = unsafe { wc_InitSha384(self.sha384_object.as_ptr()) };
-        check_if_zero(ret).expect("wc_InitSha384 failed");
+impl WCSha384Context {
+    fn new(sha384: SHA384) -> Self {
+        Self {
+            state: UnsafeCell::new(sha384),
+            copying: AtomicBool::new(false),
+        }
     }
 
-    fn wchasher_update(&mut self, data: &[u8]) {
-        let length: word32 = data.len() as word32;
-
-        // Hash the provided byte array of length len.
-        // Can be called continually.
-        let ret = unsafe { wc_Sha384Update(self.sha384_object.as_ptr(), data.as_ptr(), length) };
-        check_if_zero(ret).expect("wc_Sha384Update failed");
-    }
-
-    fn wchasher_final(&mut self) -> &[u8] {
-        // Finalizes hashing of data. Result is placed into hash.
-        // Resets state of the sha384 struct.
-        let ret = unsafe { wc_Sha384Final(self.sha384_object.as_ptr(), self.hash.as_mut_ptr()) };
-        check_if_zero(ret).expect("wc_Sha384Final failed");
-
-        &self.hash
+    fn copy(&self) -> SHA384 {
+        while self
+            .copying
+            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .is_err()
+        {
+            core::hint::spin_loop();
+        }
+        // Safe because holding `copying` gives this thread sole access to the
+        // state until it is released below, and `update` and `finish` need
+        // `&mut self`.
+        let copy = unsafe { &mut *self.state.get() }.copy();
+        self.copying.store(false, Ordering::Release);
+        copy.expect("SHA384::copy failed")
     }
 }
 
-struct WCSha384Context(WCHasher384);
+fn finalize(sha384: &mut SHA384) -> hash::Output {
+    let mut out = [0u8; SHA384::DIGEST_SIZE];
+    sha384.finalize(&mut out).expect("SHA384::finalize failed");
+    hash::Output::new(&out)
+}
 
 impl hash::Context for WCSha384Context {
     fn fork_finish(&self) -> hash::Output {
-        hash::Output::new(self.0.clone().wchasher_final())
+        finalize(&mut self.copy())
     }
 
     fn fork(&self) -> Box<dyn hash::Context> {
-        Box::new(WCSha384Context(self.0.clone()))
+        Box::new(WCSha384Context::new(self.copy()))
     }
 
     fn finish(mut self: Box<Self>) -> hash::Output {
-        hash::Output::new(self.0.wchasher_final())
+        finalize(self.state.get_mut())
     }
 
     fn update(&mut self, data: &[u8]) {
-        self.0.wchasher_update(data);
+        self.state
+            .get_mut()
+            .update(data)
+            .expect("SHA384::update failed");
     }
 }
+
+unsafe impl Sync for WCSha384Context {}
+unsafe impl Send for WCSha384Context {}
 
 #[cfg(test)]
 mod tests {
@@ -108,23 +106,5 @@ mod tests {
         let hash_str2 = hex::encode(hash2);
 
         assert_eq!(hash_str1, hash_str2);
-    }
-}
-
-unsafe impl Sync for WCHasher384 {}
-unsafe impl Send for WCHasher384 {}
-impl Clone for WCHasher384 {
-    fn clone(&self) -> WCHasher384 {
-        let mut new_storage = Box::new(unsafe { mem::zeroed::<wc_Sha384>() });
-        let new_object = unsafe { Sha384Object::from_ptr(&mut *new_storage) };
-        let ret = unsafe { wc_InitSha384(new_object.as_ptr()) };
-        check_if_zero(ret).expect("wc_InitSha384 failed in clone");
-        let ret = unsafe { wc_Sha384Copy(self.sha384_object.as_ptr(), new_object.as_ptr()) };
-        check_if_zero(ret).expect("wc_Sha384Copy failed");
-        WCHasher384 {
-            sha384_object: new_object,
-            _sha384_storage: new_storage,
-            hash: self.hash,
-        }
     }
 }

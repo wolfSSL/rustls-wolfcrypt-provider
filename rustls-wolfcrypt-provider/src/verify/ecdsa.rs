@@ -1,12 +1,8 @@
-use crate::{error::check_if_zero, types::*};
-use alloc::vec;
-use core::mem;
-use core::ptr;
-use foreign_types::ForeignType;
+use super::Hash;
 use rustls::pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerificationAlgorithm};
 use rustls::SignatureScheme;
 use rustls_pki_types::alg_id;
-use wolfssl_wolfcrypt::sys::*;
+use wolfssl_wolfcrypt::ecc::ECC;
 
 /// A unified ECDSA verifier for P-256, P-384, and P-521.
 /// We store the `SignatureScheme` and switch logic accordingly.
@@ -57,95 +53,29 @@ impl SignatureVerificationAlgorithm for EcdsaVerifier {
         message: &[u8],
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
-        // Verify length of the public key before doing any slicing.
-        unsafe {
-            // Initialize WolfSSL ECC key
-            let mut ecc_c_type: ecc_key = mem::zeroed();
-            let ecc_key_object = ECCKeyObject::from_ptr(&mut ecc_c_type);
-            ecc_key_object.init().map_err(|_| InvalidSignature)?;
+        // Determine curve, coordinate length, and which hash to use
+        let (curve_id, coord_len, hash) = match self.scheme {
+            SignatureScheme::ECDSA_NISTP256_SHA256 => (ECC::SECP256R1, 32, Hash::Sha256),
+            SignatureScheme::ECDSA_NISTP384_SHA384 => (ECC::SECP384R1, 48, Hash::Sha384),
+            SignatureScheme::ECDSA_NISTP521_SHA512 => (ECC::SECP521R1, 66, Hash::Sha512),
+            _ => return Err(InvalidSignature),
+        };
 
-            let mut ret;
-            let mut stat: i32 = 0;
+        if public_key.len() != 1 + 2 * coord_len {
+            return Err(InvalidSignature);
+        }
 
-            // Determine curve, how many bytes to skip from public_key, and which hash to use
-            let (curve_id, skip_len, wc_hash_type) = match self.scheme {
-                SignatureScheme::ECDSA_NISTP256_SHA256 => (
-                    ecc_curve_ids_ECC_SECP256R1,
-                    32,
-                    wc_HashType_WC_HASH_TYPE_SHA256,
-                ),
-                SignatureScheme::ECDSA_NISTP384_SHA384 => (
-                    ecc_curve_ids_ECC_SECP384R1,
-                    48,
-                    wc_HashType_WC_HASH_TYPE_SHA384,
-                ),
-                SignatureScheme::ECDSA_NISTP521_SHA512 => (
-                    ecc_curve_ids_ECC_SECP521R1,
-                    66,
-                    wc_HashType_WC_HASH_TYPE_SHA512,
-                ),
-                _ => return Err(InvalidSignature),
-            };
+        // rustls hands us the uncompressed point (0x04 || X || Y), see
+        // https://www.rfc-editor.org/rfc/rfc8446#section-4.2.8.2.
+        let mut key =
+            ECC::import_x963_ex(public_key, curve_id, None, None).map_err(|_| InvalidSignature)?;
 
-            let expected_len = 1 + 2 * skip_len;
-            if public_key.len() != expected_len {
-                return Err(InvalidSignature);
-            }
+        // We hash the message since it's not pre-hashed.
+        let (digest, digest_len) = hash.digest(message)?;
 
-            /*
-             * Skipping first byte because rustls uses this format:
-             * https://www.rfc-editor.org/rfc/rfc8446#section-4.2.8.2
-             *
-             * For P-256, skip_len=32 means public_key[1..33] is "x" and [33..65] is "y".
-             * For P-384, skip_len=48 means public_key[1..49] is "x" and [49..97] is "y".
-             * For P-521, skip_len=66 means public_key[1..67] is "x" and [67..133] is "y".
-             */
-            ret = wc_ecc_import_unsigned(
-                ecc_key_object.as_ptr(),
-                public_key[1..(1 + skip_len)].as_ptr(), // Public "x" coordinate
-                public_key[(1 + skip_len)..].as_ptr(),  // Public "y" coordinate
-                ptr::null_mut(),                        // Private "d" (optional)
-                curve_id,
-            );
-            check_if_zero(ret).map_err(|_| InvalidSignature)?;
-
-            // This function returns the size of the digest (output) for a hash_type.
-            // The returned size is used to make sure the output buffer is large enough.
-            let digest_sz = wc_HashGetDigestSize(wc_hash_type);
-
-            if digest_sz <= 0 {
-                return Err(InvalidSignature);
-            }
-
-            // This function performs a hash on the provided data buffer and
-            // returns it in the hash buffer provided.
-            // We hash the message since it's not pre-hashed.
-            let mut digest = vec![0u8; digest_sz as usize];
-            ret = wc_Hash(
-                wc_hash_type,
-                message.as_ptr(),
-                message.len() as word32,
-                digest.as_mut_ptr(),
-                digest_sz as word32,
-            );
-            check_if_zero(ret).map_err(|_| InvalidSignature)?;
-
-            // Finally, verify the signature against the digest
-            ret = wc_ecc_verify_hash(
-                signature.as_ptr(),
-                signature.len() as word32,
-                digest.as_ptr(),
-                digest_sz as word32,
-                &mut stat,
-                ecc_key_object.as_ptr(),
-            );
-
-            check_if_zero(ret).map_err(|_| InvalidSignature)?;
-            if stat == 1 {
-                Ok(())
-            } else {
-                Err(InvalidSignature)
-            }
+        match key.verify_hash(signature, &digest[..digest_len]) {
+            Ok(true) => Ok(()),
+            _ => Err(InvalidSignature),
         }
     }
 }

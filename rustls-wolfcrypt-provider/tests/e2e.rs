@@ -21,6 +21,9 @@ use std::process::{Child, Command};
 use std::sync::Once;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use wolfssl_wolfcrypt::ecc::ECC;
+use wolfssl_wolfcrypt::ed25519::Ed25519;
+use wolfssl_wolfcrypt::random::RNG;
 use wolfssl_wolfcrypt::sys::*;
 
 /*
@@ -397,11 +400,57 @@ mod tests {
         }
     }
 
-    pub struct ECCPubKey {
-        qx: Vec<u8>,
-        qx_len: word32,
-        qy: Vec<u8>,
-        qy_len: word32,
+    /// DER-encodes an ECC private key. The crate has no wrapper for
+    /// `wc_EccPrivateKeyToDer`, so this uses the raw bindings.
+    fn ecc_private_key_to_der(priv_key: &[u8], pub_key_x963: &[u8], curve_id: i32) -> Vec<u8> {
+        let mut der = vec![0u8; 200]; // Adjust size if needed
+        unsafe {
+            let mut key: ecc_key = mem::zeroed();
+            check_if_zero(wc_ecc_init(&mut key)).unwrap();
+            let ret = wc_ecc_import_private_key_ex(
+                priv_key.as_ptr(),
+                priv_key.len() as word32,
+                pub_key_x963.as_ptr(),
+                pub_key_x963.len() as word32,
+                &mut key,
+                curve_id,
+            );
+            let der_len = if ret == 0 {
+                wc_EccPrivateKeyToDer(&mut key, der.as_mut_ptr(), der.len() as word32)
+            } else {
+                ret
+            };
+            wc_ecc_free(&mut key);
+            check_if_greater_than_zero(der_len).unwrap();
+            der.truncate(der_len as usize);
+        }
+        der
+    }
+
+    /// DER-encodes an Ed25519 private key. The crate has no wrapper for
+    /// `wc_Ed25519PrivateKeyToDer`, so this uses the raw bindings.
+    fn ed25519_private_key_to_der(priv_key: &[u8], pub_key: &[u8]) -> Vec<u8> {
+        let mut der = vec![0u8; 200]; // Adjust size if needed
+        unsafe {
+            let mut key: ed25519_key = mem::zeroed();
+            check_if_zero(wc_ed25519_init(&mut key)).unwrap();
+            let ret = wc_ed25519_import_private_key(
+                priv_key.as_ptr(),
+                priv_key.len() as word32,
+                pub_key.as_ptr(),
+                pub_key.len() as word32,
+                &mut key,
+            );
+            let der_len = if ret == 0 {
+                wc_Ed25519PrivateKeyToDer(&mut key, der.as_mut_ptr(), der.len() as word32)
+            } else {
+                ret
+            };
+            wc_ed25519_free(&mut key);
+            check_if_greater_than_zero(der_len).unwrap();
+            der.truncate(der_len as usize);
+        }
+        der
     }
 
     #[test]
@@ -412,78 +461,35 @@ mod tests {
         let test_configs = [
             (
                 SignatureScheme::ECDSA_NISTP256_SHA256,
-                ecc_curve_ids_ECC_SECP256R1,
+                ECC::SECP256R1,
                 32, // P256 key size
             ),
             (
                 SignatureScheme::ECDSA_NISTP384_SHA384,
-                ecc_curve_ids_ECC_SECP384R1,
+                ECC::SECP384R1,
                 48, // P384 key size
             ),
             (
                 SignatureScheme::ECDSA_NISTP521_SHA512,
-                ecc_curve_ids_ECC_SECP521R1,
+                ECC::SECP521R1,
                 66, // P521 key size
             ),
         ];
 
         for &(scheme, curve_id, key_size) in &test_configs {
-            let mut der_ecc_key: Vec<u8> = vec![0; 200]; // Adjust size if needed
-                                                         // Initialize RNG and ECC key objects
-            let mut rng: WC_RNG = unsafe { mem::zeroed() };
-            let rng_object: WCRngObject = WCRngObject::new(&mut rng);
-            rng_object.init().unwrap();
-            let mut ecc_key_c_type: ecc_key = unsafe { mem::zeroed() };
-            let key_object = ECCKeyObject::new(&mut ecc_key_c_type);
-            key_object.init().unwrap();
-
-            let mut pub_key_raw = ECCPubKey {
-                qx: vec![0; key_size],
-                qx_len: key_size as u32,
-                qy: vec![0; key_size],
-                qy_len: key_size as u32,
-            };
-
             // Generate ECC key
-            let ret = unsafe {
-                wc_ecc_make_key_ex(
-                    rng_object.as_ptr(),
-                    key_size as i32,
-                    key_object.as_ptr(),
-                    curve_id,
-                )
-            };
-            check_if_zero(ret).unwrap();
+            let rng = RNG::new().unwrap();
+            let mut key = ECC::generate_ex(key_size as i32, &rng, curve_id, None, None).unwrap();
 
-            // Export public key
-            let ret = unsafe {
-                wc_ecc_export_public_raw(
-                    key_object.as_ptr(),
-                    pub_key_raw.qx.as_mut_ptr(),
-                    &mut pub_key_raw.qx_len,
-                    pub_key_raw.qy.as_mut_ptr(),
-                    &mut pub_key_raw.qy_len,
-                )
-            };
-            check_if_zero(ret).unwrap();
-
-            let mut pub_key_bytes = Vec::new();
-            pub_key_bytes.push(0x04); // Uncompressed point indicator
-            pub_key_bytes.extend_from_slice(&pub_key_raw.qx.clone());
-            pub_key_bytes.extend_from_slice(&pub_key_raw.qy.clone());
+            // Export public key (0x04 || X || Y)
+            let mut pub_key_bytes = vec![0u8; 1 + 2 * key_size];
+            let pub_len = key.export_x963(&mut pub_key_bytes).unwrap();
+            pub_key_bytes.truncate(pub_len);
 
             // Export private key in DER format
-            let ret = unsafe {
-                wc_EccPrivateKeyToDer(
-                    key_object.as_ptr(),
-                    der_ecc_key.as_mut_ptr(),
-                    der_ecc_key.len() as word32,
-                )
-            };
-            check_if_greater_than_zero(ret).unwrap();
-
-            // Trim to actual key size
-            der_ecc_key.resize(ret as usize, 0);
+            let mut priv_key_raw = vec![0u8; key_size];
+            key.export_private(&mut priv_key_raw).unwrap();
+            let der_ecc_key = ecc_private_key_to_der(&priv_key_raw, &pub_key_bytes, curve_id);
 
             // Convert to PKCS#8 format and verify
             let rustls_private_key_pkcs8 =
@@ -513,58 +519,20 @@ mod tests {
     fn eddsa_sign_and_verify() {
         let wolfcrypt_default_provider = rustls_wolfcrypt_provider::default_provider();
 
-        // Initialize RNG and ECC key objects
-        let mut rng: WC_RNG = unsafe { mem::zeroed() };
-        let rng_object: WCRngObject = WCRngObject::new(&mut rng);
-        rng_object.init().unwrap();
-
-        let mut key_c_type: ed25519_key = unsafe { mem::zeroed() };
-        let key_object = ED25519KeyObject::new(&mut key_c_type);
-        key_object.init().unwrap();
-
-        let mut der_ed25519_key: Vec<u8> = vec![0; 200]; // Adjust size if needed
-        let mut pub_key_raw: [u8; 32] = [0; 32];
-        let mut pub_key_raw_len: word32 = pub_key_raw.len() as word32;
-        let mut priv_key_raw: [u8; 32] = [0; 32];
-        let mut priv_key_bytes_len: word32 = priv_key_raw.len() as word32;
-
-        let mut ret;
-
-        // Generate ECC key
-        ret = unsafe { wc_ed25519_make_key(rng_object.as_ptr(), 32, key_object.as_ptr()) };
-        check_if_zero(ret).unwrap();
+        // Generate Ed25519 key
+        let rng = RNG::new().unwrap();
+        let key = Ed25519::generate(&rng).unwrap();
 
         // Export private key
-        ret = unsafe {
-            wc_ed25519_export_private_only(
-                key_object.as_ptr(),
-                priv_key_raw.as_mut_ptr(),
-                &mut priv_key_bytes_len,
-            )
-        };
-        check_if_zero(ret).unwrap();
+        let mut priv_key_raw = [0u8; Ed25519::KEY_SIZE];
+        key.export_private_only(&mut priv_key_raw).unwrap();
 
         // Export public key
-        ret = unsafe {
-            wc_ed25519_export_public(
-                key_object.as_ptr(),
-                pub_key_raw.as_mut_ptr(),
-                &mut pub_key_raw_len,
-            )
-        };
-        check_if_zero(ret).unwrap();
+        let mut pub_key_raw = [0u8; Ed25519::PUB_KEY_SIZE];
+        key.export_public(&mut pub_key_raw).unwrap();
 
         // Export private key in DER format
-        ret = unsafe {
-            wc_Ed25519PrivateKeyToDer(
-                key_object.as_ptr(),
-                der_ed25519_key.as_mut_ptr(),
-                der_ed25519_key.len() as word32,
-            )
-        };
-        check_if_greater_than_zero(ret).unwrap();
-
-        der_ed25519_key.resize(ret as usize, 0); // Trim to actual size
+        let der_ed25519_key = ed25519_private_key_to_der(&priv_key_raw, &pub_key_raw);
         let rustls_pkcs8_der = PrivatePkcs8KeyDer::from(der_ed25519_key.as_slice());
         let rustls_private_key = PrivateKeyDer::from(rustls_pkcs8_der);
 

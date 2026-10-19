@@ -8,6 +8,8 @@ use rustls::pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerifica
 
 use core::ptr;
 use rustls_pki_types::alg_id;
+// The crate's PKCS#1 v1.5 verifier fixes the modulus size at compile time,
+// while certificates come with any key size, so this stays on the raw bindings.
 use wolfssl_wolfcrypt::sys::*;
 
 #[derive(Debug)]

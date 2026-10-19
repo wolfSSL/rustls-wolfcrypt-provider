@@ -1,9 +1,6 @@
-use crate::error::check_if_zero;
-use crate::types::*;
+use aead::{AeadInPlace, KeyInit};
 use alloc::boxed::Box;
 use alloc::vec;
-use core::mem;
-use foreign_types::ForeignType;
 use rustls::crypto::cipher::{
     make_tls12_aad, make_tls13_aad, AeadKey, InboundOpaqueMessage, InboundPlainMessage, Iv,
     KeyBlockShape, MessageDecrypter, MessageEncrypter, Nonce, OutboundOpaqueMessage,
@@ -11,11 +8,7 @@ use rustls::crypto::cipher::{
     UnsupportedOperationError,
 };
 use rustls::{ConnectionTrafficSecrets, ContentType, ProtocolVersion};
-use zeroize::Zeroizing;
-
-use alloc::vec::Vec;
-use core::ptr;
-use wolfssl_wolfcrypt::sys::*;
+use wolfssl_wolfcrypt::aes::Aes128Gcm as WCAes128Gcm;
 
 const GCM_NONCE_LENGTH: usize = 12;
 const GCM_TAG_LENGTH: usize = 16;
@@ -27,11 +20,10 @@ impl Tls12AeadAlgorithm for Aes128Gcm {
         let mut iv_as_array = [0u8; GCM_NONCE_LENGTH];
         iv_as_array[..(GCM_NONCE_LENGTH - 8)].copy_from_slice(iv); // implicit
         iv_as_array[(GCM_NONCE_LENGTH - 8)..].copy_from_slice(extra); // explicit
-        let key_as_slice = key.as_ref();
 
         Box::new(WCTls12Encrypter {
             iv: iv_as_array.into(),
-            key: Zeroizing::new(key_as_slice.to_vec()),
+            cipher: new_cipher(&key),
         })
     }
 
@@ -42,11 +34,9 @@ impl Tls12AeadAlgorithm for Aes128Gcm {
         let mut iv_implicit_as_array = [0u8; GCM_NONCE_LENGTH - 8];
         iv_implicit_as_array.copy_from_slice(iv);
 
-        let key_as_slice = key.as_ref();
-
         Box::new(WCTls12Decrypter {
             implicit_iv: iv_implicit_as_array,
-            key: Zeroizing::new(key_as_slice.to_vec()),
+            cipher: new_cipher(&key),
         })
     }
 
@@ -76,17 +66,21 @@ impl Tls12AeadAlgorithm for Aes128Gcm {
     }
 }
 
+fn new_cipher(key: &AeadKey) -> WCAes128Gcm {
+    WCAes128Gcm::new_from_slice(key.as_ref()).expect("AES-128-GCM key must be 16 bytes")
+}
+
 // Since we use a different Iv (full_iv/implicit) based of
 // the process on what we are doing (encryption/decryption)
 // We separate the structs for the implementation.
 pub struct WCTls12Encrypter {
     iv: Iv,
-    key: Zeroizing<Vec<u8>>,
+    cipher: WCAes128Gcm,
 }
 
 pub struct WCTls12Decrypter {
     implicit_iv: [u8; 4],
-    key: Zeroizing<Vec<u8>>,
+    cipher: WCAes128Gcm,
 }
 
 impl MessageEncrypter for WCTls12Encrypter {
@@ -111,53 +105,19 @@ impl MessageEncrypter for WCTls12Encrypter {
         payload.extend_from_chunks(&m.payload);
 
         let aad = make_tls12_aad(seq, m.typ, m.version, m.payload.len());
-        let mut auth_tag = vec![0u8; GCM_TAG_LENGTH];
-        let mut aes_c_type: Aes = unsafe { mem::zeroed() };
-        let aes_object = unsafe { AesObject::from_ptr(&mut aes_c_type) };
-        let mut ret;
 
-        // Initialize Aes structure.
-        ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
-        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
-
-        // This function is used to set the key for AES GCM (Galois/Counter Mode).
-        // It initializes an AES object with the given key.
-        ret = unsafe {
-            wc_AesGcmSetKey(
-                aes_object.as_ptr(),
-                self.key.as_ptr(),
-                self.key.len() as word32,
-            )
-        };
-        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesGcmSetKey failed".into()))?;
-
-        // This function encrypts the input message, held in the buffer in,
-        // and stores the resulting cipher text in the output buffer out.
-        // It requires a new iv (initialization vector) for each call to encrypt.
-        // It also encodes the input authentication vector,
-        // authIn, into the authentication tag, authTag.
-        // We only care about the explicit IV, so we skip the first
-        // 8 bytes.
+        // Encrypt the message in place, after the explicit nonce, and get
+        // the authentication tag back.
         let payload_start = GCM_NONCE_LENGTH - 4;
         let payload_end = m.payload.len() + (GCM_NONCE_LENGTH - 4);
-        let buf = &mut payload.as_mut()[payload_start..payload_end];
-        let buf_len = buf.len() as word32;
-        let buf_ptr = buf.as_mut_ptr();
-        ret = unsafe {
-            wc_AesGcmEncrypt(
-                aes_object.as_ptr(),
-                buf_ptr,
-                buf_ptr as *const u8,
-                buf_len,
-                nonce.as_ptr(),
-                nonce.len() as word32,
-                auth_tag.as_mut_ptr(),
-                auth_tag.len() as word32,
-                aad.as_ptr(),
-                aad.len() as word32,
+        let auth_tag = self
+            .cipher
+            .encrypt_in_place_detached(
+                aead::Nonce::<WCAes128Gcm>::from_slice(&nonce),
+                &aad,
+                &mut payload.as_mut()[payload_start..payload_end],
             )
-        };
-        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesGcmEncrypt failed".into()))?;
+            .map_err(|_| rustls::Error::General("AES-GCM encryption failed".into()))?;
 
         payload.extend_from_slice(&auth_tag);
 
@@ -195,45 +155,19 @@ impl MessageDecrypter for WCTls12Decrypter {
             m.version,
             payload_len - GCM_TAG_LENGTH - (GCM_NONCE_LENGTH - 4),
         );
-        let mut aes_c_type: Aes = unsafe { mem::zeroed() };
-        let aes_object = unsafe { AesObject::from_ptr(&mut aes_c_type) };
-        let mut ret;
-
-        ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
-        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
-
-        ret = unsafe {
-            wc_AesGcmSetKey(
-                aes_object.as_ptr(),
-                self.key.as_ptr(),
-                self.key.len() as word32,
-            )
-        };
-        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesGcmSetKey failed".into()))?;
 
         // Finally, we have everything to decrypt the message
         // from the payload.
         let payload_start = GCM_NONCE_LENGTH - 4;
         let payload_end = payload_len - GCM_TAG_LENGTH;
-        let buf = &mut payload[payload_start..payload_end];
-        let buf_len = buf.len() as word32;
-        let buf_ptr = buf.as_mut_ptr();
-        ret = unsafe {
-            wc_AesGcmDecrypt(
-                aes_object.as_ptr(),
-                buf_ptr,
-                buf_ptr as *const u8,
-                buf_len,
-                nonce.as_ptr(),
-                nonce.len() as word32,
-                auth_tag.as_ptr(),
-                auth_tag.len() as word32,
-                aad.as_ptr(),
-                aad.len() as word32,
+        self.cipher
+            .decrypt_in_place_detached(
+                aead::Nonce::<WCAes128Gcm>::from_slice(&nonce),
+                &aad,
+                &mut payload[payload_start..payload_end],
+                aead::Tag::<WCAes128Gcm>::from_slice(&auth_tag),
             )
-        };
-
-        check_if_zero(ret).map_err(|_| rustls::Error::DecryptError)?;
+            .map_err(|_| rustls::Error::DecryptError)?;
 
         payload.copy_within(payload_start..(payload_len - GCM_TAG_LENGTH), 0);
         payload.truncate(payload_len - ((payload_start) + GCM_TAG_LENGTH));
@@ -245,14 +179,14 @@ impl MessageDecrypter for WCTls12Decrypter {
 impl Tls13AeadAlgorithm for Aes128Gcm {
     fn encrypter(&self, key: AeadKey, iv: Iv) -> Box<dyn MessageEncrypter> {
         Box::new(WCTls13Cipher {
-            key: Zeroizing::new(key.as_ref().into()),
+            cipher: new_cipher(&key),
             iv,
         })
     }
 
     fn decrypter(&self, key: AeadKey, iv: Iv) -> Box<dyn MessageDecrypter> {
         Box::new(WCTls13Cipher {
-            key: Zeroizing::new(key.as_ref().into()),
+            cipher: new_cipher(&key),
             iv,
         })
     }
@@ -271,7 +205,7 @@ impl Tls13AeadAlgorithm for Aes128Gcm {
 }
 
 pub struct WCTls13Cipher {
-    key: Zeroizing<Vec<u8>>,
+    cipher: WCAes128Gcm,
     iv: Iv,
 }
 
@@ -294,51 +228,18 @@ impl MessageEncrypter for WCTls13Cipher {
 
         let nonce = Nonce::new(&self.iv, seq);
         let aad = make_tls13_aad(total_len);
-        let mut auth_tag: [u8; GCM_TAG_LENGTH] = unsafe { mem::zeroed() };
-        let mut aes_c_type: Aes = unsafe { mem::zeroed() };
-        let aes_object = unsafe { AesObject::from_ptr(&mut aes_c_type) };
-        let mut ret;
 
-        // Initialize Aes structure.
-        ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
-        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
-
-        // This function is used to set the key for AES GCM (Galois/Counter Mode).
-        // It initializes an AES object with the given key.
-        ret = unsafe {
-            wc_AesGcmSetKey(
-                aes_object.as_ptr(),
-                self.key.as_ptr(),
-                self.key.len() as word32,
-            )
-        };
-        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesGcmSetKey failed".into()))?;
-
-        // This function encrypts the input message, held in the buffer in,
-        // and stores the resulting cipher text in the output buffer out.
-        // It requires a new iv (initialization vector) for each call to encrypt.
-        // It also encodes the input authentication vector,
-        // authIn, into the authentication tag, authTag.
+        // Encrypt in place and get the authentication tag back.
         // Apparently we need to also need to include for the encoding type into the encrypted
         // payload, hence the + 1 otherwise the rustls returns EoF.
-        let buf = &mut payload.as_mut()[..payload_len + 1];
-        let buf_len = buf.len() as word32;
-        let buf_ptr = buf.as_mut_ptr();
-        ret = unsafe {
-            wc_AesGcmEncrypt(
-                aes_object.as_ptr(),
-                buf_ptr,
-                buf_ptr as *const u8,
-                buf_len,
-                nonce.0.as_ptr(),
-                nonce.0.len() as word32,
-                auth_tag.as_mut_ptr(),
-                auth_tag.len() as word32,
-                aad.as_ptr(),
-                aad.len() as word32,
+        let auth_tag = self
+            .cipher
+            .encrypt_in_place_detached(
+                aead::Nonce::<WCAes128Gcm>::from_slice(&nonce.0),
+                &aad,
+                &mut payload.as_mut()[..payload_len + 1],
             )
-        };
-        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesGcmEncrypt failed".into()))?;
+            .map_err(|_| rustls::Error::General("AES-GCM encryption failed".into()))?;
 
         // Finally, we add the authentication tag at the end of it
         // after the process of encryption is done.
@@ -372,43 +273,17 @@ impl MessageDecrypter for WCTls13Cipher {
         let mut auth_tag = [0u8; GCM_TAG_LENGTH];
         let message_len = payload.len() - GCM_TAG_LENGTH;
         auth_tag.copy_from_slice(&payload[message_len..]);
-        let mut aes_c_type: Aes = unsafe { mem::zeroed() };
-        let aes_object = unsafe { AesObject::from_ptr(&mut aes_c_type) };
-        let mut ret;
-
-        ret = unsafe { wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID) };
-        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesInit failed".into()))?;
-
-        ret = unsafe {
-            wc_AesGcmSetKey(
-                aes_object.as_ptr(),
-                self.key.as_ptr(),
-                self.key.len() as word32,
-            )
-        };
-        check_if_zero(ret).map_err(|_| rustls::Error::General("wc_AesGcmSetKey failed".into()))?;
 
         // Finally, we have everything to decrypt the message
         // from the payload.
-        let buf = &mut payload[..message_len];
-        let buf_len = buf.len() as word32;
-        let buf_ptr = buf.as_mut_ptr();
-        ret = unsafe {
-            wc_AesGcmDecrypt(
-                aes_object.as_ptr(),
-                buf_ptr,
-                buf_ptr as *const u8,
-                buf_len,
-                nonce.0.as_ptr(),
-                nonce.0.len() as word32,
-                auth_tag.as_ptr(),
-                auth_tag.len() as word32,
-                aad.as_ptr(),
-                aad.len() as word32,
+        self.cipher
+            .decrypt_in_place_detached(
+                aead::Nonce::<WCAes128Gcm>::from_slice(&nonce.0),
+                &aad,
+                &mut payload[..message_len],
+                aead::Tag::<WCAes128Gcm>::from_slice(&auth_tag),
             )
-        };
-
-        check_if_zero(ret).map_err(|_| rustls::Error::DecryptError)?;
+            .map_err(|_| rustls::Error::DecryptError)?;
 
         payload.truncate(message_len);
 
@@ -418,92 +293,61 @@ impl MessageDecrypter for WCTls13Cipher {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use wolfssl_wolfcrypt::aes::GCM;
     use wycheproof::{aead::TestFlag, TestResult};
+
+    const GCM_TAG_LENGTH: usize = super::GCM_TAG_LENGTH;
 
     #[test]
     fn test_aesgcm128() {
-        unsafe {
-            let key: [u8; 16] = [
-                0x29, 0x8e, 0xfa, 0x1c, 0xcf, 0x29, 0xcf, 0x62, 0xae, 0x68, 0x24, 0xbf, 0xc1, 0x95,
-                0x57, 0xfc,
-            ];
+        let key: [u8; 16] = [
+            0x29, 0x8e, 0xfa, 0x1c, 0xcf, 0x29, 0xcf, 0x62, 0xae, 0x68, 0x24, 0xbf, 0xc1, 0x95,
+            0x57, 0xfc,
+        ];
 
-            let iv: [u8; 12] = [
-                0x6f, 0x58, 0xa9, 0x3f, 0xe1, 0xd2, 0x07, 0xfa, 0xe4, 0xed, 0x2f, 0x6d,
-            ];
+        let iv: [u8; 12] = [
+            0x6f, 0x58, 0xa9, 0x3f, 0xe1, 0xd2, 0x07, 0xfa, 0xe4, 0xed, 0x2f, 0x6d,
+        ];
 
-            let plain: [u8; 32] = [
-                0xcc, 0x38, 0xbc, 0xcd, 0x6b, 0xc5, 0x36, 0xad, 0x91, 0x9b, 0x13, 0x95, 0xf5, 0xd6,
-                0x38, 0x01, 0xf9, 0x9f, 0x80, 0x68, 0xd6, 0x5c, 0xa5, 0xac, 0x63, 0x87, 0x2d, 0xaf,
-                0x16, 0xb9, 0x39, 0x01,
-            ];
+        let plain: [u8; 32] = [
+            0xcc, 0x38, 0xbc, 0xcd, 0x6b, 0xc5, 0x36, 0xad, 0x91, 0x9b, 0x13, 0x95, 0xf5, 0xd6,
+            0x38, 0x01, 0xf9, 0x9f, 0x80, 0x68, 0xd6, 0x5c, 0xa5, 0xac, 0x63, 0x87, 0x2d, 0xaf,
+            0x16, 0xb9, 0x39, 0x01,
+        ];
 
-            let aad: [u8; 16] = [
-                0x02, 0x1f, 0xaf, 0xd2, 0x38, 0x46, 0x39, 0x73, 0xff, 0xe8, 0x02, 0x56, 0xe5, 0xb1,
-                0xc6, 0xb1,
-            ];
+        let aad: [u8; 16] = [
+            0x02, 0x1f, 0xaf, 0xd2, 0x38, 0x46, 0x39, 0x73, 0xff, 0xe8, 0x02, 0x56, 0xe5, 0xb1,
+            0xc6, 0xb1,
+        ];
 
-            let cipher: [u8; 32] = [
-                0xdf, 0xce, 0x4e, 0x9c, 0xd2, 0x91, 0x10, 0x3d, 0x7f, 0xe4, 0xe6, 0x33, 0x51, 0xd9,
-                0xe7, 0x9d, 0x3d, 0xfd, 0x39, 0x1e, 0x32, 0x67, 0x10, 0x46, 0x58, 0x21, 0x2d, 0xa9,
-                0x65, 0x21, 0xb7, 0xdb,
-            ];
+        let cipher: [u8; 32] = [
+            0xdf, 0xce, 0x4e, 0x9c, 0xd2, 0x91, 0x10, 0x3d, 0x7f, 0xe4, 0xe6, 0x33, 0x51, 0xd9,
+            0xe7, 0x9d, 0x3d, 0xfd, 0x39, 0x1e, 0x32, 0x67, 0x10, 0x46, 0x58, 0x21, 0x2d, 0xa9,
+            0x65, 0x21, 0xb7, 0xdb,
+        ];
 
-            let tag: [u8; 16] = [
-                0x54, 0x24, 0x65, 0xef, 0x59, 0x93, 0x16, 0xf7, 0x3a, 0x7a, 0x56, 0x05, 0x09, 0xa2,
-                0xd9, 0xf2,
-            ];
+        let tag: [u8; 16] = [
+            0x54, 0x24, 0x65, 0xef, 0x59, 0x93, 0x16, 0xf7, 0x3a, 0x7a, 0x56, 0x05, 0x09, 0xa2,
+            0xd9, 0xf2,
+        ];
 
-            let mut result_encrypted: [u8; 32] = [0; 32];
-            let mut result_decrypted: [u8; 32] = [0; 32];
-            let mut result_tag: [u8; 16] = [0; 16];
-            let mut aes_c_type: Aes = mem::zeroed();
-            let aes_object = AesObject::from_ptr(&mut aes_c_type);
-            let mut ret;
+        let mut result_encrypted: [u8; 32] = [0; 32];
+        let mut result_decrypted: [u8; 32] = [0; 32];
+        let mut result_tag: [u8; 16] = [0; 16];
 
-            // Initialize Aes structure.
-            ret = wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID);
-            check_if_zero(ret).unwrap();
+        let mut gcm = GCM::new().unwrap();
+        gcm.init(&key).unwrap();
 
-            // This function is used to set the key for AES GCM (Galois/Counter Mode).
-            // It initializes an AES object with the given key.
-            ret = wc_AesGcmSetKey(aes_object.as_ptr(), key.as_ptr(), key.len() as word32);
-            check_if_zero(ret).unwrap();
+        gcm.encrypt(&plain, &mut result_encrypted, &iv, &aad, &mut result_tag)
+            .unwrap();
 
-            ret = wc_AesGcmEncrypt(
-                aes_object.as_ptr(),
-                result_encrypted.as_mut_ptr(),
-                plain.as_ptr(),
-                plain.len() as word32,
-                iv.as_ptr(),
-                iv.len() as word32,
-                result_tag.as_mut_ptr(),
-                result_tag.len() as word32,
-                aad.as_ptr(),
-                aad.len() as word32,
-            );
-            check_if_zero(ret).unwrap();
+        assert_eq!(result_encrypted, cipher);
+        assert_eq!(result_tag, tag);
 
-            assert_eq!(result_encrypted, cipher);
-            assert_eq!(result_tag, tag);
+        gcm.decrypt(&cipher, &mut result_decrypted, &iv, &aad, &result_tag)
+            .unwrap();
 
-            ret = wc_AesGcmDecrypt(
-                aes_object.as_ptr(),
-                result_decrypted.as_mut_ptr(),
-                cipher.as_ptr(),
-                cipher.len() as word32,
-                iv.as_ptr(),
-                iv.len() as word32,
-                result_tag.as_mut_ptr(),
-                result_tag.len() as word32,
-                aad.as_ptr(),
-                aad.len() as word32,
-            );
-            check_if_zero(ret).unwrap();
-
-            assert_eq!(result_decrypted, plain);
-        }
+        assert_eq!(result_decrypted, plain);
     }
 
     #[test]
@@ -521,38 +365,19 @@ mod tests {
             for test in group.tests {
                 counter += 1;
 
-                let mut aes_c_type: Aes = unsafe { mem::zeroed() };
-                let aes_object = unsafe { AesObject::from_ptr(&mut aes_c_type) };
-
-                unsafe {
-                    let ret = wc_AesInit(aes_object.as_ptr(), ptr::null_mut(), INVALID_DEVID);
-                    check_if_zero(ret).unwrap();
-
-                    let ret = wc_AesGcmSetKey(
-                        aes_object.as_ptr(),
-                        test.key.as_ptr(),
-                        test.key.len() as word32,
-                    );
-                    check_if_zero(ret).unwrap();
-                }
+                let mut gcm = GCM::new().unwrap();
+                gcm.init(&test.key).unwrap();
 
                 let mut actual_ciphertext = test.pt.to_vec();
                 let mut actual_tag = [0u8; GCM_TAG_LENGTH];
 
-                let encrypt_result = unsafe {
-                    wc_AesGcmEncrypt(
-                        aes_object.as_ptr(),
-                        actual_ciphertext.as_mut_ptr(),
-                        test.pt.as_ptr(),
-                        test.pt.len() as word32,
-                        test.nonce.as_ptr(),
-                        test.nonce.len() as word32,
-                        actual_tag.as_mut_ptr(),
-                        actual_tag.len() as word32,
-                        test.aad.as_ptr(),
-                        test.aad.len() as word32,
-                    )
-                };
+                let encrypt_result = gcm.encrypt(
+                    &test.pt,
+                    &mut actual_ciphertext,
+                    &test.nonce,
+                    &test.aad,
+                    &mut actual_tag,
+                );
 
                 match &test.result {
                     TestResult::Invalid => {
@@ -567,10 +392,11 @@ mod tests {
                         }
                     }
                     TestResult::Valid | TestResult::Acceptable => {
-                        assert_eq!(
-                            encrypt_result, 0,
+                        assert!(
+                            encrypt_result.is_ok(),
                             "Encryption failed for test case {}: {}",
-                            test.tc_id, test.comment
+                            test.tc_id,
+                            test.comment
                         );
 
                         assert_eq!(
@@ -592,35 +418,29 @@ mod tests {
                 }
 
                 let mut decrypted_data = test.ct.to_vec();
-                let decrypt_result = unsafe {
-                    wc_AesGcmDecrypt(
-                        aes_object.as_ptr(),
-                        decrypted_data.as_mut_ptr(),
-                        test.ct.as_ptr(),
-                        test.ct.len() as word32,
-                        test.nonce.as_ptr(),
-                        test.nonce.len() as word32,
-                        test.tag.as_ptr(),
-                        test.tag.len() as word32,
-                        test.aad.as_ptr(),
-                        test.aad.len() as word32,
-                    )
-                };
+                let decrypt_result = gcm.decrypt(
+                    &test.ct,
+                    &mut decrypted_data,
+                    &test.nonce,
+                    &test.aad,
+                    &test.tag,
+                );
 
                 match &test.result {
                     TestResult::Invalid => {
                         assert!(
-                            decrypt_result != 0,
+                            decrypt_result.is_err(),
                             "Decryption should have failed for invalid test case {}: {}",
                             test.tc_id,
                             test.comment
                         );
                     }
                     TestResult::Valid | TestResult::Acceptable => {
-                        assert_eq!(
-                            decrypt_result, 0,
+                        assert!(
+                            decrypt_result.is_ok(),
                             "Decryption failed for test case {}: {}",
-                            test.tc_id, test.comment
+                            test.tc_id,
+                            test.comment
                         );
                         assert_eq!(
                             decrypted_data[..],

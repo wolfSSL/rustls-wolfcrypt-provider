@@ -1,12 +1,4 @@
 use crate::error::*;
-#[cfg(not(feature = "std"))]
-use crate::types::*;
-#[cfg(not(feature = "std"))]
-use core::mem;
-#[cfg(not(feature = "std"))]
-use foreign_types::ForeignType;
-#[cfg(not(feature = "std"))]
-use wolfssl_wolfcrypt::sys::*;
 
 // wolfCrypt rejects larger requests (RNG_MAX_BLOCK_LEN).
 #[cfg(feature = "std")]
@@ -42,23 +34,15 @@ pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) -> WCResult {
 
 #[cfg(not(feature = "std"))]
 pub fn wolfcrypt_random_buffer_generator(buff: &mut [u8]) -> WCResult {
-    let mut rng_c_type: WC_RNG = unsafe { mem::zeroed() };
-    let rng_object = WCRngObject::new(&mut rng_c_type);
-    let buff_length: word32 = buff.len() as word32;
+    use wolfssl_wolfcrypt::random::RNG;
 
-    // Gets the seed (from OS) and key cipher for rng.
-    // rng->drbg (deterministic random bit generator) allocated
-    // (should be deallocated with wc_FreeRng).
-    // This is a blocking operation.
+    // Gets the seed (from OS) and key cipher for rng. This is a blocking operation.
     // Propagate an init failure (e.g. transient OS entropy/DRBG seeding error)
     // instead of panicking, so SecureRandom::fill can surface GetRandomFailed.
-    rng_object.init()?;
+    // Generating will reseed rng if needed (blocking).
+    let result = RNG::new().and_then(|rng| rng.generate_block(buff));
 
-    // Copies a sz bytes of pseudorandom data to output.
-    // Will reseed rng if needed (blocking).
-    let ret = unsafe { wc_RNG_GenerateBlock(rng_object.as_ptr(), buff.as_mut_ptr(), buff_length) };
-
-    check_if_zero(ret)
+    check_if_zero(result.err().unwrap_or(0))
 }
 
 #[cfg(test)]

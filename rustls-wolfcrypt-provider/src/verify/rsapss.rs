@@ -1,17 +1,35 @@
-use crate::error::*;
-use crate::types::*;
-use alloc::vec::Vec;
-use core::mem;
-use core::ptr;
-use foreign_types::ForeignType;
+use super::Hash;
 use rustls::pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerificationAlgorithm};
 use rustls_pki_types::alg_id;
-use wolfssl_wolfcrypt::sys::*;
+use wolfssl_wolfcrypt::rsa::RSA;
+
+const RSA_PSS_SIG_SIZE: usize = 512;
+
+/// Verify the message signed with RSA-PSS.
+/// In this case 'message' has been, supposedly,
+/// been signed by 'signature'.
+fn verify_pss(
+    public_key: &[u8],
+    message: &[u8],
+    signature: &[u8],
+    hash: Hash,
+    hash_type: u32,
+    mgf: i32,
+) -> Result<(), InvalidSignature> {
+    let mut out = [0u8; RSA_PSS_SIG_SIZE];
+    let mut key = RSA::new_public_from_der(public_key).map_err(|_| InvalidSignature)?;
+
+    // We hash the message since it's not hashed.
+    let (digest, digest_len) = hash.digest(message)?;
+
+    match key.pss_verify_check(signature, &mut out, &digest[..digest_len], hash_type, mgf) {
+        Ok(len) if len > 0 => Ok(()),
+        _ => Err(InvalidSignature),
+    }
+}
 
 #[derive(Debug)]
 pub struct RsaPssSha256Verify;
-
-const RSA_PSS_SIG_SIZE: u32 = 512;
 
 impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
     fn public_key_alg_id(&self) -> AlgorithmIdentifier {
@@ -28,72 +46,14 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
         message: &[u8],
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
-        let mut digest: [u8; WC_SHA256_DIGEST_SIZE as usize] = [0; WC_SHA256_DIGEST_SIZE as usize];
-        let mut out: [u8; RSA_PSS_SIG_SIZE as usize] = [0; RSA_PSS_SIG_SIZE as usize];
-        let mut signature: Vec<u8> = signature.to_vec();
-        let mut rsa_key_c_type: RsaKey = unsafe { mem::zeroed() };
-        let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut rsa_key_c_type) };
-        let mut ret;
-
-        ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
-        check_if_zero(ret).map_err(|_| InvalidSignature)?;
-
-        // This function returns the size of the digest (output) for a hash_type.
-        // The returns size is used to make sure the output buffer
-        // provided to wc_Hash is large enough.
-        let digest_sz = unsafe { wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA256) };
-
-        if digest_sz <= 0 {
-            return Err(InvalidSignature);
-        }
-
-        // This function performs a hash on the provided data buffer and
-        // returns it in the hash buffer provided.
-        // In this case we hash with Sha256 (RSA_PSS_SHA256).
-        // We hash the message since it's not hashed.
-        ret = unsafe {
-            wc_Hash(
-                wc_HashType_WC_HASH_TYPE_SHA256,
-                message.as_ptr(),
-                message.len() as word32,
-                digest.as_mut_ptr(),
-                digest_sz as word32,
-            )
-        };
-        check_if_zero(ret).map_err(|_| InvalidSignature)?;
-
-        let mut idx = 0;
-        ret = unsafe {
-            wc_RsaPublicKeyDecode(
-                public_key.as_ptr(),
-                &mut idx,
-                rsa_key_object.as_ptr(),
-                public_key.len() as word32,
-            )
-        };
-        check_if_zero(ret).map_err(|_| InvalidSignature)?;
-
-        // Verify the message signed with RSA-PSS.
-        // In this case 'message' has been, supposedly,
-        // been signed by 'signature'.
-        ret = unsafe {
-            wc_RsaPSS_VerifyCheck(
-                signature.as_mut_ptr(),
-                signature.len() as word32,
-                out.as_mut_ptr(),
-                out.len() as word32,
-                digest.as_mut_ptr(),
-                digest_sz as word32,
-                wc_HashType_WC_HASH_TYPE_SHA256,
-                WC_MGF1SHA256.try_into().unwrap(),
-                rsa_key_object.as_ptr(),
-            )
-        };
-
-        match check_if_greater_than_zero(ret) {
-            Ok(()) => Ok(()),
-            Err(_) => Err(InvalidSignature),
-        }
+        verify_pss(
+            public_key,
+            message,
+            signature,
+            Hash::Sha256,
+            RSA::HASH_TYPE_SHA256,
+            RSA::MGF1SHA256,
+        )
     }
 }
 
@@ -115,72 +75,14 @@ impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
         message: &[u8],
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
-        let mut digest: [u8; WC_SHA384_DIGEST_SIZE as usize] = [0; WC_SHA384_DIGEST_SIZE as usize];
-        let mut out: [u8; RSA_PSS_SIG_SIZE as usize] = [0; RSA_PSS_SIG_SIZE as usize];
-        let mut signature: Vec<u8> = signature.to_vec();
-        let mut rsa_key_c_type: RsaKey = unsafe { mem::zeroed() };
-        let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut rsa_key_c_type) };
-        let mut ret;
-
-        ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
-        check_if_zero(ret).map_err(|_| InvalidSignature)?;
-
-        // This function returns the size of the digest (output) for a hash_type.
-        // The returns size is used to make sure the output buffer
-        // provided to wc_Hash is large enough.
-        let digest_sz = unsafe { wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA384) };
-
-        if digest_sz <= 0 {
-            return Err(InvalidSignature);
-        }
-
-        // This function performs a hash on the provided data buffer and
-        // returns it in the hash buffer provided.
-        // In this case we hash with Sha384 (RSA_PSS_SHA384).
-        // We hash the message since it's not hashed.
-        ret = unsafe {
-            wc_Hash(
-                wc_HashType_WC_HASH_TYPE_SHA384,
-                message.as_ptr(),
-                message.len() as word32,
-                digest.as_mut_ptr(),
-                digest_sz as word32,
-            )
-        };
-        check_if_zero(ret).map_err(|_| InvalidSignature)?;
-
-        let mut idx = 0;
-        ret = unsafe {
-            wc_RsaPublicKeyDecode(
-                public_key.as_ptr(),
-                &mut idx,
-                rsa_key_object.as_ptr(),
-                public_key.len() as word32,
-            )
-        };
-        check_if_zero(ret).map_err(|_| InvalidSignature)?;
-
-        // Verify the message signed with RSA-PSS.
-        // In this case 'message' has been, supposedly,
-        // been signed by 'signature'.
-        ret = unsafe {
-            wc_RsaPSS_VerifyCheck(
-                signature.as_mut_ptr(),
-                signature.len() as word32,
-                out.as_mut_ptr(),
-                out.len() as word32,
-                digest.as_mut_ptr(),
-                digest_sz as word32,
-                wc_HashType_WC_HASH_TYPE_SHA384,
-                WC_MGF1SHA384.try_into().unwrap(),
-                rsa_key_object.as_ptr(),
-            )
-        };
-
-        match check_if_greater_than_zero(ret) {
-            Ok(()) => Ok(()),
-            Err(_) => Err(InvalidSignature),
-        }
+        verify_pss(
+            public_key,
+            message,
+            signature,
+            Hash::Sha384,
+            RSA::HASH_TYPE_SHA384,
+            RSA::MGF1SHA384,
+        )
     }
 }
 
@@ -202,71 +104,13 @@ impl SignatureVerificationAlgorithm for RsaPssSha512Verify {
         message: &[u8],
         signature: &[u8],
     ) -> Result<(), InvalidSignature> {
-        let mut digest: [u8; WC_SHA512_DIGEST_SIZE as usize] = [0; WC_SHA512_DIGEST_SIZE as usize];
-        let mut out: [u8; RSA_PSS_SIG_SIZE as usize] = [0; RSA_PSS_SIG_SIZE as usize];
-        let mut signature: Vec<u8> = signature.to_vec();
-        let mut rsa_key_c_type: RsaKey = unsafe { mem::zeroed() };
-        let rsa_key_object = unsafe { RsaKeyObject::from_ptr(&mut rsa_key_c_type) };
-        let mut ret;
-
-        ret = unsafe { wc_InitRsaKey(rsa_key_object.as_ptr(), ptr::null_mut()) };
-        check_if_zero(ret).map_err(|_| InvalidSignature)?;
-
-        // This function returns the size of the digest (output) for a hash_type.
-        // The returns size is used to make sure the output buffer
-        // provided to wc_Hash is large enough.
-        let digest_sz = unsafe { wc_HashGetDigestSize(wc_HashType_WC_HASH_TYPE_SHA512) };
-
-        if digest_sz <= 0 {
-            return Err(InvalidSignature);
-        }
-
-        // This function performs a hash on the provided data buffer and
-        // returns it in the hash buffer provided.
-        // In this case we hash with Sha512 (RSA_PSS_SHA512).
-        // We hash the message since it's not hashed.
-        ret = unsafe {
-            wc_Hash(
-                wc_HashType_WC_HASH_TYPE_SHA512,
-                message.as_ptr(),
-                message.len() as word32,
-                digest.as_mut_ptr(),
-                digest_sz as word32,
-            )
-        };
-        check_if_zero(ret).map_err(|_| InvalidSignature)?;
-
-        let mut idx = 0;
-        ret = unsafe {
-            wc_RsaPublicKeyDecode(
-                public_key.as_ptr(),
-                &mut idx,
-                rsa_key_object.as_ptr(),
-                public_key.len() as word32,
-            )
-        };
-        check_if_zero(ret).map_err(|_| InvalidSignature)?;
-
-        // Verify the message signed with RSA-PSS.
-        // In this case 'message' has been, supposedly,
-        // been signed by 'signature'.
-        ret = unsafe {
-            wc_RsaPSS_VerifyCheck(
-                signature.as_mut_ptr(),
-                signature.len() as word32,
-                out.as_mut_ptr(),
-                out.len() as word32,
-                digest.as_mut_ptr(),
-                digest_sz as word32,
-                wc_HashType_WC_HASH_TYPE_SHA512,
-                WC_MGF1SHA512.try_into().unwrap(),
-                rsa_key_object.as_ptr(),
-            )
-        };
-
-        match check_if_greater_than_zero(ret) {
-            Ok(()) => Ok(()),
-            Err(_) => Err(InvalidSignature),
-        }
+        verify_pss(
+            public_key,
+            message,
+            signature,
+            Hash::Sha512,
+            RSA::HASH_TYPE_SHA512,
+            RSA::MGF1SHA512,
+        )
     }
 }
