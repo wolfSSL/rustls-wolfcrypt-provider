@@ -662,6 +662,15 @@ mod tests {
         });
     }
 
+    #[test]
+    fn rsa_key_under_2048_bits_refused() {
+        let provider = rustls_wolfcrypt_provider::default_provider();
+        let der = include_bytes!("certs/rsa1024.der");
+        let key = PrivateKeyDer::from(PrivatePkcs8KeyDer::from(&der[..]));
+
+        assert!(provider.key_provider.load_private_key(key).is_err());
+    }
+
     fn generate_and_test_rsa_pkcs1_key(
         provider: &CryptoProvider,
         scheme: SignatureScheme,

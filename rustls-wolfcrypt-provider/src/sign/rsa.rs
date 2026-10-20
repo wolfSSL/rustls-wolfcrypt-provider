@@ -29,6 +29,11 @@ const ALL_RSA_SCHEMES: &[SignatureScheme] = &[
 
 const MAX_RSA_SIG_SIZE: usize = 512;
 
+/// Smallest RSA key accepted, in bits.
+const MIN_RSA_KEY_BITS: usize = 2048;
+/// Largest RSA key accepted, in bits, the most a signature buffer can hold.
+const MAX_RSA_KEY_BITS: usize = MAX_RSA_SIG_SIZE * 8;
+
 /// Which DER format the stored key bytes are in.
 #[derive(Clone, Debug)]
 enum RsaKeyFormat {
@@ -97,6 +102,24 @@ fn import_rsa_key(der_bytes: &[u8], format: &RsaKeyFormat) -> Result<OwnedRsaKey
     })
 }
 
+/// Decode the key and return the size of its modulus in bits.
+fn rsa_key_bits(der_bytes: &[u8]) -> Result<usize, rustls::Error> {
+    let mut key = RSA::new_from_der(der_bytes)
+        .map_err(|_| rustls::Error::General("wc_RsaPrivateKeyDecode failed".into()))?;
+    let mut e = [0u8; MAX_RSA_SIG_SIZE];
+    let mut n = [0u8; MAX_RSA_SIG_SIZE];
+    let (mut e_len, mut n_len) = (0u32, 0u32);
+    key.export_public_key(&mut e, &mut e_len, &mut n, &mut n_len)
+        .map_err(|_| rustls::Error::General("wc_RsaFlattenPublicKey failed".into()))?;
+
+    // Count from the first nonzero byte, so leading zeros don't add bits.
+    let n = &n[..n_len as usize];
+    let first = n.iter().position(|&b| b != 0).unwrap_or(n.len());
+    let n = &n[first..];
+    Ok(n.first()
+        .map_or(0, |&top| n.len() * 8 - top.leading_zeros() as usize))
+}
+
 impl TryFrom<&PrivateKeyDer<'_>> for RsaPrivateKey {
     type Error = rustls::Error;
 
@@ -117,8 +140,13 @@ impl TryFrom<&PrivateKeyDer<'_>> for RsaPrivateKey {
             }
         };
 
-        // Validate that the key can be decoded before accepting it.
-        let _rsa_key = import_rsa_key(&der_bytes, &format)?;
+        // Decode the key and refuse sizes we must not or cannot sign with.
+        let bits = rsa_key_bits(&der_bytes)?;
+        if !(MIN_RSA_KEY_BITS..=MAX_RSA_KEY_BITS).contains(&bits) {
+            return Err(rustls::Error::General(format!(
+                "RSA key of {bits} bits refused, must be {MIN_RSA_KEY_BITS} to {MAX_RSA_KEY_BITS}"
+            )));
+        }
 
         Ok(Self {
             der_bytes: Arc::new(der_bytes),
