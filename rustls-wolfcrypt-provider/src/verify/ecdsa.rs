@@ -29,6 +29,10 @@ impl EcdsaVerifier {
 }
 
 impl SignatureVerificationAlgorithm for EcdsaVerifier {
+    fn fips(&self) -> bool {
+        cfg!(fips)
+    }
+
     fn public_key_alg_id(&self) -> AlgorithmIdentifier {
         match self.scheme {
             SignatureScheme::ECDSA_NISTP256_SHA256 => alg_id::ECDSA_P256,

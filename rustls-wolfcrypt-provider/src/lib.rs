@@ -95,6 +95,10 @@ fn run_fips_self_tests() {
 struct Provider;
 
 impl rustls::crypto::SecureRandom for Provider {
+    fn fips(&self) -> bool {
+        cfg!(fips)
+    }
+
     fn fill(&self, bytes: &mut [u8]) -> Result<(), rustls::crypto::GetRandomFailed> {
         match random::wolfcrypt_random_buffer_generator(bytes) {
             Ok(()) => Ok(()),
@@ -104,6 +108,10 @@ impl rustls::crypto::SecureRandom for Provider {
 }
 
 impl rustls::crypto::KeyProvider for Provider {
+    fn fips(&self) -> bool {
+        cfg!(fips)
+    }
+
     fn load_private_key(
         &self,
         key_der: PrivateKeyDer<'static>,

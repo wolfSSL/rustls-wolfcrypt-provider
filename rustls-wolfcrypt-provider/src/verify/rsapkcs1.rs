@@ -16,6 +16,10 @@ use wolfssl_wolfcrypt::sys::*;
 pub struct RsaPkcs1Sha256Verify;
 
 impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
+    fn fips(&self) -> bool {
+        cfg!(fips)
+    }
+
     fn public_key_alg_id(&self) -> AlgorithmIdentifier {
         alg_id::RSA_ENCRYPTION
     }
@@ -78,6 +82,10 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha256Verify {
 pub struct RsaPkcs1Sha384Verify;
 
 impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
+    fn fips(&self) -> bool {
+        cfg!(fips)
+    }
+
     fn public_key_alg_id(&self) -> AlgorithmIdentifier {
         alg_id::RSA_ENCRYPTION
     }
@@ -140,6 +148,10 @@ impl SignatureVerificationAlgorithm for RsaPkcs1Sha384Verify {
 pub struct RsaPkcs1Sha512Verify;
 
 impl SignatureVerificationAlgorithm for RsaPkcs1Sha512Verify {
+    fn fips(&self) -> bool {
+        cfg!(fips)
+    }
+
     fn public_key_alg_id(&self) -> AlgorithmIdentifier {
         alg_id::RSA_ENCRYPTION
     }

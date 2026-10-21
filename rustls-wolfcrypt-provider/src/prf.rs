@@ -7,6 +7,10 @@ use crate::hmac::*;
 pub struct WCPrfUsingHmac(pub WCShaHmac);
 
 impl crypto::tls12::Prf for WCPrfUsingHmac {
+    fn fips(&self) -> bool {
+        cfg!(fips)
+    }
+
     fn for_key_exchange(
         &self,
         output: &mut [u8; 48],

@@ -543,7 +543,7 @@ impl quic::Algorithm for KeyFactory {
     }
 
     fn fips(&self) -> bool {
-        false
+        cfg!(fips)
     }
 }
 

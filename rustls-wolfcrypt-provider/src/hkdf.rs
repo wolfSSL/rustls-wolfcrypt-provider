@@ -14,6 +14,10 @@ use zeroize::Zeroizing;
 pub struct WCHkdfUsingHmac(pub WCShaHmac);
 
 impl RustlsHkdf for WCHkdfUsingHmac {
+    fn fips(&self) -> bool {
+        cfg!(fips)
+    }
+
     fn extract_from_zero_ikm(
         &self,
         salt: Option<&[u8]>,
