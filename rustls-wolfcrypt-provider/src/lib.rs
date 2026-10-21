@@ -314,3 +314,13 @@ pub static TLS12_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384: rustls::SupportedCipherSui
         kx: rustls::crypto::KeyExchangeAlgorithm::ECDHE,
         sign: ALL_ECDSA_SCHEMES,
     });
+
+#[cfg(test)]
+mod tests {
+    // rustls calls the provider FIPS only if every part of it says so,
+    // QUIC included when that feature is on.
+    #[test]
+    fn test_fips_matches_build() {
+        assert_eq!(crate::default_provider().fips(), cfg!(fips));
+    }
+}
