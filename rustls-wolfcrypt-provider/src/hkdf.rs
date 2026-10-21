@@ -5,6 +5,9 @@ use rustls::crypto::hmac::Hmac as RustlsHmac;
 use rustls::crypto::tls13::{self, Hkdf as RustlsHkdf};
 use wolfssl_wolfcrypt::hkdf::{hkdf_expand, hkdf_extract};
 
+#[cfg(fips)]
+use wolfssl_wolfcrypt::fips::PrivateKeyRead;
+
 use crate::hmac::WCShaHmac;
 use zeroize::Zeroizing;
 
@@ -30,6 +33,8 @@ impl RustlsHkdf for WCHkdfUsingHmac {
         let zero_salt = vec![0u8; hash_len];
         let salt_bytes = salt.unwrap_or(&zero_salt);
 
+        #[cfg(fips)]
+        let _read = PrivateKeyRead::enable().ok();
         hkdf_extract(
             self.0.hash_type(),
             Some(salt_bytes),
@@ -94,6 +99,8 @@ impl tls13::HkdfExpander for WolfHkdfExpander {
             return Err(tls13::OutputLengthError);
         }
 
+        #[cfg(fips)]
+        let _read = PrivateKeyRead::enable().ok();
         hkdf_expand(
             self.hash_type,
             &self.extracted_key,
@@ -118,9 +125,9 @@ impl tls13::HkdfExpander for WolfHkdfExpander {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384, TLS13_CHACHA20_POLY1305_SHA256,
-    };
+    #[cfg(not(fips))]
+    use crate::TLS13_CHACHA20_POLY1305_SHA256;
+    use crate::{TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384};
     use hex_literal::hex;
     use wycheproof::{hkdf::TestName, TestResult};
 
@@ -237,8 +244,11 @@ mod tests {
 
     #[test]
     fn test_hkdf_wycheproof_sha256() {
-        let suites: &[rustls::SupportedCipherSuite] =
-            &[TLS13_AES_128_GCM_SHA256, TLS13_CHACHA20_POLY1305_SHA256];
+        let suites: &[rustls::SupportedCipherSuite] = &[
+            TLS13_AES_128_GCM_SHA256,
+            #[cfg(not(fips))]
+            TLS13_CHACHA20_POLY1305_SHA256,
+        ];
 
         let test_name: TestName = TestName::HkdfSha256;
 

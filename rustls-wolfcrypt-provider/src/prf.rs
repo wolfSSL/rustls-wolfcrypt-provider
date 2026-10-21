@@ -39,6 +39,8 @@ fn wc_prf(
     // The TLS 1.2 PRF is P_hash(secret, label || seed) (RFC 5246, section 5).
     let label_seed = [label, seed].concat();
 
+    #[cfg(fips)]
+    let _read = wolfssl_wolfcrypt::fips::PrivateKeyRead::enable().ok();
     prf(secret, &label_seed, hash_type, output)
         .map_err(|_| rustls::Error::General("TLS 1.2 PRF failed".into()))
 }

@@ -7,8 +7,11 @@ use rustls_wolfcrypt_provider::error::*;
 use rustls_wolfcrypt_provider::types::*;
 use rustls_wolfcrypt_provider::{
     TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256, TLS12_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-    TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, TLS13_AES_128_GCM_SHA256,
-    TLS13_AES_256_GCM_SHA384, TLS13_CHACHA20_POLY1305_SHA256,
+    TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384,
+};
+#[cfg(not(fips))]
+use rustls_wolfcrypt_provider::{
+    TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, TLS13_CHACHA20_POLY1305_SHA256,
 };
 use std::env;
 use std::fs::File;
@@ -101,6 +104,7 @@ mod tests {
         let current_dir_string = current_dir.to_string_lossy().into_owned();
 
         let ciphers = [
+            #[cfg(not(fips))]
             TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
             TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
             TLS12_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
@@ -194,6 +198,7 @@ mod tests {
         let current_dir_string = current_dir.to_string_lossy().into_owned();
 
         let ciphers = [
+            #[cfg(not(fips))]
             TLS13_CHACHA20_POLY1305_SHA256,
             TLS13_AES_128_GCM_SHA256,
             TLS13_AES_256_GCM_SHA384,
@@ -283,6 +288,7 @@ mod tests {
     #[test]
     fn test_tl12_against_website() {
         let ciphers = [
+            #[cfg(not(fips))]
             TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
             TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
             TLS12_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
@@ -343,6 +349,7 @@ mod tests {
     #[test]
     fn test_tl13_against_website() {
         let ciphers = [
+            #[cfg(not(fips))]
             TLS13_CHACHA20_POLY1305_SHA256,
             TLS13_AES_128_GCM_SHA256,
             TLS13_AES_256_GCM_SHA384,
@@ -488,6 +495,8 @@ mod tests {
 
             // Export private key in DER format
             let mut priv_key_raw = vec![0u8; key_size];
+            #[cfg(fips)]
+            let _read = wolfssl_wolfcrypt::fips::PrivateKeyRead::enable().unwrap();
             key.export_private(&mut priv_key_raw).unwrap();
             let der_ecc_key = ecc_private_key_to_der(&priv_key_raw, &pub_key_bytes, curve_id);
 
@@ -525,6 +534,8 @@ mod tests {
 
         // Export private key
         let mut priv_key_raw = [0u8; Ed25519::KEY_SIZE];
+        #[cfg(fips)]
+        let _read = wolfssl_wolfcrypt::fips::PrivateKeyRead::enable().unwrap();
         key.export_private_only(&mut priv_key_raw).unwrap();
 
         // Export public key

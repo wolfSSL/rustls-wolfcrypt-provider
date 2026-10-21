@@ -20,6 +20,8 @@ impl KeyExchangeSecP521r1 {
 
         let mut priv_key_raw: Zeroizing<Box<[u8]>> =
             Zeroizing::new(alloc::vec![0u8; 66].into_boxed_slice());
+        #[cfg(fips)]
+        let _read = wolfssl_wolfcrypt::fips::PrivateKeyRead::enable().ok();
         key.export_private(&mut priv_key_raw)
             .map_err(|_| rustls::Error::General("wc_ecc_export_private_only failed".into()))?;
 
@@ -56,6 +58,8 @@ impl KeyExchangeSecP521r1 {
             .map_err(|_| rustls::Error::General("Failed to set RNG on private key".into()))?;
 
         let mut out = [0u8; 66];
+        #[cfg(fips)]
+        let _read = wolfssl_wolfcrypt::fips::PrivateKeyRead::enable().ok();
         priv_key
             .shared_secret(&mut pub_key, &mut out)
             .map_err(|_| rustls::Error::General("Failed to compute ECC shared secret".into()))?;

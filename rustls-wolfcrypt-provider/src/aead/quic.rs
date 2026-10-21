@@ -4,12 +4,16 @@
 
 use aead::{AeadInPlace, KeyInit};
 use alloc::vec;
+#[cfg(not(fips))]
 use core::mem;
+#[cfg(not(fips))]
 use foreign_types::ForeignType;
 use zeroize::Zeroizing;
 
 use crate::alloc::string::ToString;
+#[cfg(not(fips))]
 use crate::error::check_if_zero;
+#[cfg(not(fips))]
 use crate::types::ChaChaObject;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -18,8 +22,10 @@ use rustls::crypto::cipher::{Iv, Nonce};
 use rustls::quic::Tag;
 use rustls::{crypto::cipher::AeadKey, quic, Error};
 use wolfssl_wolfcrypt::aes::{Aes128Gcm, Aes256Gcm, ECB};
+#[cfg(not(fips))]
 use wolfssl_wolfcrypt::chacha20_poly1305::ChaCha20Poly1305Aead;
 // The crate has no safe wrapper for plain ChaCha20, used for header protection.
+#[cfg(not(fips))]
 use wolfssl_wolfcrypt::sys::{
     wc_Chacha_Process, wc_Chacha_SetIV, wc_Chacha_SetKey, word32, ChaCha,
 };
@@ -37,6 +43,7 @@ macro_rules! mask_array {
 }
 pub enum Cipher {
     Aes(AesCipher),
+    #[cfg(not(fips))]
     ChaCha20(ChaChaCipher),
 }
 
@@ -48,6 +55,7 @@ pub(crate) const TAG_LEN: usize = 16;
 pub const AES_128_KEY_LEN: usize = 128 / 8;
 pub const AES_256_KEY_LEN: usize = 256 / 8;
 
+#[cfg(not(fips))]
 pub const CHACHA_KEY_LEN: usize = 32;
 pub const SAMPLE_LEN: usize = TAG_LEN;
 pub const MASK_LEN: usize = 5;
@@ -82,6 +90,7 @@ impl HPAlgorithm {
 pub enum HPAlgorithmID {
     Aes128,
     Aes256,
+    #[cfg(not(fips))]
     ChaCha20,
 }
 
@@ -118,6 +127,7 @@ fn init_hp_aes_cipher(key: &[u8]) -> Result<Cipher, Error> {
 fn generate_mask_aes(hp_cipher: &Cipher, sample: &[u8]) -> Result<[u8; MASK_LEN], Error> {
     let aes_cipher = match hp_cipher {
         Cipher::Aes(c) => c,
+        #[cfg(not(fips))]
         _ => return Err(Error::General("Invalid cipher type".into())),
     };
 
@@ -128,6 +138,7 @@ fn generate_mask_aes(hp_cipher: &Cipher, sample: &[u8]) -> Result<[u8; MASK_LEN]
 }
 
 /// ChaCha20.
+#[cfg(not(fips))]
 pub static CHACHA20: HPAlgorithm = HPAlgorithm {
     key_len: CHACHA_KEY_LEN,
     init: init_hp_chacha20_cipher,
@@ -135,12 +146,14 @@ pub static CHACHA20: HPAlgorithm = HPAlgorithm {
     id: HPAlgorithmID::ChaCha20,
 };
 
+#[cfg(not(fips))]
 fn init_hp_chacha20_cipher(key: &[u8]) -> Result<Cipher, Error> {
     let mut chacha_cipher = ChaChaCipher::new(None)?;
     chacha_cipher.set_key(key)?;
     Ok(Cipher::ChaCha20(chacha_cipher))
 }
 
+#[cfg(not(fips))]
 fn generate_mask_chacha20(hp_cipher: &Cipher, sample: &[u8]) -> Result<[u8; MASK_LEN], Error> {
     let chacha20_cipher = match hp_cipher {
         Cipher::ChaCha20(c) => c,
@@ -260,6 +273,7 @@ impl quic::HeaderProtectionKey for HeaderProtectionKey {
 pub(crate) enum PacketKeyAlgorithmID {
     Aes128Gcm,
     Aes256Gcm,
+    #[cfg(not(fips))]
     ChaCha20Poly1305,
 }
 
@@ -334,6 +348,7 @@ fn encrypt_aes_gcm(
 ) -> Result<Tag, Error> {
     let aes_cipher = match packet_cipher {
         Cipher::Aes(c) => c,
+        #[cfg(not(fips))]
         _ => return Err(Error::General("Invalid cipher type".into())),
     };
     aes_cipher.encrypt_separate_tag(nonce, aad, in_out)
@@ -347,6 +362,7 @@ pub(super) fn decrypt_aes_gcm(
 ) -> Result<(), Error> {
     let aes_cipher = match packet_cipher {
         Cipher::Aes(aes_key) => aes_key,
+        #[cfg(not(fips))]
         _ => return Err(Error::General("Invalid cipher type".into())),
     };
     aes_cipher.decrypt(nonce, aad, in_out)
@@ -357,6 +373,7 @@ pub(super) fn decrypt_aes_gcm(
 /// The keys are 256 bits long and the nonces are 96 bits long.
 ///
 /// [RFC 8439]: https://tools.ietf.org/html/rfc8439
+#[cfg(not(fips))]
 pub static CHACHA20_POLY1305: AeadAlgorithm = AeadAlgorithm {
     init: init_chacha20_poly1305_cipher,
     encrypt: encrypt_chacha20_poly1305,
@@ -365,6 +382,7 @@ pub static CHACHA20_POLY1305: AeadAlgorithm = AeadAlgorithm {
     id: PacketKeyAlgorithmID::ChaCha20Poly1305,
 };
 
+#[cfg(not(fips))]
 fn init_chacha20_poly1305_cipher(key: &[u8]) -> Result<Cipher, Error> {
     let key_array = <[u8; 32]>::try_from(key)
         .map_err(|_| Error::General("Invalid key length for ChaCha20-Poly1305".into()))?;
@@ -372,6 +390,7 @@ fn init_chacha20_poly1305_cipher(key: &[u8]) -> Result<Cipher, Error> {
     Ok(Cipher::ChaCha20(chacha_cipher))
 }
 
+#[cfg(not(fips))]
 fn encrypt_chacha20_poly1305(
     packet_cipher: &Cipher,
     nonce: &[u8],
@@ -385,6 +404,7 @@ fn encrypt_chacha20_poly1305(
     chacha_cipher.encrypt_separate_tag(nonce, aad, in_out)
 }
 
+#[cfg(not(fips))]
 fn decrypt_chacha20_poly1305(
     packet_cipher: &Cipher,
     nonce: &[u8],
@@ -628,10 +648,12 @@ impl AesCipher {
     }
 }
 
+#[cfg(not(fips))]
 pub struct ChaChaCipher {
     key: Option<Zeroizing<[u8; CHACHA_KEY_LEN]>>,
 }
 
+#[cfg(not(fips))]
 impl ChaChaCipher {
     pub fn new(key: Option<[u8; CHACHA_KEY_LEN]>) -> Result<Self, Error> {
         Ok(Self {
@@ -764,16 +786,21 @@ impl ChaChaCipher {
 #[cfg(test)]
 mod tests {
     use hex_literal::hex;
+    #[cfg(not(fips))]
     use rustls::crypto::tls13::HkdfExpander;
     use std::prelude::v1::Vec;
     use std::vec;
 
     use crate::aead;
+    #[cfg(not(fips))]
     use rustls::crypto::cipher::{AeadKey, Iv, NONCE_LEN};
     use rustls::quic::*;
 
     use crate::default_provider;
-    use crate::{TLS13_AES_128_GCM_SHA256, TLS13_CHACHA20_POLY1305_SHA256};
+    use crate::TLS13_AES_128_GCM_SHA256;
+    #[cfg(not(fips))]
+    use crate::TLS13_CHACHA20_POLY1305_SHA256;
+    #[cfg(not(fips))]
     use rustls::crypto::tls13::OkmBlock;
     use rustls::internal::msgs::codec::Codec;
     use rustls::{ClientConfig, Error, ServerConfig, Side, SideData};
@@ -973,6 +1000,7 @@ mod tests {
         pub body: Vec<u8>,
     }
 
+    #[cfg(not(fips))]
     #[derive(Debug, Clone)]
     struct ChaCha20TestVector {
         key: [u8; 32],
@@ -993,6 +1021,7 @@ mod tests {
         },
     }
 
+    #[cfg(not(fips))]
     fn hkdf_expand_label(
         expander: &Box<dyn HkdfExpander>,
         label: &[u8],
@@ -1018,6 +1047,7 @@ mod tests {
         let _ = expander.expand_slice(info, output);
     }
 
+    #[cfg(not(fips))]
     fn test_short_packet(version: rustls::quic::Version, expected: &[u8]) {
         // Code taken from rustls with modification
         let chacha_key_len = TLS13_CHACHA20_POLY1305_SHA256
@@ -1132,6 +1162,7 @@ mod tests {
         assert_eq!(plain, &PLAIN[4..]);
     }
 
+    #[cfg(not(fips))]
     #[test]
     fn short_packet_header_protection() {
         // https://www.rfc-editor.org/rfc/rfc9001.html#name-chacha20-poly1305-short-hea
@@ -1144,6 +1175,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(fips))]
     #[test]
     fn short_packet_header_protection_v2() {
         // https://www.ietf.org/archive/id/draft-ietf-quic-v2-10.html#name-chacha20-poly1305-short-head
@@ -1550,6 +1582,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(fips))]
     #[test]
     fn test_chacha_mask_generation() {
         //Test idea taken from ring
@@ -1571,9 +1604,10 @@ mod tests {
 
     #[test]
     fn test_sample_len() {
-        let hp_algs: Vec<&aead::quic::HPAlgorithm> = vec![
+        let hp_algs: &[&aead::quic::HPAlgorithm] = &[
             &aead::quic::AES_128,
             &aead::quic::AES_256,
+            #[cfg(not(fips))]
             &aead::quic::CHACHA20,
         ];
         let mut first = vec![0u8; 1];
@@ -1623,9 +1657,10 @@ mod tests {
 
     #[test]
     fn test_key_len() {
-        let hp_algs: Vec<&aead::quic::HPAlgorithm> = vec![
+        let hp_algs: &[&aead::quic::HPAlgorithm] = &[
             &aead::quic::AES_128,
             &aead::quic::AES_256,
+            #[cfg(not(fips))]
             &aead::quic::CHACHA20,
         ];
         for alg in hp_algs {

@@ -21,6 +21,7 @@ use crate::prf::WCPrfUsingHmac;
 pub mod aead {
     pub mod aes128gcm;
     pub mod aes256gcm;
+    #[cfg(not(fips))]
     pub mod chacha20;
     #[cfg(feature = "quic")]
     pub mod quic;
@@ -30,9 +31,11 @@ pub mod sign {
     pub mod eddsa;
     pub mod rsa;
 }
+#[cfg(not(fips))]
+use crate::aead::chacha20;
 #[cfg(feature = "quic")]
 use crate::aead::quic::KeyFactory;
-use crate::aead::{aes128gcm, aes256gcm, chacha20};
+use crate::aead::{aes128gcm, aes256gcm};
 
 pub mod hash {
     pub mod sha256;
@@ -54,6 +57,7 @@ type SigningAlgorithms = Vec<Box<SigningKeyFn>>;
  * Crypto provider struct that we populate with our own crypto backend (wolfcrypt).
  * */
 pub fn default_provider() -> CryptoProvider {
+    run_fips_self_tests();
     CryptoProvider {
         cipher_suites: ALL_CIPHER_SUITES.to_vec(),
         kx_groups: kx::ALL_KX_GROUPS.to_vec(),
@@ -66,12 +70,24 @@ pub fn default_provider() -> CryptoProvider {
 pub fn provider_with_specified_ciphers(
     ciphers: Vec<rustls::SupportedCipherSuite>,
 ) -> CryptoProvider {
+    run_fips_self_tests();
     CryptoProvider {
         cipher_suites: ciphers,
         kx_groups: kx::ALL_KX_GROUPS.to_vec(),
         signature_verification_algorithms: verify::ALGORITHMS,
         secure_random: &Provider,
         key_provider: &Provider,
+    }
+}
+
+/// Runs wolfCrypt's FIPS self tests before the provider is used, so threads
+/// using an algorithm for the first time at once don't race on its self test.
+/// A failure leaves the failed algorithms refused, so it shows up on use.
+/// Does nothing in non-FIPS builds.
+fn run_fips_self_tests() {
+    #[cfg(fips)]
+    if let Err(rc) = wolfssl_wolfcrypt::fips::run_all_self_tests() {
+        log::error!("wolfCrypt FIPS self tests failed: {}", rc);
     }
 }
 
@@ -116,12 +132,15 @@ impl rustls::crypto::KeyProvider for Provider {
 pub static ALL_CIPHER_SUITES: &[rustls::SupportedCipherSuite] = &[
     TLS13_AES_256_GCM_SHA384,
     TLS13_AES_128_GCM_SHA256,
+    #[cfg(not(fips))]
     TLS13_CHACHA20_POLY1305_SHA256,
     TLS12_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
     TLS12_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+    #[cfg(not(fips))]
     TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
     TLS12_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
     TLS12_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+    #[cfg(not(fips))]
     TLS12_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
 ];
 
@@ -141,6 +160,7 @@ static ALL_ECDSA_SCHEMES: &[rustls::SignatureScheme] = &[
     rustls::SignatureScheme::ED25519,
 ];
 
+#[cfg(not(fips))]
 pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
     rustls::SupportedCipherSuite::Tls13(&rustls::Tls13CipherSuite {
         common: rustls::crypto::CipherSuiteCommon {
@@ -207,6 +227,7 @@ pub static TLS13_AES_256_GCM_SHA384: rustls::SupportedCipherSuite =
         }),
     });
 
+#[cfg(not(fips))]
 pub static TLS12_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
     rustls::SupportedCipherSuite::Tls12(&rustls::Tls12CipherSuite {
         common: rustls::crypto::CipherSuiteCommon {
@@ -246,6 +267,7 @@ pub static TLS12_ECDHE_RSA_WITH_AES_256_GCM_SHA384: rustls::SupportedCipherSuite
         sign: ALL_RSA_SCHEMES,
     });
 
+#[cfg(not(fips))]
 pub static TLS12_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
     rustls::SupportedCipherSuite::Tls12(&rustls::Tls12CipherSuite {
         common: rustls::crypto::CipherSuiteCommon {

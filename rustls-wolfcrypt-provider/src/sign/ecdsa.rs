@@ -66,6 +66,8 @@ impl TryFrom<&PrivateKeyDer<'_>> for EcdsaSigningKey {
         // The export writes exactly the curve's key size, so a buffer big
         // enough for P-521 also tells us which curve the key is on.
         let mut priv_key_bytes = Zeroizing::new(vec![0u8; MAX_ECC_KEY_SIZE]);
+        #[cfg(fips)]
+        let _read = wolfssl_wolfcrypt::fips::PrivateKeyRead::enable().ok();
         let key_size = key
             .export_private(&mut priv_key_bytes)
             .map_err(|_| rustls::Error::General("wc_ecc_export_private_only failed".into()))?;
