@@ -7,6 +7,10 @@ use wolfssl_wolfcrypt::sha::SHA384;
 pub struct WCSha384;
 
 impl hash::Hash for WCSha384 {
+    fn fips(&self) -> bool {
+        crate::fips()
+    }
+
     fn start(&self) -> Box<dyn hash::Context> {
         let sha384 = SHA384::new().expect("SHA384::new failed");
         Box::new(WCSha384Context::new(sha384))

@@ -32,6 +32,10 @@ fn verify_pss(
 pub struct RsaPssSha256Verify;
 
 impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
+    fn fips(&self) -> bool {
+        crate::fips()
+    }
+
     fn public_key_alg_id(&self) -> AlgorithmIdentifier {
         alg_id::RSA_ENCRYPTION
     }
@@ -61,6 +65,10 @@ impl SignatureVerificationAlgorithm for RsaPssSha256Verify {
 pub struct RsaPssSha384Verify;
 
 impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
+    fn fips(&self) -> bool {
+        crate::fips()
+    }
+
     fn public_key_alg_id(&self) -> AlgorithmIdentifier {
         alg_id::RSA_ENCRYPTION
     }
@@ -90,6 +98,10 @@ impl SignatureVerificationAlgorithm for RsaPssSha384Verify {
 pub struct RsaPssSha512Verify;
 
 impl SignatureVerificationAlgorithm for RsaPssSha512Verify {
+    fn fips(&self) -> bool {
+        crate::fips()
+    }
+
     fn public_key_alg_id(&self) -> AlgorithmIdentifier {
         alg_id::RSA_ENCRYPTION
     }

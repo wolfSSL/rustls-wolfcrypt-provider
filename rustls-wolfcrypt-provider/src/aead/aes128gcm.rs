@@ -16,6 +16,10 @@ const GCM_TAG_LENGTH: usize = 16;
 pub struct Aes128Gcm;
 
 impl Tls12AeadAlgorithm for Aes128Gcm {
+    fn fips(&self) -> bool {
+        crate::fips()
+    }
+
     fn encrypter(&self, key: AeadKey, iv: &[u8], extra: &[u8]) -> Box<dyn MessageEncrypter> {
         let mut iv_as_array = [0u8; GCM_NONCE_LENGTH];
         iv_as_array[..(GCM_NONCE_LENGTH - 8)].copy_from_slice(iv); // implicit
@@ -177,6 +181,10 @@ impl MessageDecrypter for WCTls12Decrypter {
 }
 
 impl Tls13AeadAlgorithm for Aes128Gcm {
+    fn fips(&self) -> bool {
+        crate::fips()
+    }
+
     fn encrypter(&self, key: AeadKey, iv: Iv) -> Box<dyn MessageEncrypter> {
         Box::new(WCTls13Cipher {
             cipher: new_cipher(&key),

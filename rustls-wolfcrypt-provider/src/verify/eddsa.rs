@@ -6,6 +6,10 @@ use wolfssl_wolfcrypt::ed25519::Ed25519 as WCEd25519;
 pub struct Ed25519;
 
 impl SignatureVerificationAlgorithm for Ed25519 {
+    fn fips(&self) -> bool {
+        crate::fips()
+    }
+
     fn public_key_alg_id(&self) -> AlgorithmIdentifier {
         alg_id::ED25519
     }

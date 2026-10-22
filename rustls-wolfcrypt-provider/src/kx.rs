@@ -5,9 +5,16 @@ use rustls::ffdhe_groups::FfdheGroup;
 mod sec256r1;
 mod sec384r1;
 mod sec521r1;
+#[cfg(not(fips))]
 mod x25519;
 
-pub const ALL_KX_GROUPS: &[&dyn SupportedKxGroup] = &[&X25519, &SECP256R1, &SECP384R1, &SECP521R1];
+pub const ALL_KX_GROUPS: &[&dyn SupportedKxGroup] = &[
+    #[cfg(not(fips))]
+    &X25519,
+    &SECP256R1,
+    &SECP384R1,
+    &SECP521R1,
+];
 
 macro_rules! define_kx_group {
     ($name:ident, $kx_type:ty, $kx_func:ident, $named_group:expr) => {
@@ -15,6 +22,10 @@ macro_rules! define_kx_group {
         pub struct $name;
 
         impl crypto::SupportedKxGroup for $name {
+            fn fips(&self) -> bool {
+                crate::fips()
+            }
+
             fn start(&self) -> Result<Box<dyn crypto::ActiveKeyExchange>, rustls::Error> {
                 Ok(Box::new(<$kx_type>::$kx_func()?))
             }
@@ -31,6 +42,7 @@ macro_rules! define_kx_group {
 }
 
 // Define Supported KeyExchange groups
+#[cfg(not(fips))]
 define_kx_group!(
     X25519,
     x25519::KeyExchangeX25519,

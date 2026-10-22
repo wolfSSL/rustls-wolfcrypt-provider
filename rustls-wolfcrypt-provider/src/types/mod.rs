@@ -150,4 +150,5 @@ define_foreign_type!(
 );
 
 define_foreign_type_no_copy!(RsaKeyObject, RsaKeyObjectRef, RsaKey, drop(wc_FreeRsaKey));
+#[cfg(not(fips))]
 define_foreign_type_no_copy!(ChaChaObject, ChaChaObjectRef, ChaCha);
