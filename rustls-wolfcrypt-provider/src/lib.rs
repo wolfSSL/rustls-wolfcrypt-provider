@@ -91,12 +91,29 @@ fn run_fips_self_tests() {
     }
 }
 
+/// The answer every fips method in this provider gives. In FIPS builds it asks
+/// wolfSSL at run time, so a failed self test or integrity check answers false.
+pub(crate) fn fips() -> bool {
+    #[cfg(fips)]
+    {
+        use wolfssl_wolfcrypt::sys;
+        // NORMAL is the only healthy mode, DEGRADED and FAILED mean a self test
+        // or the integrity check failed.
+        let mode = unsafe { sys::wolfCrypt_GetMode_fips() };
+        mode == sys::FipsModeId_FIPS_MODE_NORMAL as core::ffi::c_int
+    }
+    #[cfg(not(fips))]
+    {
+        false
+    }
+}
+
 #[derive(Debug)]
 struct Provider;
 
 impl rustls::crypto::SecureRandom for Provider {
     fn fips(&self) -> bool {
-        cfg!(fips)
+        crate::fips()
     }
 
     fn fill(&self, bytes: &mut [u8]) -> Result<(), rustls::crypto::GetRandomFailed> {
@@ -109,7 +126,7 @@ impl rustls::crypto::SecureRandom for Provider {
 
 impl rustls::crypto::KeyProvider for Provider {
     fn fips(&self) -> bool {
-        cfg!(fips)
+        crate::fips()
     }
 
     fn load_private_key(

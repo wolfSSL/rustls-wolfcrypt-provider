@@ -8,7 +8,7 @@ pub struct WCSha384;
 
 impl hash::Hash for WCSha384 {
     fn fips(&self) -> bool {
-        cfg!(fips)
+        crate::fips()
     }
 
     fn start(&self) -> Box<dyn hash::Context> {

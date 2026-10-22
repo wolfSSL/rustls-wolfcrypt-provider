@@ -8,7 +8,7 @@ pub struct WCSha256;
 
 impl hash::Hash for WCSha256 {
     fn fips(&self) -> bool {
-        cfg!(fips)
+        crate::fips()
     }
 
     fn start(&self) -> Box<dyn hash::Context> {

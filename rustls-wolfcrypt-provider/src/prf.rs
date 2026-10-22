@@ -8,7 +8,7 @@ pub struct WCPrfUsingHmac(pub WCShaHmac);
 
 impl crypto::tls12::Prf for WCPrfUsingHmac {
     fn fips(&self) -> bool {
-        cfg!(fips)
+        crate::fips()
     }
 
     fn for_key_exchange(

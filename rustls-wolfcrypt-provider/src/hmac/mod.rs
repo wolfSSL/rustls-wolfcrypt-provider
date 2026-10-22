@@ -35,7 +35,7 @@ impl WCShaHmac {
 
 impl crypto::hmac::Hmac for WCShaHmac {
     fn fips(&self) -> bool {
-        cfg!(fips)
+        crate::fips()
     }
 
     fn with_key(&self, key: &[u8]) -> Box<dyn crypto::hmac::Key> {

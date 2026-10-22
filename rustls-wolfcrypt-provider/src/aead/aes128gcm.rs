@@ -17,7 +17,7 @@ pub struct Aes128Gcm;
 
 impl Tls12AeadAlgorithm for Aes128Gcm {
     fn fips(&self) -> bool {
-        cfg!(fips)
+        crate::fips()
     }
 
     fn encrypter(&self, key: AeadKey, iv: &[u8], extra: &[u8]) -> Box<dyn MessageEncrypter> {
@@ -182,7 +182,7 @@ impl MessageDecrypter for WCTls12Decrypter {
 
 impl Tls13AeadAlgorithm for Aes128Gcm {
     fn fips(&self) -> bool {
-        cfg!(fips)
+        crate::fips()
     }
 
     fn encrypter(&self, key: AeadKey, iv: Iv) -> Box<dyn MessageEncrypter> {

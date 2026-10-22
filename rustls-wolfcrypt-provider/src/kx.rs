@@ -23,7 +23,7 @@ macro_rules! define_kx_group {
 
         impl crypto::SupportedKxGroup for $name {
             fn fips(&self) -> bool {
-                cfg!(fips)
+                crate::fips()
             }
 
             fn start(&self) -> Result<Box<dyn crypto::ActiveKeyExchange>, rustls::Error> {

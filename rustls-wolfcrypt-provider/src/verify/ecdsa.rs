@@ -30,7 +30,7 @@ impl EcdsaVerifier {
 
 impl SignatureVerificationAlgorithm for EcdsaVerifier {
     fn fips(&self) -> bool {
-        cfg!(fips)
+        crate::fips()
     }
 
     fn public_key_alg_id(&self) -> AlgorithmIdentifier {

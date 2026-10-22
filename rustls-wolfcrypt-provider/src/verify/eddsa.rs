@@ -7,7 +7,7 @@ pub struct Ed25519;
 
 impl SignatureVerificationAlgorithm for Ed25519 {
     fn fips(&self) -> bool {
-        cfg!(fips)
+        crate::fips()
     }
 
     fn public_key_alg_id(&self) -> AlgorithmIdentifier {

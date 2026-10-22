@@ -15,7 +15,7 @@ pub struct WCHkdfUsingHmac(pub WCShaHmac);
 
 impl RustlsHkdf for WCHkdfUsingHmac {
     fn fips(&self) -> bool {
-        cfg!(fips)
+        crate::fips()
     }
 
     fn extract_from_zero_ikm(
