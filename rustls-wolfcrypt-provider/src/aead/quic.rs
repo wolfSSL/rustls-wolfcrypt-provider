@@ -125,6 +125,8 @@ fn init_hp_aes_cipher(key: &[u8]) -> Result<Cipher, Error> {
 }
 
 fn generate_mask_aes(hp_cipher: &Cipher, sample: &[u8]) -> Result<[u8; MASK_LEN], Error> {
+    // FIPS builds have AES only, so the match has one arm there.
+    #[cfg_attr(fips, allow(clippy::infallible_destructuring_match))]
     let aes_cipher = match hp_cipher {
         Cipher::Aes(c) => c,
         #[cfg(not(fips))]
@@ -346,6 +348,7 @@ fn encrypt_aes_gcm(
     aad: &[u8],
     in_out: &mut [u8],
 ) -> Result<Tag, Error> {
+    #[cfg_attr(fips, allow(clippy::infallible_destructuring_match))]
     let aes_cipher = match packet_cipher {
         Cipher::Aes(c) => c,
         #[cfg(not(fips))]
@@ -360,6 +363,7 @@ pub(super) fn decrypt_aes_gcm(
     aad: &[u8],
     in_out: &mut [u8],
 ) -> Result<(), Error> {
+    #[cfg_attr(fips, allow(clippy::infallible_destructuring_match))]
     let aes_cipher = match packet_cipher {
         Cipher::Aes(aes_key) => aes_key,
         #[cfg(not(fips))]
@@ -832,12 +836,11 @@ mod tests {
         let root_store =
             rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
-        let config = rustls::ClientConfig::builder_with_provider(default_provider().into())
+        rustls::ClientConfig::builder_with_provider(default_provider().into())
             .with_safe_default_protocol_versions()
             .unwrap()
             .with_root_certificates(root_store)
-            .with_no_client_auth();
-        config
+            .with_no_client_auth()
     }
 
     fn make_default_server_config() -> ServerConfig {
@@ -970,7 +973,7 @@ mod tests {
         rustls::ProtocolVersion::TLSv1_2.encode(&mut ch);
         ch.extend_from_slice(&[0u8; 32]); // Encode random
         ch.extend_from_slice(&[0u8; 1]); // Encode session_id
-        vec![
+        [
             rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
             rustls::CipherSuite::TLS13_AES_128_GCM_SHA256,
         ]
@@ -1023,7 +1026,7 @@ mod tests {
 
     #[cfg(not(fips))]
     fn hkdf_expand_label(
-        expander: &Box<dyn HkdfExpander>,
+        expander: &dyn HkdfExpander,
         label: &[u8],
         context: &[u8],
         n: usize,
@@ -1075,7 +1078,7 @@ mod tests {
             .expander_for_okm(&secret);
         //Derive hp key
         hkdf_expand_label(
-            &expander,
+            &*expander,
             match version {
                 rustls::quic::Version::V1Draft | rustls::quic::Version::V1 => b"quic hp",
                 rustls::quic::Version::V2 => b"quicv2 hp",
@@ -1086,7 +1089,7 @@ mod tests {
             &mut output,
         );
 
-        let hp_aead_key = AeadKey::from(output.clone());
+        let hp_aead_key = AeadKey::from(output);
         let header_protection_key = TLS13_CHACHA20_POLY1305_SHA256
             .tls13()
             .unwrap()
@@ -1096,7 +1099,7 @@ mod tests {
 
         // Derive packet protection key and iv
         hkdf_expand_label(
-            &expander,
+            &*expander,
             match version {
                 rustls::quic::Version::V1Draft | rustls::quic::Version::V1 => b"quic key",
                 rustls::quic::Version::V2 => b"quicv2 key",
@@ -1110,7 +1113,7 @@ mod tests {
         let pkt_aead_key = AeadKey::from(output);
 
         hkdf_expand_label(
-            &expander,
+            &*expander,
             match version {
                 rustls::quic::Version::V1Draft | rustls::quic::Version::V1 => b"quic iv",
                 rustls::quic::Version::V2 => b"quicv2 iv",
@@ -1392,7 +1395,7 @@ mod tests {
         let header_len = PLAIN_HEADER.len();
         let tag_len = client_keys.local.packet.tag_len();
         let padding_len = 1200 - header_len - PAYLOAD.len() - tag_len;
-        buf.extend(std::iter::repeat(0).take(padding_len));
+        buf.extend(std::iter::repeat_n(0, padding_len));
         let (header, payload) = buf.split_at_mut(header_len);
         let tag = client_keys
             .local
@@ -1610,7 +1613,7 @@ mod tests {
             #[cfg(not(fips))]
             &aead::quic::CHACHA20,
         ];
-        let mut first = vec![0u8; 1];
+        let mut first = [0u8; 1];
         let mut packet_number = vec![0u8; 4];
         for alg in hp_algs {
             let key_len = alg.key_len();

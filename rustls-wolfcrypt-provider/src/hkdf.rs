@@ -137,7 +137,9 @@ mod tests {
 
     /// Tests the HKDF implementation against RFC 5869 test vector A.1
     /// This is the primary compliance test using SHA-256
+    /// Its 13 byte salt is under FIPS v5.2.3's 14 byte HMAC key minimum.
     #[test]
+    #[cfg(not(fips_v5_2_3))]
     fn test_hkdf_sha256() {
         // Test vectors from RFC 5869 Appendix A.1
         let ikm = hex!("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b");
@@ -164,7 +166,8 @@ mod tests {
     fn test_hkdf_sha384() {
         // Test with SHA384
         let ikm = hex!("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b");
-        let salt = hex!("000102030405060708090a0b0c");
+        // At least 14 bytes, FIPS v5.2.3's HMAC key minimum.
+        let salt = hex!("000102030405060708090a0b0c0d0e0f");
         let info = hex!("f0f1f2f3f4f5f6f7f8f9");
 
         let hkdf = WCHkdfUsingHmac(WCShaHmac::Sha384);
@@ -199,7 +202,8 @@ mod tests {
     #[test]
     fn test_hkdf_zero_ikm() {
         let hkdf = WCHkdfUsingHmac(WCShaHmac::Sha256);
-        let salt = hex!("000102030405060708090a0b0c");
+        // At least 14 bytes, FIPS v5.2.3's HMAC key minimum.
+        let salt = hex!("000102030405060708090a0b0c0d0e0f");
         let info = hex!("f0f1f2f3f4f5f6f7f8f9");
 
         let expander = hkdf.extract_from_zero_ikm(Some(&salt));
@@ -220,7 +224,8 @@ mod tests {
     #[test]
     fn test_hkdf_multiple_info_components() {
         let hkdf = WCHkdfUsingHmac(WCShaHmac::Sha256);
-        let salt = hex!("000102030405060708090a0b0c");
+        // At least 14 bytes, FIPS v5.2.3's HMAC key minimum.
+        let salt = hex!("000102030405060708090a0b0c0d0e0f");
         let info1 = hex!("f0f1f2f3");
         let info2 = hex!("f4f5f6f7");
         let info3 = hex!("f8f9");
@@ -266,6 +271,10 @@ mod tests {
             for test_group in test_groups {
                 let tests = &test_group.tests;
                 for test in tests {
+                    // FIPS v5.2.3 refuses HMAC keys, so HKDF salts, under 14 bytes.
+                    if cfg!(fips_v5_2_3) && test.salt.len() < 14 {
+                        continue;
+                    }
                     let pseudorandom_key_expander =
                         hkdf_provider.extract_from_secret(Some(&test.salt), &test.ikm);
                     let mut outputkey_material = vec![0; test.size];
@@ -307,6 +316,10 @@ mod tests {
             for test_group in test_groups {
                 let tests = &test_group.tests;
                 for test in tests {
+                    // FIPS v5.2.3 refuses HMAC keys, so HKDF salts, under 14 bytes.
+                    if cfg!(fips_v5_2_3) && test.salt.len() < 14 {
+                        continue;
+                    }
                     let pseudorandom_key_expander =
                         hkdf_provider.extract_from_secret(Some(&test.salt), &test.ikm);
                     let mut outputkey_material = vec![0; test.size];

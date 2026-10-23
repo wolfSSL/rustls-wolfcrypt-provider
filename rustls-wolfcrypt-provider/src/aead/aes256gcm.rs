@@ -395,7 +395,7 @@ mod tests {
 
                 match &test.result {
                     TestResult::Invalid => {
-                        if test.flags.iter().any(|flag| *flag == TestFlag::ModifiedTag) {
+                        if test.flags.contains(&TestFlag::ModifiedTag) {
                             assert_ne!(
                                 actual_tag[..],
                                 test.tag[..],
