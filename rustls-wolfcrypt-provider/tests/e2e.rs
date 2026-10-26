@@ -25,6 +25,7 @@ use std::sync::Once;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use wolfssl_wolfcrypt::ecc::ECC;
+#[cfg(not(fips_v5_2_3))]
 use wolfssl_wolfcrypt::ed25519::Ed25519;
 use wolfssl_wolfcrypt::random::RNG;
 use wolfssl_wolfcrypt::sys::*;
@@ -436,6 +437,7 @@ mod tests {
 
     /// DER-encodes an Ed25519 private key. The crate has no wrapper for
     /// `wc_Ed25519PrivateKeyToDer`, so this uses the raw bindings.
+    #[cfg(not(fips_v5_2_3))]
     fn ed25519_private_key_to_der(priv_key: &[u8], pub_key: &[u8]) -> Vec<u8> {
         let mut der = vec![0u8; 200]; // Adjust size if needed
         unsafe {
@@ -449,7 +451,7 @@ mod tests {
                 &mut key,
             );
             let der_len = if ret == 0 {
-                wc_Ed25519PrivateKeyToDer(&mut key, der.as_mut_ptr(), der.len() as word32)
+                wc_Ed25519PrivateKeyToDer(&key, der.as_mut_ptr(), der.len() as word32)
             } else {
                 ret
             };
@@ -488,6 +490,11 @@ mod tests {
             let rng = RNG::new().unwrap();
             let mut key = ECC::generate_ex(key_size as i32, &rng, curve_id, None, None).unwrap();
 
+            // FIPS v5.2.3 locks the public key export too, not only the
+            // private one.
+            #[cfg(fips)]
+            let _read = wolfssl_wolfcrypt::fips::PrivateKeyRead::enable().unwrap();
+
             // Export public key (0x04 || X || Y)
             let mut pub_key_bytes = vec![0u8; 1 + 2 * key_size];
             let pub_len = key.export_x963(&mut pub_key_bytes).unwrap();
@@ -495,8 +502,6 @@ mod tests {
 
             // Export private key in DER format
             let mut priv_key_raw = vec![0u8; key_size];
-            #[cfg(fips)]
-            let _read = wolfssl_wolfcrypt::fips::PrivateKeyRead::enable().unwrap();
             key.export_private(&mut priv_key_raw).unwrap();
             let der_ecc_key = ecc_private_key_to_der(&priv_key_raw, &pub_key_bytes, curve_id);
 
@@ -525,6 +530,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(fips_v5_2_3))]
     fn eddsa_sign_and_verify() {
         let wolfcrypt_default_provider = rustls_wolfcrypt_provider::default_provider();
 
@@ -572,15 +578,23 @@ mod tests {
             .collect();
 
         test_cases.par_iter().for_each(|&(scheme, key_size)| {
-            generate_and_test_rsa_pkcs8_key(&wolfcrypt_default_provider, scheme, key_size).expect(
-                &format!("Failed for scheme {:?} with key size {}", scheme, key_size),
-            );
+            generate_and_test_rsa_pkcs8_key(&wolfcrypt_default_provider, scheme, key_size)
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "Failed for scheme {:?} with key size {}, {:?}",
+                        scheme, key_size, e
+                    )
+                });
         });
 
         test_cases.par_iter().for_each(|&(scheme, key_size)| {
-            generate_and_test_rsa_pkcs1_key(&wolfcrypt_default_provider, scheme, key_size).expect(
-                &format!("Failed for scheme {:?} with key size {}", scheme, key_size),
-            );
+            generate_and_test_rsa_pkcs1_key(&wolfcrypt_default_provider, scheme, key_size)
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "Failed for scheme {:?} with key size {}, {:?}",
+                        scheme, key_size, e
+                    )
+                });
         });
     }
 
@@ -601,7 +615,11 @@ mod tests {
         let rng_object = WCRngObject::new(&mut rng_c_type);
         rng_object.init().unwrap();
 
-        unsafe { wc_RsaSetRNG(rsa_key_object.as_ptr(), rng_object.as_ptr()) };
+        // FIPS v5.2.3 does not export wc_RsaSetRNG().
+        #[cfg(not(fips_v5_2_3))]
+        unsafe {
+            wc_RsaSetRNG(rsa_key_object.as_ptr(), rng_object.as_ptr())
+        };
 
         let ret = unsafe {
             wc_MakeRsaKey(
@@ -661,15 +679,23 @@ mod tests {
         .collect();
 
         test_cases.par_iter().for_each(|&(scheme, key_size)| {
-            generate_and_test_rsa_pkcs1_key(&wolfcrypt_default_provider, scheme, key_size).expect(
-                &format!("Failed for scheme {:?} with key size {}", scheme, key_size),
-            );
+            generate_and_test_rsa_pkcs1_key(&wolfcrypt_default_provider, scheme, key_size)
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "Failed for scheme {:?} with key size {}, {:?}",
+                        scheme, key_size, e
+                    )
+                });
         });
 
         test_cases.par_iter().for_each(|&(scheme, key_size)| {
-            generate_and_test_rsa_pkcs8_key(&wolfcrypt_default_provider, scheme, key_size).expect(
-                &format!("Failed for scheme {:?} with key size {}", scheme, key_size),
-            );
+            generate_and_test_rsa_pkcs8_key(&wolfcrypt_default_provider, scheme, key_size)
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "Failed for scheme {:?} with key size {}, {:?}",
+                        scheme, key_size, e
+                    )
+                });
         });
     }
 
@@ -701,7 +727,11 @@ mod tests {
         let rng_object = WCRngObject::new(&mut rng_c_type);
         rng_object.init().unwrap();
 
-        unsafe { wc_RsaSetRNG(rsa_key_object.as_ptr(), rng_object.as_ptr()) };
+        // FIPS v5.2.3 does not export wc_RsaSetRNG().
+        #[cfg(not(fips_v5_2_3))]
+        unsafe {
+            wc_RsaSetRNG(rsa_key_object.as_ptr(), rng_object.as_ptr())
+        };
 
         ret = unsafe {
             wc_MakeRsaKey(

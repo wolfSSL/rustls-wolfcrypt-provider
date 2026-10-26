@@ -4,6 +4,7 @@ use rustls::SignatureScheme;
 use wolfssl_wolfcrypt::sha::{SHA256, SHA384, SHA512};
 
 mod ecdsa;
+#[cfg(not(fips_v5_2_3))]
 pub mod eddsa;
 mod rsapkcs1;
 mod rsapss;
@@ -61,6 +62,7 @@ pub static ALGORITHMS: WebPkiSupportedAlgorithms = WebPkiSupportedAlgorithms {
         ECDSA_P256_SHA256,
         ECDSA_P384_SHA384,
         ECDSA_P521_SHA512,
+        #[cfg(not(fips_v5_2_3))]
         ED25519,
     ],
     mapping: &[
@@ -73,6 +75,7 @@ pub static ALGORITHMS: WebPkiSupportedAlgorithms = WebPkiSupportedAlgorithms {
         (SignatureScheme::ECDSA_NISTP256_SHA256, &[ECDSA_P256_SHA256]),
         (SignatureScheme::ECDSA_NISTP384_SHA384, &[ECDSA_P384_SHA384]),
         (SignatureScheme::ECDSA_NISTP521_SHA512, &[ECDSA_P521_SHA512]),
+        #[cfg(not(fips_v5_2_3))]
         (SignatureScheme::ED25519, &[ED25519]),
     ],
 };
@@ -86,4 +89,5 @@ static RSA_PKCS1_SHA512: &dyn SignatureVerificationAlgorithm = &rsapkcs1::RsaPkc
 static ECDSA_P256_SHA256: &dyn SignatureVerificationAlgorithm = &ecdsa::EcdsaVerifier::P256_SHA256;
 static ECDSA_P384_SHA384: &dyn SignatureVerificationAlgorithm = &ecdsa::EcdsaVerifier::P384_SHA384;
 static ECDSA_P521_SHA512: &dyn SignatureVerificationAlgorithm = &ecdsa::EcdsaVerifier::P521_SHA512;
+#[cfg(not(fips_v5_2_3))]
 static ED25519: &dyn SignatureVerificationAlgorithm = &eddsa::Ed25519;
