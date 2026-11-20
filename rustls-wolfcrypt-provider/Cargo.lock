@@ -1067,8 +1067,8 @@ checksum = "d7249219f66ced02969388cf2bb044a09756a083d0fab1e566056b04d9fbcaa5"
 
 [[package]]
 name = "wolfssl-wolfcrypt"
-version = "2.2.0"
-source = "git+https://github.com/wolfSSL/wolfssl#bc9c0790253382e73198689dbef57b5c5c4792a5"
+version = "3.0.0"
+source = "git+https://github.com/wolfSSL/wolfssl#8d89da41ccda883fd93e41931dd1f34f9a8ee2e5"
 dependencies = [
  "aead",
  "bindgen",
